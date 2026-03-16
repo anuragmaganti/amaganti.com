@@ -1,3 +1,0 @@
-module.exports=[33290,a=>{"use strict";var b=a.i(7997);let c={title:"amaganti.com",description:"A scroll-driven portfolio exploring cinematic interaction design, spatial systems, and product thinking.",metadataBase:new URL("https://example.com")};function d({children:a}){return(0,b.jsx)("html",{lang:"en",children:(0,b.jsx)("body",{children:a})})}a.s(["default",()=>d,"metadata",0,c])}];
-
-//# sourceMappingURL=app_layout_tsx_271801d7._.js.map
