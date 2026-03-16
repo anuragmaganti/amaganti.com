@@ -9,6 +9,10 @@ export const metadata: Metadata = {
   description:
     "A scroll-driven portfolio exploring cinematic interaction design, spatial systems, and product thinking.",
   metadataBase: new URL("https://example.com"),
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+  },
 };
 
 export default function RootLayout({

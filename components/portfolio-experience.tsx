@@ -157,10 +157,13 @@ function ProjectCardSection({
   const cardShadow = useMotionTemplate`0 30px 90px rgba(0, 0, 0, 0.52), 0 0 48px rgba(255, 255, 255, ${glowAlpha})`;
   const imageOverlay = useMotionTemplate`linear-gradient(180deg, rgba(4, 4, 4, 0.02) 0%, rgba(4, 4, 4, ${overlayAlpha}) 100%)`;
   const titleId = `${project.slug}-title`;
-  const copyStyle = { paddingInline: "clamp(1.2rem, 1.8vw, 1.6rem)" };
+  const copyStyle = {
+    paddingLeft: "clamp(0.28rem, 0.55vw, 0.45rem)",
+    paddingRight: "clamp(0.9rem, 1.3vw, 1.1rem)",
+  };
   const titleStyle = {
     maxWidth: "100%",
-    fontSize: "clamp(2rem, 3vw, 3.3rem)",
+    fontSize: "clamp(1.78rem, 2.65vw, 2.9rem)",
     lineHeight: 0.96,
   };
 

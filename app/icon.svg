@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Point cloud head favicon">
+  <defs>
+    <clipPath id="bust-clip">
+      <path d="M128 16C98 16 76 31 65 55C56 75 53 99 56 124C59 151 69 176 84 194C91 203 95 213 95 223V232C73 235 50 242 30 256H226C206 242 183 235 161 232V223C161 213 165 203 172 194C187 176 197 151 200 124C203 99 200 75 191 55C180 31 158 16 128 16Z"/>
+    </clipPath>
+    <pattern id="dots-a" width="12" height="12" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.35" fill="#fff"/>
+      <circle cx="9" cy="4" r="1.2" fill="#fff" fill-opacity="0.9"/>
+      <circle cx="5.5" cy="9.2" r="1.1" fill="#fff" fill-opacity="0.86"/>
+    </pattern>
+    <pattern id="dots-b" width="14" height="14" patternUnits="userSpaceOnUse">
+      <circle cx="3" cy="5" r="0.95" fill="#fff" fill-opacity="0.8"/>
+      <circle cx="11" cy="2.5" r="1.05" fill="#fff" fill-opacity="0.84"/>
+      <circle cx="8" cy="11" r="0.9" fill="#fff" fill-opacity="0.72"/>
+    </pattern>
+    <pattern id="dots-c" width="18" height="18" patternUnits="userSpaceOnUse">
+      <circle cx="4" cy="4" r="0.8" fill="#fff" fill-opacity="0.66"/>
+      <circle cx="14" cy="7" r="0.92" fill="#fff" fill-opacity="0.74"/>
+      <circle cx="10" cy="14" r="0.78" fill="#fff" fill-opacity="0.58"/>
+    </pattern>
+  </defs>
+  <rect width="256" height="256" fill="#000"/>
+  <g clip-path="url(#bust-clip)">
+    <rect width="256" height="256" fill="url(#dots-a)"/>
+    <rect width="256" height="256" fill="url(#dots-b)"/>
+    <rect width="256" height="256" fill="url(#dots-c)"/>
+  </g>
+</svg>
