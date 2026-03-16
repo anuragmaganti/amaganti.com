@@ -85,7 +85,7 @@ export const projects: ProjectEntry[] = [
       "Performance-aware React patterns for stable gesture input",
     ],
     tags: ["React", "MediaPipe", "HTML Canvas", "WebRTC"],
-    imageSrc: "/projects/prism.svg",
+    imageSrc: "/projects/webcamsign-black.svg",
     imageAlt:
       "Placeholder visual for WebcamSign until a final product screenshot is added.",
     imageWidth: 1600,
