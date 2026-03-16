@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"sources":["file:///Users/anu/portfolio/personal-website/app/layout.tsx"],"sourcesContent":["import type { Metadata } from \"next\";\n\nimport \"@fontsource/montserrat\";\n\nimport \"./globals.css\";\n\nexport const metadata: Metadata = {\n  title: \"amaganti.com\",\n  description:\n    \"A scroll-driven portfolio exploring cinematic interaction design, spatial systems, and product thinking.\",\n  metadataBase: new URL(\"https://example.com\"),\n};\n\nexport default function RootLayout({\n  children,\n}: Readonly<{\n  children: React.ReactNode;\n}>) {\n  return (\n    <html lang=\"en\">\n      <body>{children}</body>\n    </html>\n  );\n}\n"],"names":[],"mappings":";;;;;;;;;;AAMO,MAAM,WAAqB;IAChC,OAAO;IACP,aACE;IACF,cAAc,IAAI,IAAI;AACxB;AAEe,SAAS,WAAW,EACjC,QAAQ,EAGR;IACA,qBACE,8OAAC;QAAK,MAAK;kBACT,cAAA,8OAAC;sBAAM;;;;;;;;;;;AAGb"}},
+    {"offset": {"line": 39, "column": 0}, "map": {"version":3,"sources":["file:///Users/anu/portfolio/personal-website/node_modules/next/src/server/route-modules/app-page/vendored/rsc/react-jsx-dev-runtime.ts"],"sourcesContent":["module.exports = (\n  require('../../module.compiled') as typeof import('../../module.compiled')\n).vendored['react-rsc']!.ReactJsxDevRuntime\n"],"names":["module","exports","require","vendored","ReactJsxDevRuntime"],"mappings":"AAAAA,OAAOC,OAAO,GACZC,QAAQ,4HACRC,QAAQ,CAAC,YAAY,CAAEC,kBAAkB","ignoreList":[0]}}]
+}

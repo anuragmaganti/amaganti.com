@@ -1,0 +1,25 @@
+<svg width="1600" height="1200" viewBox="0 0 1600 1200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="1200" fill="#050505"/>
+  <g opacity="0.14">
+    <circle cx="288" cy="226" r="224" stroke="white"/>
+    <circle cx="1286" cy="980" r="290" stroke="white"/>
+    <circle cx="1164" cy="166" r="138" stroke="white"/>
+  </g>
+  <rect x="132" y="116" width="1336" height="968" rx="40" fill="#0B0B0B" stroke="white" stroke-opacity="0.18"/>
+  <rect x="216" y="212" width="1168" height="96" rx="24" fill="#101010" stroke="white" stroke-opacity="0.14"/>
+  <rect x="216" y="352" width="356" height="520" rx="24" fill="#0E0E0E" stroke="white" stroke-opacity="0.12"/>
+  <rect x="610" y="352" width="774" height="520" rx="24" fill="#090909" stroke="white" stroke-opacity="0.12"/>
+  <path d="M672 744L758 632L838 666L924 488L1000 564L1094 420L1186 480L1282 322" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M672 790L758 730L838 736L924 658L1000 682L1094 628L1186 640L1282 556" stroke="white" stroke-width="3" stroke-dasharray="10 14"/>
+  <g fill="white">
+    <circle cx="758" cy="632" r="10"/>
+    <circle cx="924" cy="488" r="12"/>
+    <circle cx="1094" cy="420" r="10"/>
+    <circle cx="1282" cy="322" r="14"/>
+  </g>
+  <text x="222" y="188" fill="white" font-family="Montserrat, sans-serif" font-size="34" letter-spacing="0.26em">RELAY</text>
+  <text x="252" y="462" fill="white" font-family="Montserrat, sans-serif" font-size="34" letter-spacing="0.18em">LIVE STATUS</text>
+  <text x="252" y="530" fill="white" font-family="Montserrat, sans-serif" font-size="118" font-weight="700" letter-spacing="-0.06em">94.2%</text>
+  <text x="672" y="462" fill="white" font-family="Montserrat, sans-serif" font-size="92" font-weight="700" letter-spacing="-0.05em">Operational view</text>
+  <text x="672" y="540" fill="white" fill-opacity="0.7" font-family="Montserrat, sans-serif" font-size="34">alert replay / fleet health / operator response</text>
+</svg>
