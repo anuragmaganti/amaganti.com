@@ -238,7 +238,6 @@ export function createMorphTargets(
 
   const targets: Partial<Record<PointCloudTargetId, Float32Array>> = {
     face: basePositions,
-    text: ribbon,
     orbital,
     ribbon,
     helix,

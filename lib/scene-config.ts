@@ -33,7 +33,9 @@ export type PointCloudTextTarget = {
   haloRadius: number;
 };
 
-export type PointCloudTargetId = PointCloudShape | PointCloudTextTargetId;
+export type PointCloudTargetId =
+  | Exclude<PointCloudShape, "text">
+  | PointCloudTextTargetId;
 
 export type ScenePhase = {
   key: SectionKey;
