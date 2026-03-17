@@ -129,7 +129,7 @@ export const SCENE_PHASES: ScenePhase[] = [
   },
   {
     key: "hero",
-    range: [0.205, 0.255],
+    range: [0.205, 0.308],
     camera: {
       position: [0.02, 0.04, 4.24],
       target: [0.01, 0.03, 0],
@@ -149,26 +149,27 @@ export const SCENE_PHASES: ScenePhase[] = [
   },
   {
     key: "reveal",
-    range: [0.255, 0.335],
+    range: [0.308, 0.386],
     camera: {
-      position: [0.02, 0.05, 4.56],
-      target: [0, 0.03, 0],
-      fov: 35,
+      position: [0.02, 0.04, 4.38],
+      target: [0.01, 0.03, 0],
+      fov: 31,
     },
     cloud: {
-      shape: "ribbon",
-      position: [0, 0.04, -0.08],
-      rotation: [0.03, -0.12, -0.02],
-      scale: 1.56,
-      pointSize: 0.0162,
-      noise: 0.036,
-      intensity: 0.34,
-      opacity: 0.52,
+      shape: "text",
+      textTargetId: "projects",
+      position: [0.03, 0.04, 0],
+      rotation: [0, 0.03, 0],
+      scale: 1.01,
+      pointSize: 0.0169,
+      noise: 0.024,
+      intensity: 0.24,
+      opacity: 0.98,
     },
   },
   {
     key: "project-1",
-    range: [0.335, 0.5],
+    range: [0.386, 0.56],
     camera: {
       position: [0.02, 0.02, 4.62],
       target: [0, 0.03, 0],
@@ -187,7 +188,7 @@ export const SCENE_PHASES: ScenePhase[] = [
   },
   {
     key: "project-2",
-    range: [0.5, 0.66],
+    range: [0.56, 0.705],
     camera: {
       position: [0.01, 0.04, 4.58],
       target: [0, 0.02, 0],
@@ -206,7 +207,7 @@ export const SCENE_PHASES: ScenePhase[] = [
   },
   {
     key: "project-3",
-    range: [0.66, 0.82],
+    range: [0.705, 0.84],
     camera: {
       position: [0.02, 0.08, 4.52],
       target: [0, 0.04, 0],
@@ -225,7 +226,7 @@ export const SCENE_PHASES: ScenePhase[] = [
   },
   {
     key: "about",
-    range: [0.82, 0.92],
+    range: [0.84, 0.955],
     camera: {
       position: [0.08, 0, 4.24],
       target: [-0.04, 0.03, 0],
@@ -244,7 +245,7 @@ export const SCENE_PHASES: ScenePhase[] = [
   },
   {
     key: "contact",
-    range: [0.92, 1],
+    range: [0.955, 1],
     camera: {
       position: [0, 0.02, 4.62],
       target: [0, 0.02, 0],
