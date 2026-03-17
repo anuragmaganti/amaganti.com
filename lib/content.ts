@@ -78,7 +78,7 @@ export const projects: ProjectEntry[] = [
     slug: "project-03",
     title: "WebcamSign.com",
     summary:
-      "WebcamSign is a React web app that uses MediaPipe hand tracking and webcam input to turn pinch gestures into a real-time signature pad.",
+      "WebcamSign is a React web app that uses Google's MediaPipe hand tracking ML model and webcam input to turn pinch gestures into a real-time signature pad.",
     description: [
       "A thumb-to-index pinch acts as pen down and pen up, letting users draw signatures in the air without touching the screen. Built for smooth performance, it uses requestAnimationFrame, ref-based gesture state, flicker-reducing thresholds, and a canvas synced to the video feed for clean output.",
     ],
@@ -88,11 +88,11 @@ export const projects: ProjectEntry[] = [
       "Performance-aware React patterns for stable gesture input",
     ],
     tags: ["React", "MediaPipe", "HTML Canvas", "WebRTC"],
-    imageSrc: "/projects/webcamsign-black.svg",
+    imageSrc: "/projects/webcamsign.png",
     imageAlt:
-      "Placeholder visual for WebcamSign until a final product screenshot is added.",
-    imageWidth: 1600,
-    imageHeight: 1200,
+      "WebcamSign interface showing a signature canvas, step-by-step signing instructions, live preview, camera controls, and SVG export actions.",
+    imageWidth: 3180,
+    imageHeight: 2628,
     href: "https://webcamsign.com",
     linkLabel: "VIEW WEBSITE",
     githubHref: "https://github.com/anuragmaganti/signature-webcam-draw",
