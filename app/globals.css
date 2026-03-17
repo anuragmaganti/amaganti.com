@@ -440,6 +440,8 @@ select {
 .project-card__actions {
   display: flex;
   justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 0.7rem;
 }
 
 @media (max-width: 1400px) {

@@ -235,6 +235,14 @@ function ProjectCardSection({
               >
                 {project.linkLabel}
               </a>
+              <a
+                className="cta-link"
+                href={project.githubHref}
+                target="_blank"
+                rel="noreferrer"
+              >
+                View GitHub
+              </a>
             </div>
           </div>
         </motion.article>

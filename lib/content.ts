@@ -11,6 +11,7 @@ export type ProjectEntry = {
   imageHeight: number;
   href: string;
   linkLabel: string;
+  githubHref: string;
 };
 
 export const projects: ProjectEntry[] = [
@@ -46,6 +47,7 @@ export const projects: ProjectEntry[] = [
     imageHeight: 2364,
     href: "https://text2speech.dev",
     linkLabel: "View Website",
+    githubHref: "https://github.com/anuragmaganti/text-to-speech",
   },
   {
     slug: "project-02",
@@ -70,6 +72,7 @@ export const projects: ProjectEntry[] = [
     imageHeight: 2364,
     href: "https://resumeloomr.com/",
     linkLabel: "View Website",
+    githubHref: "https://github.com/anuragmaganti/ResumeLoomr",
   },
   {
     slug: "project-03",
@@ -92,5 +95,6 @@ export const projects: ProjectEntry[] = [
     imageHeight: 1200,
     href: "https://webcamsign.com",
     linkLabel: "VIEW WEBSITE",
+    githubHref: "https://github.com/anuragmaganti/signature-webcam-draw",
   },
 ];
