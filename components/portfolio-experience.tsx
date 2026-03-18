@@ -14,7 +14,12 @@ import {
 } from "motion/react";
 import { type Ref, useEffect, useRef, useState } from "react";
 
-import { projectsBySlug, type ProjectEntry } from "@/lib/content";
+import {
+  contentSectionsById,
+  type ContentSectionEntry,
+  projectsBySlug,
+  type ProjectEntry,
+} from "@/lib/content";
 import {
   PORTFOLIO_SECTIONS,
   getSectionProgressPoint,
@@ -47,9 +52,9 @@ const INTRO_COPY_SCROLL_STOPS = [
 ];
 const INTRO_BACKDROP_SCROLL_STOPS = [
   getSectionProgressPoint("intro", 0),
-  getSectionProgressPoint("projects-stage", 5 / 118),
-  getSectionProgressPoint("projects-stage", 65 / 118),
-  getSectionProgressPoint("projects-stage", 95 / 118),
+  getSectionProgressPoint("about-stage", 0.08),
+  getSectionProgressPoint("about-stage", 0.58),
+  getSectionProgressPoint("about-stage", 0.92),
 ];
 
 export function PortfolioExperience() {
@@ -120,6 +125,11 @@ function PortfolioSectionRenderer({
   switch (section.kind) {
     case "intro":
       return <IntroSection progress={progress} section={section} />;
+    case "content-stage": {
+      const content = section.contentId ? contentSectionsById[section.contentId] : null;
+
+      return <ParticleContentSection section={section} content={content ?? undefined} />;
+    }
     case "particle-text":
     case "spacer":
     case "outro":
@@ -142,6 +152,43 @@ function SceneStageSection({ section }: { section: SectionDefinition }) {
     >
       <div className="section-sticky section-sticky--center">
         <div className="transform-stage" />
+      </div>
+    </section>
+  );
+}
+
+function ParticleContentSection({
+  section,
+  content,
+}: {
+  section: SectionDefinition;
+  content?: ContentSectionEntry;
+}) {
+  const body = content?.body ?? [];
+
+  return (
+    <section
+      className={`scroll-section ${getScrollSectionClassName(section.domVariant)}`.trim()}
+      aria-label={section.ariaLabel ?? "Content section"}
+    >
+      <div className="section-sticky section-sticky--content">
+        <div className="particle-content-stage">
+          <div className="particle-content-stage__title-space" aria-hidden="true" />
+          <div className="particle-content-stage__body-shell">
+            <div
+              className={[
+                "particle-content-stage__body",
+                body.length === 0 ? "particle-content-stage__body--empty" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            >
+              {body.map((paragraph) => (
+                <p key={paragraph}>{paragraph}</p>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -696,6 +743,8 @@ function getScrollSectionClassName(domVariant: SectionDomVariant) {
       return "scroll-section--intro";
     case "transform":
       return "scroll-section--transform";
+    case "content":
+      return "scroll-section--content";
     case "project":
       return "scroll-section--project";
     case "outro":

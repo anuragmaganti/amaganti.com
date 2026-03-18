@@ -188,6 +188,10 @@ select {
   min-height: 0svh;
 }
 
+.scroll-section--content {
+  min-height: 148svh;
+}
+
 .scroll-section--project {
   min-height: 100svh;
   scroll-snap-align: start;
@@ -212,6 +216,16 @@ select {
 
 .section-sticky--center {
   justify-content: center;
+}
+
+.section-sticky--content {
+  top: 0;
+  width: calc(100vw - (var(--frame-padding) * 2));
+  max-width: none;
+  min-height: 100svh;
+  align-items: stretch;
+  justify-content: center;
+  padding: clamp(1rem, 2.2vh, 1.4rem) 0 clamp(1.5rem, 4vh, 2.8rem);
 }
 
 .section-sticky--project {
@@ -317,6 +331,46 @@ select {
 .transform-stage {
   width: 100%;
   min-height: calc(100svh - (var(--section-top) * 0.7));
+}
+
+.particle-content-stage {
+  width: min(100%, 70rem);
+  min-height: calc(100svh - clamp(2.5rem, 5vh, 4.5rem));
+  display: grid;
+  grid-template-rows: clamp(8rem, 18vh, 11.5rem) minmax(0, 1fr);
+  align-items: start;
+}
+
+.particle-content-stage__title-space {
+  width: 100%;
+}
+
+.particle-content-stage__body-shell {
+  width: min(100%, 46rem);
+  justify-self: center;
+  align-self: stretch;
+  padding: clamp(0.5rem, 1.2vw, 0.9rem) 0;
+}
+
+.particle-content-stage__body {
+  width: min(100%, 40rem);
+  margin: 0 auto;
+  min-height: clamp(14rem, 34vh, 22rem);
+}
+
+.particle-content-stage__body--empty {
+  min-height: clamp(14rem, 34vh, 22rem);
+}
+
+.particle-content-stage__body p {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: clamp(1rem, 1.6vw, 1.16rem);
+  line-height: 1.65;
+}
+
+.particle-content-stage__body p + p {
+  margin-top: 1rem;
 }
 
 .project-card {
@@ -783,12 +837,17 @@ select {
   .scroll-section,
   .scroll-section--intro,
   .scroll-section--transform,
+  .scroll-section--content,
   .scroll-section--project {
     min-height: 126svh;
   }
 
   .scroll-section--transform {
     min-height: 102svh;
+  }
+
+  .scroll-section--content {
+    min-height: 136svh;
   }
 
   .scroll-section--project {
@@ -807,6 +866,11 @@ select {
 
   .section-sticky--intro {
     align-items: center;
+  }
+
+  .section-sticky--content {
+    padding-top: clamp(0.85rem, 2vh, 1.2rem);
+    padding-bottom: clamp(1.35rem, 3vh, 2rem);
   }
 
   .section-sticky--project {
@@ -908,6 +972,20 @@ select {
     font-size: 1rem;
   }
 
+  .particle-content-stage {
+    width: min(100%, 44rem);
+    grid-template-rows: clamp(6.5rem, 16vh, 9rem) minmax(0, 1fr);
+  }
+
+  .particle-content-stage__body-shell {
+    width: min(100%, 34rem);
+  }
+
+  .particle-content-stage__body {
+    width: min(100%, 32rem);
+    min-height: clamp(12rem, 28vh, 18rem);
+  }
+
   .project-card h2 {
     max-width: 10ch;
     font-size: clamp(2.3rem, 8vw, 3.6rem);
@@ -938,8 +1016,17 @@ select {
     min-height: 100svh;
   }
 
+  .scroll-section--content {
+    min-height: 126svh;
+  }
+
   .section-sticky--project {
     padding-inline: var(--project-frame-gap);
+  }
+
+  .section-sticky--content {
+    padding-top: 0.8rem;
+    padding-bottom: 1.2rem;
   }
 
   .panel {
@@ -999,6 +1086,20 @@ select {
 
   .intro-subtitle {
     font-size: clamp(1.1rem, 5vw, 1.45rem);
+  }
+
+  .particle-content-stage {
+    width: min(100%, 24rem);
+    grid-template-rows: clamp(5.25rem, 13vh, 7rem) minmax(0, 1fr);
+  }
+
+  .particle-content-stage__body-shell,
+  .particle-content-stage__body {
+    width: min(100%, 22rem);
+  }
+
+  .particle-content-stage__body {
+    min-height: clamp(10rem, 24vh, 14rem);
   }
 
   .project-card h2 {

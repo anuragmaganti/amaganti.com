@@ -1,9 +1,16 @@
-import type { ProjectSlug } from "@/lib/content";
+import type { ContentSectionId, ProjectSlug } from "@/lib/content";
 
-export type SectionId = "intro" | "projects-stage" | ProjectSlug | "outro";
+export type SectionId =
+  | "intro"
+  | "about-stage"
+  | "projects-stage"
+  | ProjectSlug
+  | "outro";
 
 export type SceneBeatKey =
   | "intro"
+  | "about-transform"
+  | "about-title"
   | "transform"
   | "hero"
   | "reveal"
@@ -13,8 +20,19 @@ export type SceneBeatKey =
   | "about"
   | "contact";
 
-export type SectionKind = "intro" | "particle-text" | "card" | "spacer" | "outro";
-export type SectionDomVariant = "intro" | "transform" | "project" | "outro";
+export type SectionKind =
+  | "intro"
+  | "particle-text"
+  | "content-stage"
+  | "card"
+  | "spacer"
+  | "outro";
+export type SectionDomVariant =
+  | "intro"
+  | "transform"
+  | "content"
+  | "project"
+  | "outro";
 
 export type PointCloudShape =
   | "face"
@@ -25,7 +43,7 @@ export type PointCloudShape =
   | "project-field-3"
   | "settle";
 
-export type PointCloudTextTargetId = "projects";
+export type PointCloudTextTargetId = "projects" | "about-me";
 
 export type PointCloudTextTarget = {
   id: PointCloudTextTargetId;
@@ -69,6 +87,8 @@ type ScenePreset = {
 
 export type ScenePresetId =
   | "intro-face"
+  | "about-transform"
+  | "about-title"
   | "projects-transform"
   | "projects-hero"
   | "projects-reveal"
@@ -91,6 +111,7 @@ export type SectionDefinition = {
   domVariant: SectionDomVariant;
   ariaLabel?: string;
   projectSlug?: ProjectSlug;
+  contentId?: ContentSectionId;
   sceneBeats: SceneBeatDefinition[];
 };
 
@@ -108,6 +129,18 @@ export const POINT_CLOUD_TEXT_TARGETS: Record<
   PointCloudTextTargetId,
   PointCloudTextTarget
 > = {
+  "about-me": {
+    id: "about-me",
+    label: "About Me",
+    fontFamily: "Montserrat",
+    fontWeight: 700,
+    fillDensity: 0.82,
+    haloDensity: 0.12,
+    width: 1.84,
+    height: 0.46,
+    depth: 0.1,
+    haloRadius: 0.11,
+  },
   projects: {
     id: "projects",
     label: "Projects",
@@ -144,6 +177,42 @@ export const SCENE_PRESETS: Record<ScenePresetId, ScenePreset> = {
       scale: 1.14,
       pointSize: 0.0185,
       noise: 0.03,
+      intensity: 0.22,
+      opacity: 0.98,
+    },
+  },
+  "about-transform": {
+    camera: {
+      position: [0, 0.48, 4.5],
+      target: [0, 1.06, 0],
+      fov: 30,
+    },
+    cloud: {
+      shape: "text",
+      textTargetId: "about-me",
+      position: [0, 1.18, 0],
+      rotation: [0.01, 0.04, 0],
+      scale: 1.02,
+      pointSize: 0.0158,
+      noise: 0.038,
+      intensity: 0.28,
+      opacity: 0.97,
+    },
+  },
+  "about-title": {
+    camera: {
+      position: [0, 0.52, 4.46],
+      target: [0, 1.14, 0],
+      fov: 29,
+    },
+    cloud: {
+      shape: "text",
+      textTargetId: "about-me",
+      position: [0, 1.26, 0],
+      rotation: [0, 0.03, 0],
+      scale: 1,
+      pointSize: 0.0154,
+      noise: 0.022,
       intensity: 0.22,
       opacity: 0.98,
     },
@@ -301,6 +370,26 @@ export const PORTFOLIO_SECTIONS: SectionDefinition[] = [
         key: "intro",
         presetId: "intro-face",
         durationWeight: 1,
+      },
+    ],
+  },
+  {
+    id: "about-stage",
+    kind: "content-stage",
+    domVariant: "content",
+    ariaLabel: "About me",
+    contentId: "about-me",
+    durationWeight: 156,
+    sceneBeats: [
+      {
+        key: "about-transform",
+        presetId: "about-transform",
+        durationWeight: 44,
+      },
+      {
+        key: "about-title",
+        presetId: "about-title",
+        durationWeight: 112,
       },
     ],
   },

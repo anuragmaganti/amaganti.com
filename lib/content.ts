@@ -1,4 +1,5 @@
 export type ProjectSlug = "project-01" | "project-02" | "project-03";
+export type ContentSectionId = "about-me";
 
 export type ProjectEntry = {
   slug: ProjectSlug;
@@ -14,6 +15,11 @@ export type ProjectEntry = {
   href: string;
   linkLabel: string;
   githubHref: string;
+};
+
+export type ContentSectionEntry = {
+  id: ContentSectionId;
+  body: string[];
 };
 
 export const projects: ProjectEntry[] = [
@@ -104,3 +110,14 @@ export const projects: ProjectEntry[] = [
 export const projectsBySlug = Object.fromEntries(
   projects.map((project) => [project.slug, project]),
 ) as Record<ProjectSlug, ProjectEntry>;
+
+export const contentSections: ContentSectionEntry[] = [
+  {
+    id: "about-me",
+    body: [],
+  },
+];
+
+export const contentSectionsById = Object.fromEntries(
+  contentSections.map((section) => [section.id, section]),
+) as Record<ContentSectionId, ContentSectionEntry>;
