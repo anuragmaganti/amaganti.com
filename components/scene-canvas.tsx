@@ -27,6 +27,11 @@ import {
   orientImportedPositions,
   samplePositions,
 } from "@/lib/point-cloud";
+import {
+  getProjectCardExclusionSnapshot,
+  subscribeProjectCardExclusion,
+  type ProjectCardExclusionRect,
+} from "@/lib/project-card-exclusion-store";
 
 const POINTER_SMOOTHING = 14;
 const POINTER_PRESENCE_SMOOTHING = 10;
@@ -34,6 +39,12 @@ const MOUSE_REPULSION_RADIUS = 0.34;
 const MOUSE_REPULSION_RADIUS_SQ = MOUSE_REPULSION_RADIUS * MOUSE_REPULSION_RADIUS;
 const MOUSE_REPULSION_DISPLACEMENT = 0.14;
 const MOUSE_REPULSION_DEPTH_BOOST = 1.14;
+const CARD_EXCLUSION_SMOOTHING = 10;
+const CARD_EXCLUSION_SOFT_PAD = 0.18;
+const CARD_EXCLUSION_SOFT_STRENGTH = 0.12;
+const CARD_EXCLUSION_HARD_STRENGTH = 1.08;
+const CARD_EXCLUSION_OVERSHOOT = 0.1;
+const CARD_EXCLUSION_DEPTH_FACTOR = 0.18;
 
 type SceneCanvasProps = {
   progress: MotionValue<number>;
@@ -162,6 +173,22 @@ function PointCloudSystem({
   const cloudWorldPosition = useMemo(() => new THREE.Vector3(), []);
   const worldInteractionPoint = useMemo(() => new THREE.Vector3(), []);
   const localInteractionPoint = useMemo(() => new THREE.Vector3(), []);
+  const exclusionSnapshotRef = useRef<{
+    rect: ProjectCardExclusionRect;
+    strength: number;
+  } | null>(getProjectCardExclusionSnapshot());
+  const exclusionStrengthCurrent = useRef(0);
+  const localCardCenter = useMemo(() => new THREE.Vector3(), []);
+  const localCardLeftMid = useMemo(() => new THREE.Vector3(), []);
+  const localCardRightMid = useMemo(() => new THREE.Vector3(), []);
+  const localCardTopMid = useMemo(() => new THREE.Vector3(), []);
+  const localCardBottomMid = useMemo(() => new THREE.Vector3(), []);
+  const localCardRightAxis = useMemo(() => new THREE.Vector3(), []);
+  const localCardUpAxis = useMemo(() => new THREE.Vector3(), []);
+  const localCardPlaneNormal = useMemo(() => new THREE.Vector3(), []);
+  const localCardPoint = useMemo(() => new THREE.Vector3(), []);
+  const cardNdcPoint = useMemo(() => new THREE.Vector2(), []);
+  const localPointDelta = useMemo(() => new THREE.Vector3(), []);
 
   useEffect(() => {
     const unsubscribe = progress.on("change", () => {
@@ -178,6 +205,17 @@ function PointCloudSystem({
     geometry.attributes.position.needsUpdate = true;
     invalidate();
   }, [geometry, invalidate, morphTargets, renderPositions]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeProjectCardExclusion(() => {
+      exclusionSnapshotRef.current = getProjectCardExclusionSnapshot();
+      invalidate();
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [invalidate]);
 
   useEffect(() => {
     if (reducedMotion || !window.matchMedia("(pointer: fine)").matches) {
@@ -270,9 +308,117 @@ function PointCloudSystem({
     perspectiveCamera.updateMatrixWorld();
 
     cloud.updateMatrixWorld();
+    cloud.getWorldPosition(cloudWorldPosition);
+    interactionPlaneNormal
+      .copy(perspectiveCamera.position)
+      .sub(cloudWorldPosition)
+      .normalize();
+    interactionPlane.setFromNormalAndCoplanarPoint(
+      interactionPlaneNormal,
+      cloudWorldPosition,
+    );
 
     let hasInteractionPoint = false;
     let interactionStrength = 0;
+    const cardExclusionPhaseWeight = getCardExclusionWeight(
+      phaseState.current.cloud.shape,
+      phaseState.next.cloud.shape,
+      blend,
+    );
+    const exclusionSnapshot = exclusionSnapshotRef.current;
+    const exclusionTargetStrength =
+      exclusionSnapshot && cardExclusionPhaseWeight > 0.001
+        ? exclusionSnapshot.strength * cardExclusionPhaseWeight
+        : 0;
+    const exclusionLerp = 1 - Math.exp(-delta * CARD_EXCLUSION_SMOOTHING);
+    exclusionStrengthCurrent.current = lerp(
+      exclusionStrengthCurrent.current,
+      exclusionTargetStrength,
+      exclusionLerp,
+    );
+
+    let hasCardExclusion = false;
+    let cardHalfWidth = 0;
+    let cardHalfHeight = 0;
+
+    if (exclusionSnapshot && exclusionStrengthCurrent.current > 0.001) {
+      if (
+        projectScreenPointToLocal(
+          exclusionSnapshot.rect.left + exclusionSnapshot.rect.width * 0.5,
+          exclusionSnapshot.rect.top + exclusionSnapshot.rect.height * 0.5,
+          perspectiveCamera,
+          raycaster,
+          interactionPlane,
+          cardNdcPoint,
+          worldInteractionPoint,
+          localCardCenter,
+          cloud,
+        ) &&
+        projectScreenPointToLocal(
+          exclusionSnapshot.rect.left,
+          exclusionSnapshot.rect.top + exclusionSnapshot.rect.height * 0.5,
+          perspectiveCamera,
+          raycaster,
+          interactionPlane,
+          cardNdcPoint,
+          worldInteractionPoint,
+          localCardLeftMid,
+          cloud,
+        ) &&
+        projectScreenPointToLocal(
+          exclusionSnapshot.rect.right,
+          exclusionSnapshot.rect.top + exclusionSnapshot.rect.height * 0.5,
+          perspectiveCamera,
+          raycaster,
+          interactionPlane,
+          cardNdcPoint,
+          worldInteractionPoint,
+          localCardRightMid,
+          cloud,
+        ) &&
+        projectScreenPointToLocal(
+          exclusionSnapshot.rect.left + exclusionSnapshot.rect.width * 0.5,
+          exclusionSnapshot.rect.top,
+          perspectiveCamera,
+          raycaster,
+          interactionPlane,
+          cardNdcPoint,
+          worldInteractionPoint,
+          localCardTopMid,
+          cloud,
+        ) &&
+        projectScreenPointToLocal(
+          exclusionSnapshot.rect.left + exclusionSnapshot.rect.width * 0.5,
+          exclusionSnapshot.rect.bottom,
+          perspectiveCamera,
+          raycaster,
+          interactionPlane,
+          cardNdcPoint,
+          worldInteractionPoint,
+          localCardBottomMid,
+          cloud,
+        )
+      ) {
+        localCardRightAxis
+          .copy(localCardRightMid)
+          .sub(localCardLeftMid)
+          .normalize();
+        localCardUpAxis
+          .copy(localCardTopMid)
+          .sub(localCardBottomMid)
+          .normalize();
+        localCardPlaneNormal
+          .crossVectors(localCardRightAxis, localCardUpAxis)
+          .normalize();
+        localCardUpAxis
+          .crossVectors(localCardPlaneNormal, localCardRightAxis)
+          .normalize();
+
+        cardHalfWidth = localCardCenter.distanceTo(localCardRightMid);
+        cardHalfHeight = localCardCenter.distanceTo(localCardTopMid);
+        hasCardExclusion = cardHalfWidth > 0.001 && cardHalfHeight > 0.001;
+      }
+    }
 
     if (pointerPresenceCurrent.current > 0.001) {
       interactionStrength =
@@ -284,15 +430,6 @@ function PointCloudSystem({
         );
 
       if (interactionStrength > 0.001) {
-        cloud.getWorldPosition(cloudWorldPosition);
-        interactionPlaneNormal
-          .copy(perspectiveCamera.position)
-          .sub(cloudWorldPosition)
-          .normalize();
-        interactionPlane.setFromNormalAndCoplanarPoint(
-          interactionPlaneNormal,
-          cloudWorldPosition,
-        );
         pointerRayCurrent.set(pointerCurrent.x, -pointerCurrent.y);
         raycaster.setFromCamera(pointerRayCurrent, perspectiveCamera);
 
@@ -348,6 +485,85 @@ function PointCloudSystem({
         }
       }
 
+      if (hasCardExclusion) {
+        localPointDelta.set(
+          x - localCardCenter.x,
+          y - localCardCenter.y,
+          z - localCardCenter.z,
+        );
+        const planeX = localPointDelta.dot(localCardRightAxis);
+        const planeY = localPointDelta.dot(localCardUpAxis);
+        const absX = Math.abs(planeX);
+        const absY = Math.abs(planeY);
+        const softPadX = cardHalfWidth * CARD_EXCLUSION_SOFT_PAD + 0.045;
+        const softPadY = cardHalfHeight * CARD_EXCLUSION_SOFT_PAD + 0.045;
+        const softHalfWidth = cardHalfWidth + softPadX;
+        const softHalfHeight = cardHalfHeight + softPadY;
+
+        if (absX < softHalfWidth && absY < softHalfHeight) {
+          let pushX = 0;
+          let pushY = 0;
+          let pushMagnitude = 0;
+
+          if (absX < cardHalfWidth && absY < cardHalfHeight) {
+            const xToEdge = cardHalfWidth - absX;
+            const yToEdge = cardHalfHeight - absY;
+            const overshoot =
+              Math.min(cardHalfWidth, cardHalfHeight) * CARD_EXCLUSION_OVERSHOOT + 0.03;
+
+            if (xToEdge < yToEdge) {
+              pushX = planeX >= 0 ? 1 : -1;
+              pushMagnitude = (xToEdge + overshoot) * CARD_EXCLUSION_HARD_STRENGTH;
+            } else {
+              pushY = planeY >= 0 ? 1 : -1;
+              pushMagnitude = (yToEdge + overshoot) * CARD_EXCLUSION_HARD_STRENGTH;
+            }
+          } else {
+            const clampedX = clamp(planeX, -cardHalfWidth, cardHalfWidth);
+            const clampedY = clamp(planeY, -cardHalfHeight, cardHalfHeight);
+            const deltaX = planeX - clampedX;
+            const deltaY = planeY - clampedY;
+            const deltaLength = Math.hypot(deltaX, deltaY);
+
+            if (deltaLength > 0.0001) {
+              pushX = deltaX / deltaLength;
+              pushY = deltaY / deltaLength;
+            } else if (softHalfWidth - absX < softHalfHeight - absY) {
+              pushX = planeX >= 0 ? 1 : -1;
+            } else {
+              pushY = planeY >= 0 ? 1 : -1;
+            }
+
+            const softRadius = Math.max(softPadX, softPadY);
+            const falloff = 1 - clamp(deltaLength / Math.max(softRadius, 0.0001), 0, 1);
+            pushMagnitude = falloff * falloff * CARD_EXCLUSION_SOFT_STRENGTH;
+          }
+
+          pushMagnitude *= exclusionStrengthCurrent.current;
+
+          if (pushMagnitude > 0.0001) {
+            x +=
+              (localCardRightAxis.x * pushX + localCardUpAxis.x * pushY) * pushMagnitude +
+              localCardPlaneNormal.x *
+                pushMagnitude *
+                CARD_EXCLUSION_DEPTH_FACTOR *
+                exclusionStrengthCurrent.current;
+            y +=
+              (localCardRightAxis.y * pushX + localCardUpAxis.y * pushY) * pushMagnitude +
+              localCardPlaneNormal.y *
+                pushMagnitude *
+                CARD_EXCLUSION_DEPTH_FACTOR *
+                exclusionStrengthCurrent.current;
+            z +=
+              (localCardRightAxis.z * pushX + localCardUpAxis.z * pushY) * pushMagnitude +
+              localCardPlaneNormal.z *
+                pushMagnitude *
+                CARD_EXCLUSION_DEPTH_FACTOR *
+                exclusionStrengthCurrent.current;
+          }
+        }
+      }
+
       renderPositions[offset] = x;
       renderPositions[offset + 1] = y;
       renderPositions[offset + 2] = z;
@@ -357,7 +573,8 @@ function PointCloudSystem({
 
     if (
       pointerCurrent.distanceToSquared(pointerTarget) > 0.00004 ||
-      Math.abs(pointerPresenceCurrent.current - pointerPresenceTarget.current) > 0.00004
+      Math.abs(pointerPresenceCurrent.current - pointerPresenceTarget.current) > 0.00004 ||
+      Math.abs(exclusionStrengthCurrent.current - exclusionTargetStrength) > 0.00004
     ) {
       invalidate();
     }
@@ -612,6 +829,10 @@ function smoothstep(value: number) {
   return value * value * (3 - 2 * value);
 }
 
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
 function getFaceTrackingWeight(
   current: PointCloudShape,
   next: PointCloudShape,
@@ -620,6 +841,29 @@ function getFaceTrackingWeight(
   const currentWeight = current === "face" ? 1 : 0;
   const nextWeight = next === "face" ? 1 : 0;
   return lerp(currentWeight, nextWeight, mix);
+}
+
+function getCardExclusionShapeWeight(shape: PointCloudShape) {
+  switch (shape) {
+    case "project-field-1":
+    case "project-field-2":
+    case "project-field-3":
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+function getCardExclusionWeight(
+  current: PointCloudShape,
+  next: PointCloudShape,
+  mix: number,
+) {
+  return lerp(
+    getCardExclusionShapeWeight(current),
+    getCardExclusionShapeWeight(next),
+    mix,
+  );
 }
 
 function getMouseRepulsionShapeWeight(shape: PointCloudShape) {
@@ -658,6 +902,31 @@ function getMouseRepulsionWeight(
 function hash(index: number, seed: number) {
   const value = Math.sin(index * 12.9898 + seed * 78.233) * 43758.5453123;
   return value - Math.floor(value);
+}
+
+function projectScreenPointToLocal(
+  clientX: number,
+  clientY: number,
+  camera: THREE.PerspectiveCamera,
+  raycaster: THREE.Raycaster,
+  plane: THREE.Plane,
+  ndcPoint: THREE.Vector2,
+  worldPoint: THREE.Vector3,
+  localPoint: THREE.Vector3,
+  cloud: THREE.Points,
+) {
+  const viewportWidth = Math.max(window.innerWidth, 1);
+  const viewportHeight = Math.max(window.innerHeight, 1);
+  ndcPoint.set((clientX / viewportWidth) * 2 - 1, 1 - (clientY / viewportHeight) * 2);
+  raycaster.setFromCamera(ndcPoint, camera);
+
+  if (!raycaster.ray.intersectPlane(plane, worldPoint)) {
+    return false;
+  }
+
+  localPoint.copy(worldPoint);
+  cloud.worldToLocal(localPoint);
+  return true;
 }
 
 function resolveMorphTargetId(cloud: {

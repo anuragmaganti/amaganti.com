@@ -7,6 +7,7 @@ import {
   AnimatePresence,
   motion,
   useMotionTemplate,
+  useMotionValueEvent,
   useScroll,
   useSpring,
   useTransform,
@@ -20,6 +21,10 @@ import {
   type SectionDefinition,
   type SectionDomVariant,
 } from "@/lib/scene-config";
+import {
+  removeProjectCardExclusion,
+  upsertProjectCardExclusion,
+} from "@/lib/project-card-exclusion-store";
 
 const SceneCanvas = dynamic(
   () => import("@/components/scene-canvas").then((module) => module.SceneCanvas),
@@ -370,6 +375,7 @@ function ProjectCardSection({
   const [showStack, setShowStack] = useState(false);
   const [compactStack, setCompactStack] = useState(false);
   const sectionRef = useRef<HTMLElement>(null);
+  const cardRef = useRef<HTMLElement>(null);
   const { scrollYProgress } = useScroll({
     target: sectionRef,
     offset: ["start end", "end start"],
@@ -380,6 +386,18 @@ function ProjectCardSection({
       stiffness: 180,
       damping: 26,
       mass: 0.2,
+    },
+  );
+  const exclusionStrength = useSpring(
+    useTransform(
+      scrollYProgress,
+      project.slug === "project-03" ? [0.04, 0.28, 0.88, 1] : [0.04, 0.28, 0.76, 0.98],
+      [0, 1, 1, 0],
+    ),
+    {
+      stiffness: 150,
+      damping: 24,
+      mass: 0.24,
     },
   );
   const scale = useTransform(focus, [0, 1], [0.986, 1]);
@@ -423,6 +441,88 @@ function ProjectCardSection({
     };
   }, []);
 
+  useEffect(() => {
+    let frameId = 0;
+    let observer: ResizeObserver | null = null;
+
+    const syncExclusionRect = () => {
+      const card = cardRef.current;
+
+      if (!card) {
+        return;
+      }
+
+      const rect = card.getBoundingClientRect();
+
+      upsertProjectCardExclusion(project.slug, {
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        width: rect.width,
+        height: rect.height,
+      }, exclusionStrength.get());
+    };
+
+    const scheduleSync = () => {
+      window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(syncExclusionRect);
+    };
+
+    scheduleSync();
+    window.addEventListener("resize", scheduleSync, { passive: true });
+
+    if (cardRef.current) {
+      observer = new ResizeObserver(scheduleSync);
+      observer.observe(cardRef.current);
+    }
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener("resize", scheduleSync);
+      observer?.disconnect();
+      removeProjectCardExclusion(project.slug);
+    };
+  }, [exclusionStrength, project.slug]);
+
+  useMotionValueEvent(scrollYProgress, "change", () => {
+    const card = cardRef.current;
+
+    if (!card) {
+      return;
+    }
+
+    const rect = card.getBoundingClientRect();
+
+    upsertProjectCardExclusion(project.slug, {
+      left: rect.left,
+      top: rect.top,
+      right: rect.right,
+      bottom: rect.bottom,
+      width: rect.width,
+      height: rect.height,
+    }, exclusionStrength.get());
+  });
+
+  useMotionValueEvent(exclusionStrength, "change", (latest) => {
+    const card = cardRef.current;
+
+    if (!card) {
+      return;
+    }
+
+    const rect = card.getBoundingClientRect();
+
+    upsertProjectCardExclusion(project.slug, {
+      left: rect.left,
+      top: rect.top,
+      right: rect.right,
+      bottom: rect.bottom,
+      width: rect.width,
+      height: rect.height,
+    }, latest);
+  });
+
   return (
     <section
       ref={sectionRef}
@@ -431,6 +531,7 @@ function ProjectCardSection({
     >
       <div className="section-sticky section-sticky--project">
         <motion.article
+          ref={cardRef}
           className="panel project-card"
           style={{ scale, y, opacity, borderColor, boxShadow: cardShadow }}
         >
