@@ -13,10 +13,9 @@ export type PointCloudShape =
   | "face"
   | "text"
   | "orbital"
-  | "ribbon"
-  | "ribbonWide"
-  | "helix"
-  | "veil"
+  | "project-field-1"
+  | "project-field-2"
+  | "project-field-3"
   | "settle";
 
 export type PointCloudTextTargetId = "projects";
@@ -177,7 +176,7 @@ export const SCENE_PHASES: ScenePhase[] = [
       fov: 36,
     },
     cloud: {
-      shape: "ribbon",
+      shape: "project-field-1",
       position: [0, 0.03, -0.1],
       rotation: [-0.08, -0.42, 0.12],
       scale: 1.78,
@@ -196,7 +195,7 @@ export const SCENE_PHASES: ScenePhase[] = [
       fov: 36,
     },
     cloud: {
-      shape: "helix",
+      shape: "project-field-2",
       position: [0, 0.02, -0.1],
       rotation: [0.16, 0.2, -0.14],
       scale: 1.72,
@@ -215,7 +214,7 @@ export const SCENE_PHASES: ScenePhase[] = [
       fov: 35,
     },
     cloud: {
-      shape: "ribbonWide",
+      shape: "project-field-3",
       position: [0, 0.06, -0.08],
       rotation: [-0.08, 0.26, -0.04],
       scale: 1.74,
