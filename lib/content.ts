@@ -1,5 +1,7 @@
+export type ProjectSlug = "project-01" | "project-02" | "project-03";
+
 export type ProjectEntry = {
-  slug: string;
+  slug: ProjectSlug;
   title: string;
   summary: string;
   description: string[];
@@ -98,3 +100,7 @@ export const projects: ProjectEntry[] = [
     githubHref: "https://github.com/anuragmaganti/signature-webcam-draw",
   },
 ];
+
+export const projectsBySlug = Object.fromEntries(
+  projects.map((project) => [project.slug, project]),
+) as Record<ProjectSlug, ProjectEntry>;

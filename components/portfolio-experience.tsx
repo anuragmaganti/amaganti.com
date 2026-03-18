@@ -13,7 +13,13 @@ import {
 } from "motion/react";
 import { type Ref, useEffect, useRef, useState } from "react";
 
-import { projects, type ProjectEntry } from "@/lib/content";
+import { projectsBySlug, type ProjectEntry } from "@/lib/content";
+import {
+  PORTFOLIO_SECTIONS,
+  getSectionProgressPoint,
+  type SectionDefinition,
+  type SectionDomVariant,
+} from "@/lib/scene-config";
 
 const SceneCanvas = dynamic(
   () => import("@/components/scene-canvas").then((module) => module.SceneCanvas),
@@ -29,6 +35,17 @@ const INTRO_TEXT_FADE_DURATION = 0.92;
 const INTRO_TEXT_MOVE_DELAY = 1.28;
 const INTRO_SCENE_DELAY = 2.08;
 const INTRO_CHROME_DELAY = 2.22;
+const INTRO_COPY_SCROLL_STOPS = [
+  getSectionProgressPoint("intro", 0),
+  getSectionProgressPoint("intro", 2 / 15),
+  getSectionProgressPoint("intro", 2 / 3),
+];
+const INTRO_BACKDROP_SCROLL_STOPS = [
+  getSectionProgressPoint("intro", 0),
+  getSectionProgressPoint("projects-stage", 5 / 118),
+  getSectionProgressPoint("projects-stage", 65 / 118),
+  getSectionProgressPoint("projects-stage", 95 / 118),
+];
 
 export function PortfolioExperience() {
   const shellRef = useRef<HTMLDivElement>(null);
@@ -42,11 +59,9 @@ export function PortfolioExperience() {
     mass: 0.24,
   });
   const meterScale = useTransform(sceneProgress, [0, 1], [0.08, 1]);
-  const introBackdropOpacity = useTransform(
-    sceneProgress,
-    [0, 0.16, 0.28, 0.34],
-    [1, 1, 0.18, 0],
-  );
+  const introBackdropOpacity = useTransform(sceneProgress, INTRO_BACKDROP_SCROLL_STOPS, [
+    1, 1, 0.18, 0,
+  ]);
 
   return (
     <div className="portfolio-shell" ref={shellRef}>
@@ -78,20 +93,48 @@ export function PortfolioExperience() {
       </motion.div>
 
       <main className="page-stage" id="top">
-        <IntroSection progress={sceneProgress} />
-        <SceneStageSection className="scroll-section--transform" />
-        {projects.map((project) => (
-          <ProjectCardSection key={project.slug} project={project} />
+        {PORTFOLIO_SECTIONS.map((section) => (
+          <PortfolioSectionRenderer
+            key={section.id}
+            section={section}
+            progress={sceneProgress}
+          />
         ))}
-        <EndSection />
       </main>
     </div>
   );
 }
 
-function SceneStageSection({ className = "" }: { className?: string }) {
+function PortfolioSectionRenderer({
+  section,
+  progress,
+}: {
+  section: SectionDefinition;
+  progress: MotionValue<number>;
+}) {
+  switch (section.kind) {
+    case "intro":
+      return <IntroSection progress={progress} section={section} />;
+    case "particle-text":
+    case "spacer":
+    case "outro":
+      return <SceneStageSection section={section} />;
+    case "card": {
+      const project = section.projectSlug ? projectsBySlug[section.projectSlug] : null;
+
+      return project ? <ProjectCardSection project={project} /> : null;
+    }
+    default:
+      return null;
+  }
+}
+
+function SceneStageSection({ section }: { section: SectionDefinition }) {
   return (
-    <section className={`scroll-section ${className}`.trim()} aria-hidden="true">
+    <section
+      className={`scroll-section ${getScrollSectionClassName(section.domVariant)}`.trim()}
+      aria-hidden="true"
+    >
       <div className="section-sticky section-sticky--center">
         <div className="transform-stage" />
       </div>
@@ -99,7 +142,13 @@ function SceneStageSection({ className = "" }: { className?: string }) {
   );
 }
 
-function IntroSection({ progress }: { progress: MotionValue<number> }) {
+function IntroSection({
+  progress,
+  section,
+}: {
+  progress: MotionValue<number>;
+  section: SectionDefinition;
+}) {
   const stageRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
   const measureTitleRef = useRef<HTMLParagraphElement>(null);
@@ -115,8 +164,12 @@ function IntroSection({ progress }: { progress: MotionValue<number> }) {
     noteX: 0,
   });
   const introCopyStyle = {
-    opacity: useTransform(progress, [0, 0.02, 0.1], [1, 0.78, 0]),
-    x: useTransform(progress, [0, 0.1], [0, -420]),
+    opacity: useTransform(progress, INTRO_COPY_SCROLL_STOPS, [1, 0.78, 0]),
+    x: useTransform(
+      progress,
+      [INTRO_COPY_SCROLL_STOPS[0], INTRO_COPY_SCROLL_STOPS[2]],
+      [0, -420],
+    ),
   };
   const getCenteredOffset = (copyRect: DOMRect, childRect: DOMRect) => {
     const finalLeft = childRect.left - copyRect.left;
@@ -194,7 +247,10 @@ function IntroSection({ progress }: { progress: MotionValue<number> }) {
   }, []);
 
   return (
-    <section className="scroll-section scroll-section--intro" aria-label="Point cloud introduction">
+    <section
+      className="scroll-section scroll-section--intro"
+      aria-label={section.ariaLabel ?? "Point cloud introduction"}
+    >
       <div className="section-sticky section-sticky--intro">
         <div className="intro-stage" ref={stageRef}>
           {!introLoadState.ready ? (
@@ -533,12 +589,17 @@ function ProjectCardSection({
   );
 }
 
-function EndSection() {
-  return (
-    <section className="scroll-section scroll-section--outro" aria-hidden="true">
-      <div className="section-sticky section-sticky--center">
-        <div className="transform-stage" />
-      </div>
-    </section>
-  );
+function getScrollSectionClassName(domVariant: SectionDomVariant) {
+  switch (domVariant) {
+    case "intro":
+      return "scroll-section--intro";
+    case "transform":
+      return "scroll-section--transform";
+    case "project":
+      return "scroll-section--project";
+    case "outro":
+      return "scroll-section--outro";
+    default:
+      return "";
+  }
 }

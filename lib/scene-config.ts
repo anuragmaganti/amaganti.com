@@ -1,4 +1,8 @@
-export type SectionKey =
+import type { ProjectSlug } from "@/lib/content";
+
+export type SectionId = "intro" | "projects-stage" | ProjectSlug | "outro";
+
+export type SceneBeatKey =
   | "intro"
   | "transform"
   | "hero"
@@ -8,6 +12,9 @@ export type SectionKey =
   | "project-3"
   | "about"
   | "contact";
+
+export type SectionKind = "intro" | "particle-text" | "card" | "spacer" | "outro";
+export type SectionDomVariant = "intro" | "transform" | "project" | "outro";
 
 export type PointCloudShape =
   | "face"
@@ -37,25 +44,61 @@ export type PointCloudTargetId =
   | Exclude<PointCloudShape, "text">
   | PointCloudTextTargetId;
 
+type SceneCameraState = {
+  position: [number, number, number];
+  target: [number, number, number];
+  fov: number;
+};
+
+type SceneCloudState = {
+  shape: PointCloudShape;
+  textTargetId?: PointCloudTextTargetId;
+  position: [number, number, number];
+  rotation: [number, number, number];
+  scale: number;
+  pointSize: number;
+  noise: number;
+  intensity: number;
+  opacity: number;
+};
+
+type ScenePreset = {
+  camera: SceneCameraState;
+  cloud: SceneCloudState;
+};
+
+export type ScenePresetId =
+  | "intro-face"
+  | "projects-transform"
+  | "projects-hero"
+  | "projects-reveal"
+  | "project-card-1"
+  | "project-card-2"
+  | "project-card-3"
+  | "outro-orbital"
+  | "outro-face";
+
+export type SceneBeatDefinition = {
+  key: SceneBeatKey;
+  presetId: ScenePresetId;
+  durationWeight: number;
+};
+
+export type SectionDefinition = {
+  id: SectionId;
+  kind: SectionKind;
+  durationWeight: number;
+  domVariant: SectionDomVariant;
+  ariaLabel?: string;
+  projectSlug?: ProjectSlug;
+  sceneBeats: SceneBeatDefinition[];
+};
+
 export type ScenePhase = {
-  key: SectionKey;
+  key: SceneBeatKey;
   range: [number, number];
-  camera: {
-    position: [number, number, number];
-    target: [number, number, number];
-    fov: number;
-  };
-  cloud: {
-    shape: PointCloudShape;
-    textTargetId?: PointCloudTextTargetId;
-    position: [number, number, number];
-    rotation: [number, number, number];
-    scale: number;
-    pointSize: number;
-    noise: number;
-    intensity: number;
-    opacity: number;
-  };
+  camera: SceneCameraState;
+  cloud: SceneCloudState;
 };
 
 export const POINT_CLOUD_ASSET_PATH = "/models/face.ply";
@@ -87,10 +130,8 @@ export const RENDER_DEFAULTS = {
   mobileDpr: [1, 1.1] as [number, number],
 };
 
-export const SCENE_PHASES: ScenePhase[] = [
-  {
-    key: "intro",
-    range: [0, 0.15],
+export const SCENE_PRESETS: Record<ScenePresetId, ScenePreset> = {
+  "intro-face": {
     camera: {
       position: [-0.04, 0.02, 4.72],
       target: [0.05, 0.02, 0],
@@ -107,9 +148,7 @@ export const SCENE_PHASES: ScenePhase[] = [
       opacity: 0.98,
     },
   },
-  {
-    key: "transform",
-    range: [0.15, 0.205],
+  "projects-transform": {
     camera: {
       position: [0.01, 0.03, 4.26],
       target: [0.01, 0.03, 0],
@@ -127,9 +166,7 @@ export const SCENE_PHASES: ScenePhase[] = [
       opacity: 0.96,
     },
   },
-  {
-    key: "hero",
-    range: [0.205, 0.308],
+  "projects-hero": {
     camera: {
       position: [0.02, 0.04, 4.24],
       target: [0.01, 0.03, 0],
@@ -147,9 +184,7 @@ export const SCENE_PHASES: ScenePhase[] = [
       opacity: 0.98,
     },
   },
-  {
-    key: "reveal",
-    range: [0.308, 0.386],
+  "projects-reveal": {
     camera: {
       position: [0.02, 0.04, 4.38],
       target: [0.01, 0.03, 0],
@@ -167,9 +202,7 @@ export const SCENE_PHASES: ScenePhase[] = [
       opacity: 0.98,
     },
   },
-  {
-    key: "project-1",
-    range: [0.386, 0.56],
+  "project-card-1": {
     camera: {
       position: [0.02, 0.02, 4.62],
       target: [0, 0.03, 0],
@@ -186,9 +219,7 @@ export const SCENE_PHASES: ScenePhase[] = [
       opacity: 0.72,
     },
   },
-  {
-    key: "project-2",
-    range: [0.56, 0.705],
+  "project-card-2": {
     camera: {
       position: [0.01, 0.04, 4.58],
       target: [0, 0.02, 0],
@@ -205,9 +236,7 @@ export const SCENE_PHASES: ScenePhase[] = [
       opacity: 0.68,
     },
   },
-  {
-    key: "project-3",
-    range: [0.705, 0.855],
+  "project-card-3": {
     camera: {
       position: [0.02, 0.08, 4.52],
       target: [0, 0.04, 0],
@@ -224,9 +253,7 @@ export const SCENE_PHASES: ScenePhase[] = [
       opacity: 0.64,
     },
   },
-  {
-    key: "about",
-    range: [0.855, 0.962],
+  "outro-orbital": {
     camera: {
       position: [0.08, 0, 4.24],
       target: [-0.04, 0.03, 0],
@@ -243,9 +270,7 @@ export const SCENE_PHASES: ScenePhase[] = [
       opacity: 0.28,
     },
   },
-  {
-    key: "contact",
-    range: [0.962, 1],
+  "outro-face": {
     camera: {
       position: [0, 0.02, 4.62],
       target: [0, 0.02, 0],
@@ -262,4 +287,183 @@ export const SCENE_PHASES: ScenePhase[] = [
       opacity: 0.98,
     },
   },
+};
+
+export const PORTFOLIO_SECTIONS: SectionDefinition[] = [
+  {
+    id: "intro",
+    kind: "intro",
+    domVariant: "intro",
+    ariaLabel: "Point cloud introduction",
+    durationWeight: 150,
+    sceneBeats: [
+      {
+        key: "intro",
+        presetId: "intro-face",
+        durationWeight: 1,
+      },
+    ],
+  },
+  {
+    id: "projects-stage",
+    kind: "particle-text",
+    domVariant: "transform",
+    durationWeight: 236,
+    sceneBeats: [
+      {
+        key: "transform",
+        presetId: "projects-transform",
+        durationWeight: 55,
+      },
+      {
+        key: "hero",
+        presetId: "projects-hero",
+        durationWeight: 103,
+      },
+      {
+        key: "reveal",
+        presetId: "projects-reveal",
+        durationWeight: 78,
+      },
+    ],
+  },
+  {
+    id: "project-01",
+    kind: "card",
+    domVariant: "project",
+    projectSlug: "project-01",
+    durationWeight: 174,
+    sceneBeats: [
+      {
+        key: "project-1",
+        presetId: "project-card-1",
+        durationWeight: 1,
+      },
+    ],
+  },
+  {
+    id: "project-02",
+    kind: "card",
+    domVariant: "project",
+    projectSlug: "project-02",
+    durationWeight: 145,
+    sceneBeats: [
+      {
+        key: "project-2",
+        presetId: "project-card-2",
+        durationWeight: 1,
+      },
+    ],
+  },
+  {
+    id: "project-03",
+    kind: "card",
+    domVariant: "project",
+    projectSlug: "project-03",
+    durationWeight: 150,
+    sceneBeats: [
+      {
+        key: "project-3",
+        presetId: "project-card-3",
+        durationWeight: 1,
+      },
+    ],
+  },
+  {
+    id: "outro",
+    kind: "outro",
+    domVariant: "outro",
+    durationWeight: 145,
+    sceneBeats: [
+      {
+        key: "about",
+        presetId: "outro-orbital",
+        durationWeight: 107,
+      },
+      {
+        key: "contact",
+        presetId: "outro-face",
+        durationWeight: 38,
+      },
+    ],
+  },
 ];
+
+const { sectionRanges, scenePhases } = buildSceneConfiguration(
+  PORTFOLIO_SECTIONS,
+  SCENE_PRESETS,
+);
+
+export const SECTION_PROGRESS_RANGES = sectionRanges;
+export const SCENE_PHASES = scenePhases;
+
+export function getSectionProgressRange(sectionId: SectionId) {
+  return SECTION_PROGRESS_RANGES[sectionId];
+}
+
+export function getSectionProgressPoint(sectionId: SectionId, localProgress: number) {
+  const [start, end] = getSectionProgressRange(sectionId);
+  return roundProgress(start + (end - start) * clamp(localProgress, 0, 1));
+}
+
+function buildSceneConfiguration(
+  sections: SectionDefinition[],
+  presets: Record<ScenePresetId, ScenePreset>,
+) {
+  const totalDuration = sections.reduce(
+    (sum, section) => sum + section.durationWeight,
+    0,
+  );
+  const nextSectionRanges = {} as Record<SectionId, [number, number]>;
+  const nextScenePhases: ScenePhase[] = [];
+  let accumulatedWeight = 0;
+
+  for (const section of sections) {
+    const sectionStart = roundProgress(accumulatedWeight / totalDuration);
+    const sectionEnd = roundProgress(
+      (accumulatedWeight + section.durationWeight) / totalDuration,
+    );
+    nextSectionRanges[section.id] = [sectionStart, sectionEnd];
+
+    const beatWeightTotal = section.sceneBeats.reduce(
+      (sum, beat) => sum + beat.durationWeight,
+      0,
+    );
+    let accumulatedBeatWeight = accumulatedWeight;
+
+    section.sceneBeats.forEach((beat, beatIndex) => {
+      const beatStart = roundProgress(accumulatedBeatWeight / totalDuration);
+      accumulatedBeatWeight +=
+        section.durationWeight * (beat.durationWeight / beatWeightTotal);
+      const preset = presets[beat.presetId];
+      const isFinalBeat =
+        section === sections[sections.length - 1] &&
+        beatIndex === section.sceneBeats.length - 1;
+      const beatEnd = isFinalBeat
+        ? 1
+        : roundProgress(accumulatedBeatWeight / totalDuration);
+
+      nextScenePhases.push({
+        key: beat.key,
+        range: [beatStart, beatEnd],
+        camera: preset.camera,
+        cloud: preset.cloud,
+      });
+    });
+
+    accumulatedWeight += section.durationWeight;
+  }
+
+  return {
+    sectionRanges: nextSectionRanges,
+    scenePhases: nextScenePhases,
+  };
+}
+
+function roundProgress(value: number) {
+  return Number(value.toFixed(6));
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
