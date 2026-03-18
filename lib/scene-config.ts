@@ -14,6 +14,7 @@ export type PointCloudShape =
   | "text"
   | "orbital"
   | "ribbon"
+  | "ribbonWide"
   | "helix"
   | "veil"
   | "settle";
@@ -214,13 +215,13 @@ export const SCENE_PHASES: ScenePhase[] = [
       fov: 35,
     },
     cloud: {
-      shape: "veil",
+      shape: "ribbonWide",
       position: [0, 0.06, -0.08],
-      rotation: [-0.2, 0.12, 0.04],
-      scale: 1.62,
+      rotation: [-0.08, 0.26, -0.04],
+      scale: 1.74,
       pointSize: 0.0154,
-      noise: 0.048,
-      intensity: 0.32,
+      noise: 0.052,
+      intensity: 0.34,
       opacity: 0.64,
     },
   },

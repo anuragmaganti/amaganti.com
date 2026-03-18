@@ -4,7 +4,7 @@ import { AdaptiveDpr } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import type { MotionValue } from "motion";
 import { useReducedMotion } from "motion/react";
-import { startTransition, useEffect, useMemo, useState } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshSurfaceSampler } from "three/examples/jsm/math/MeshSurfaceSampler.js";
@@ -27,6 +27,13 @@ import {
   orientImportedPositions,
   samplePositions,
 } from "@/lib/point-cloud";
+
+const POINTER_SMOOTHING = 14;
+const POINTER_PRESENCE_SMOOTHING = 10;
+const MOUSE_REPULSION_RADIUS = 0.34;
+const MOUSE_REPULSION_RADIUS_SQ = MOUSE_REPULSION_RADIUS * MOUSE_REPULSION_RADIUS;
+const MOUSE_REPULSION_DISPLACEMENT = 0.14;
+const MOUSE_REPULSION_DEPTH_BOOST = 1.14;
 
 type SceneCanvasProps = {
   progress: MotionValue<number>;
@@ -191,6 +198,15 @@ function PointCloudSystem({
   const desiredCamera = useMemo(() => new THREE.Vector3(0, 0, 4.9), []);
   const pointerTarget = useMemo(() => new THREE.Vector2(0, 0), []);
   const pointerCurrent = useMemo(() => new THREE.Vector2(0, 0), []);
+  const pointerRayCurrent = useMemo(() => new THREE.Vector2(0, 0), []);
+  const pointerPresenceTarget = useRef(0);
+  const pointerPresenceCurrent = useRef(0);
+  const raycaster = useMemo(() => new THREE.Raycaster(), []);
+  const interactionPlane = useMemo(() => new THREE.Plane(), []);
+  const interactionPlaneNormal = useMemo(() => new THREE.Vector3(), []);
+  const cloudWorldPosition = useMemo(() => new THREE.Vector3(), []);
+  const worldInteractionPoint = useMemo(() => new THREE.Vector3(), []);
+  const localInteractionPoint = useMemo(() => new THREE.Vector3(), []);
 
   useEffect(() => {
     const unsubscribe = progress.on("change", () => {
@@ -218,10 +234,12 @@ function PointCloudSystem({
         (event.clientX / window.innerWidth) * 2 - 1,
         (event.clientY / window.innerHeight) * 2 - 1,
       );
+      pointerPresenceTarget.current = 1;
       invalidate();
     };
     const resetPointer = () => {
       pointerTarget.set(0, 0);
+      pointerPresenceTarget.current = 0;
       invalidate();
     };
 
@@ -255,40 +273,23 @@ function PointCloudSystem({
     const pulse = reducedMotion
       ? 0.24
       : 0.34 + 0.26 * Math.sin(progress.get() * Math.PI * 6 + clock.elapsedTime * 0.2);
+    const pointerLerp = 1 - Math.exp(-delta * POINTER_SMOOTHING);
+    const pointerPresenceLerp = 1 - Math.exp(-delta * POINTER_PRESENCE_SMOOTHING);
 
-    for (let index = 0; index < pointCount; index += 1) {
-      const offset = index * 3;
-      let x = lerp(shapeFrom[offset], shapeTo[offset], blend);
-      let y = lerp(shapeFrom[offset + 1], shapeTo[offset + 1], blend);
-      let z = lerp(shapeFrom[offset + 2], shapeTo[offset + 2], blend);
+    pointerCurrent.lerp(pointerTarget, pointerLerp);
+    pointerPresenceCurrent.current = lerp(
+      pointerPresenceCurrent.current,
+      pointerPresenceTarget.current,
+      pointerPresenceLerp,
+    );
 
-      const drift =
-        noise * (0.01 + ((index % 5) * 0.0012)) * phaseState.cloud.intensity * pulse;
-      const seedA = seeds[index * 2];
-      const seedB = seeds[index * 2 + 1];
-      const spreadX = seedA - 0.5;
-      const spreadY = seedB - 0.5;
-      const spreadZ = (seedA + seedB) * 0.5 - 0.5;
-
-      x += spreadX * drift;
-      y += spreadY * drift * 0.8;
-      z += spreadZ * drift * 1.15;
-
-      renderPositions[offset] = x;
-      renderPositions[offset + 1] = y;
-      renderPositions[offset + 2] = z;
-    }
-
-    geometry.attributes.position.needsUpdate = true;
-
-    cloud.position.set(...phaseState.cloud.position);
-    pointerCurrent.lerp(pointerTarget, 1 - Math.exp(-delta * 14));
     const trackingStrength =
       getFaceTrackingWeight(phaseState.current.cloud.shape, phaseState.next.cloud.shape, blend) *
       (reducedMotion ? 0.45 : 1);
     const pointerPitch = pointerCurrent.y * 0.08 * trackingStrength;
     const pointerYaw = pointerCurrent.x * 0.14 * trackingStrength;
 
+    cloud.position.set(...phaseState.cloud.position);
     cloud.rotation.set(
       phaseState.cloud.rotation[0] + pointerPitch,
       phaseState.cloud.rotation[1] + pointerYaw,
@@ -311,8 +312,98 @@ function PointCloudSystem({
     perspectiveCamera.lookAt(cameraTarget);
     perspectiveCamera.fov = phaseState.camera.fov;
     perspectiveCamera.updateProjectionMatrix();
+    perspectiveCamera.updateMatrixWorld();
 
-    if (pointerCurrent.distanceToSquared(pointerTarget) > 0.00004) {
+    cloud.updateMatrixWorld();
+
+    let hasInteractionPoint = false;
+    let interactionStrength = 0;
+
+    if (pointerPresenceCurrent.current > 0.001) {
+      interactionStrength =
+        pointerPresenceCurrent.current *
+        getMouseRepulsionWeight(
+          phaseState.current.cloud.shape,
+          phaseState.next.cloud.shape,
+          blend,
+        );
+
+      if (interactionStrength > 0.001) {
+        cloud.getWorldPosition(cloudWorldPosition);
+        interactionPlaneNormal
+          .copy(perspectiveCamera.position)
+          .sub(cloudWorldPosition)
+          .normalize();
+        interactionPlane.setFromNormalAndCoplanarPoint(
+          interactionPlaneNormal,
+          cloudWorldPosition,
+        );
+        pointerRayCurrent.set(pointerCurrent.x, -pointerCurrent.y);
+        raycaster.setFromCamera(pointerRayCurrent, perspectiveCamera);
+
+        if (raycaster.ray.intersectPlane(interactionPlane, worldInteractionPoint)) {
+          localInteractionPoint.copy(worldInteractionPoint);
+          cloud.worldToLocal(localInteractionPoint);
+          hasInteractionPoint = true;
+        }
+      }
+    }
+
+    for (let index = 0; index < pointCount; index += 1) {
+      const offset = index * 3;
+      let x = lerp(shapeFrom[offset], shapeTo[offset], blend);
+      let y = lerp(shapeFrom[offset + 1], shapeTo[offset + 1], blend);
+      let z = lerp(shapeFrom[offset + 2], shapeTo[offset + 2], blend);
+
+      const drift =
+        noise * (0.01 + ((index % 5) * 0.0012)) * phaseState.cloud.intensity * pulse;
+      const seedA = seeds[index * 2];
+      const seedB = seeds[index * 2 + 1];
+      const spreadX = seedA - 0.5;
+      const spreadY = seedB - 0.5;
+      const spreadZ = (seedA + seedB) * 0.5 - 0.5;
+
+      x += spreadX * drift;
+      y += spreadY * drift * 0.8;
+      z += spreadZ * drift * 1.15;
+
+      if (hasInteractionPoint) {
+        let repelX = x - localInteractionPoint.x;
+        let repelY = y - localInteractionPoint.y;
+        let repelZ = z - localInteractionPoint.z;
+        let repelLengthSq = repelX * repelX + repelY * repelY + repelZ * repelZ;
+
+        if (repelLengthSq < MOUSE_REPULSION_RADIUS_SQ) {
+          if (repelLengthSq < 0.000001) {
+            repelX = spreadX || 0.001;
+            repelY = spreadY || 0.001;
+            repelZ = spreadZ || 0.001;
+            repelLengthSq = repelX * repelX + repelY * repelY + repelZ * repelZ;
+          }
+
+          const repelLength = Math.sqrt(repelLengthSq);
+          const falloff = 1 - repelLength / MOUSE_REPULSION_RADIUS;
+          const displacement =
+            MOUSE_REPULSION_DISPLACEMENT * falloff * falloff * interactionStrength;
+          const inverseLength = 1 / repelLength;
+
+          x += repelX * inverseLength * displacement;
+          y += repelY * inverseLength * displacement;
+          z += repelZ * inverseLength * displacement * MOUSE_REPULSION_DEPTH_BOOST;
+        }
+      }
+
+      renderPositions[offset] = x;
+      renderPositions[offset + 1] = y;
+      renderPositions[offset + 2] = z;
+    }
+
+    geometry.attributes.position.needsUpdate = true;
+
+    if (
+      pointerCurrent.distanceToSquared(pointerTarget) > 0.00004 ||
+      Math.abs(pointerPresenceCurrent.current - pointerPresenceTarget.current) > 0.00004
+    ) {
       invalidate();
     }
   });
@@ -605,6 +696,41 @@ function getFaceTrackingWeight(
   const currentWeight = current === "face" ? 1 : 0;
   const nextWeight = next === "face" ? 1 : 0;
   return lerp(currentWeight, nextWeight, mix);
+}
+
+function getMouseRepulsionShapeWeight(shape: PointCloudShape) {
+  switch (shape) {
+    case "face":
+      return 1;
+    case "text":
+      return 0.18;
+    case "ribbon":
+      return 0.44;
+    case "ribbonWide":
+      return 0.48;
+    case "helix":
+      return 0.52;
+    case "veil":
+      return 0.4;
+    case "orbital":
+      return 0.34;
+    case "settle":
+      return 0.3;
+    default:
+      return 0.4;
+  }
+}
+
+function getMouseRepulsionWeight(
+  current: PointCloudShape,
+  next: PointCloudShape,
+  mix: number,
+) {
+  return lerp(
+    getMouseRepulsionShapeWeight(current),
+    getMouseRepulsionShapeWeight(next),
+    mix,
+  );
 }
 
 function hash(index: number, seed: number) {

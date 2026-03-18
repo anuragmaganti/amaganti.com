@@ -10,12 +10,84 @@ const IMPORT_SCAN_ORIENTATION = {
   y: 0,
   z: 0,
 };
+const LEFT_RIBBON_HORIZONTAL_GROWTH = 0.46;
+const LEFT_RIBBON_OUTWARD_BIAS = 0.18;
+const LEFT_RIBBON_VERTICAL_STRETCH = 1.32;
+const LEFT_RIBBON_WAVE_AMPLITUDE = 0.24;
+const RIBBON_WIDE_HORIZONTAL_GROWTH = 0.52;
+const RIBBON_WIDE_SIDE_BIAS = 0.34;
+const RIBBON_WIDE_VERTICAL_STRETCH = 1.08;
+const RIBBON_WIDE_WAVE_AMPLITUDE = 0.2;
+
+type ProjectFrameProfile = {
+  horizontalGapFactor: number;
+  verticalGapFactor: number;
+  repulsionStrength: number;
+};
 
 type CreateMorphTargetsOptions = {
   textTargets?: PointCloudTextTarget[];
   haloDensityMultiplier?: number;
   sideSpreadMultiplier?: number;
+  projectFrameProfile?: ProjectFrameProfile;
   textScaleMultiplier?: number;
+};
+
+type ProjectRepulsionConfig = {
+  share: number;
+  inwardScale: number;
+  verticalBase: number;
+  verticalStretch: number;
+  verticalWaveFrequency: number;
+  verticalWaveAmplitude: number;
+  horizontalDrift: number;
+  depthLift: number;
+  seed: number;
+};
+
+const RIBBON_REPULSION_CONFIG: ProjectRepulsionConfig = {
+  share: 0.58,
+  inwardScale: 0.54,
+  verticalBase: 1.08,
+  verticalStretch: 1.1,
+  verticalWaveFrequency: 2.1,
+  verticalWaveAmplitude: 0.18,
+  horizontalDrift: 0.38,
+  depthLift: 0.16,
+  seed: 0.29,
+};
+const RIBBON_WIDE_REPULSION_CONFIG: ProjectRepulsionConfig = {
+  share: 0.54,
+  inwardScale: 0.5,
+  verticalBase: 1.12,
+  verticalStretch: 1.16,
+  verticalWaveFrequency: 2.2,
+  verticalWaveAmplitude: 0.2,
+  horizontalDrift: 0.48,
+  depthLift: 0.18,
+  seed: 0.41,
+};
+const HELIX_REPULSION_CONFIG: ProjectRepulsionConfig = {
+  share: 0.54,
+  inwardScale: 0.6,
+  verticalBase: 1.16,
+  verticalStretch: 1.18,
+  verticalWaveFrequency: 2.8,
+  verticalWaveAmplitude: 0.22,
+  horizontalDrift: 0.32,
+  depthLift: 0.22,
+  seed: 0.57,
+};
+const VEIL_REPULSION_CONFIG: ProjectRepulsionConfig = {
+  share: 0.48,
+  inwardScale: 0.66,
+  verticalBase: 1.12,
+  verticalStretch: 1.26,
+  verticalWaveFrequency: 1.7,
+  verticalWaveAmplitude: 0.16,
+  horizontalDrift: 0.26,
+  depthLift: 0.14,
+  seed: 0.81,
 };
 
 export function samplePositions(
@@ -162,12 +234,18 @@ export function createMorphTargets(
   const pointCount = Math.floor(basePositions.length / 3);
   const orbital = new Float32Array(basePositions.length);
   const ribbon = new Float32Array(basePositions.length);
+  const ribbonWide = new Float32Array(basePositions.length);
   const helix = new Float32Array(basePositions.length);
   const veil = new Float32Array(basePositions.length);
   const settle = new Float32Array(basePositions.length);
   const textTargets = options.textTargets ?? [];
   const haloDensityMultiplier = options.haloDensityMultiplier ?? 1;
   const sideSpreadMultiplier = options.sideSpreadMultiplier ?? 1;
+  const projectFrameProfile = options.projectFrameProfile ?? {
+    horizontalGapFactor: 0.35,
+    verticalGapFactor: 0.28,
+    repulsionStrength: 1,
+  };
   const textScaleMultiplier = options.textScaleMultiplier ?? 1;
   const columns = Math.max(18, Math.round(Math.sqrt(pointCount * 1.45)));
   const rows = Math.ceil(pointCount / columns);
@@ -193,6 +271,19 @@ export function createMorphTargets(
     const sideCore = 1.12 + innerToOuter * 0.7;
     const sideWave = Math.sin(waveV * 2.8 + band * 4.1 + side * 0.35);
     const sideLift = Math.cos(waveU * 1.9 + band * 2.2 + side * 0.7);
+    const isLeftRibbonSide = side < 0;
+    const leftRibbonOutwardGrowth = isLeftRibbonSide
+      ? innerToOuter * LEFT_RIBBON_HORIZONTAL_GROWTH
+      : 0;
+    const leftRibbonOutwardBias = isLeftRibbonSide
+      ? innerToOuter * LEFT_RIBBON_OUTWARD_BIAS
+      : 0;
+    const ribbonVerticalStretch = isLeftRibbonSide
+      ? LEFT_RIBBON_VERTICAL_STRETCH
+      : 1;
+    const ribbonWaveAmplitude = isLeftRibbonSide
+      ? LEFT_RIBBON_WAVE_AMPLITUDE
+      : 0.18;
 
     // Keep transforms as layered particle fields rather than single-strand splines.
     const orbitalAngle =
@@ -209,11 +300,64 @@ export function createMorphTargets(
       jitterA * 0.08;
 
     ribbon[offset] =
-      side * (sideCore + sideWave * 0.12 + jitterA * 0.08) * sideSpreadMultiplier;
+      (side *
+        (sideCore +
+          leftRibbonOutwardGrowth +
+          leftRibbonOutwardBias +
+          sideWave * 0.12 +
+          jitterA * 0.08)) *
+      sideSpreadMultiplier;
     ribbon[offset + 1] =
-      gridY + Math.sin(innerToOuter * 5.2 + waveV * 1.7 + side * 0.5) * 0.18;
+      gridY * ribbonVerticalStretch +
+      Math.sin(innerToOuter * 5.2 + waveV * 1.7 + side * 0.5) * ribbonWaveAmplitude;
     ribbon[offset + 2] =
       Math.cos(innerToOuter * 5.8 + waveV * 3.4) * 0.22 + band * 0.26 + jitterC * 0.08;
+    writeProjectRepelledPosition(
+      ribbon,
+      offset,
+      ribbon[offset],
+      ribbon[offset + 1],
+      ribbon[offset + 2],
+      index,
+      u,
+      v,
+      band,
+      jitterA,
+      jitterB,
+      jitterC,
+      projectFrameProfile,
+      RIBBON_REPULSION_CONFIG,
+    );
+
+    ribbonWide[offset] =
+      (side *
+        (sideCore +
+          innerToOuter * RIBBON_WIDE_HORIZONTAL_GROWTH +
+          RIBBON_WIDE_SIDE_BIAS +
+          sideWave * 0.12 +
+          jitterA * 0.08)) *
+      sideSpreadMultiplier;
+    ribbonWide[offset + 1] =
+      gridY * RIBBON_WIDE_VERTICAL_STRETCH +
+      Math.sin(innerToOuter * 5.2 + waveV * 1.7 + side * 0.5) * RIBBON_WIDE_WAVE_AMPLITUDE;
+    ribbonWide[offset + 2] =
+      Math.cos(innerToOuter * 5.8 + waveV * 3.4) * 0.22 + band * 0.28 + jitterC * 0.08;
+    writeProjectRepelledPosition(
+      ribbonWide,
+      offset,
+      ribbonWide[offset],
+      ribbonWide[offset + 1],
+      ribbonWide[offset + 2],
+      index,
+      u,
+      v,
+      band,
+      jitterA,
+      jitterB,
+      jitterC,
+      projectFrameProfile,
+      RIBBON_WIDE_REPULSION_CONFIG,
+    );
 
     helix[offset] =
       (side *
@@ -226,6 +370,22 @@ export function createMorphTargets(
       (v - 0.5) * 2.12 + Math.sin(waveV * 3.8 + innerToOuter * 2.4 + side * 0.7) * 0.22;
     helix[offset + 2] =
       Math.sin(waveV * 4.4 + innerToOuter * 4.2) * 0.3 + band * 0.28 + jitterB * 0.08;
+    writeProjectRepelledPosition(
+      helix,
+      offset,
+      helix[offset],
+      helix[offset + 1],
+      helix[offset + 2],
+      index,
+      u,
+      v,
+      band,
+      jitterA,
+      jitterB,
+      jitterC,
+      projectFrameProfile,
+      HELIX_REPULSION_CONFIG,
+    );
 
     veil[offset] =
       (side * (1.06 + innerToOuter * 0.78 + sideLift * 0.1) + jitterB * 0.05) *
@@ -236,6 +396,22 @@ export function createMorphTargets(
       Math.cos(waveV * 4.8 + innerToOuter * 5.1 + band * 2.1) * 0.34 +
       band * 0.24 +
       jitterC * 0.07;
+    writeProjectRepelledPosition(
+      veil,
+      offset,
+      veil[offset],
+      veil[offset + 1],
+      veil[offset + 2],
+      index,
+      u,
+      v,
+      band,
+      jitterA,
+      jitterB,
+      jitterC,
+      projectFrameProfile,
+      VEIL_REPULSION_CONFIG,
+    );
 
     settle[offset] = basePositions[offset] * 0.78;
     settle[offset + 1] = basePositions[offset + 1] * 0.78 - 0.04;
@@ -246,6 +422,7 @@ export function createMorphTargets(
     face: basePositions,
     orbital,
     ribbon,
+    ribbonWide,
     helix,
     veil,
     settle,
@@ -269,6 +446,67 @@ export function createMorphTargets(
   }
 
   return targets as Record<PointCloudTargetId, Float32Array>;
+}
+
+function writeProjectRepelledPosition(
+  target: Float32Array,
+  offset: number,
+  baseX: number,
+  baseY: number,
+  baseZ: number,
+  index: number,
+  u: number,
+  v: number,
+  band: number,
+  jitterA: number,
+  jitterB: number,
+  jitterC: number,
+  projectFrameProfile: ProjectFrameProfile,
+  config: ProjectRepulsionConfig,
+) {
+  const verticalStrength =
+    projectFrameProfile.verticalGapFactor * projectFrameProfile.repulsionStrength;
+
+  if (verticalStrength < 0.03) {
+    return;
+  }
+
+  const centrality = 1 - Math.abs(u - 0.5) * 2;
+  const activationThreshold = clamp(
+    (0.18 + config.share * verticalStrength) * (0.76 + centrality * 0.46),
+    0,
+    0.82,
+  );
+
+  if (pseudoRandom(index, config.seed) > activationThreshold) {
+    return;
+  }
+
+  const repelSignSeed = pseudoRandom(index, config.seed + 0.31);
+  const repelSign =
+    Math.abs(baseY) > 0.08
+      ? Math.sign(baseY)
+      : repelSignSeed < 0.5
+        ? -1
+        : 1;
+  const inwardScale = config.inwardScale - verticalStrength * 0.06;
+  const verticalWave =
+    Math.sin(v * TWO_PI * config.verticalWaveFrequency + u * TWO_PI * 1.3 + band * 3.2) *
+    config.verticalWaveAmplitude *
+    (0.72 + verticalStrength * 0.72);
+  const horizontalDrift =
+    (u - 0.5) * config.horizontalDrift * (0.64 + projectFrameProfile.horizontalGapFactor);
+
+  target[offset] = baseX * inwardScale + horizontalDrift + jitterA * 0.05;
+  target[offset + 1] =
+    repelSign *
+      (config.verticalBase +
+        projectFrameProfile.verticalGapFactor * config.verticalStretch +
+        centrality * 0.24 +
+        Math.abs(baseY) * 0.14) +
+    verticalWave +
+    jitterB * 0.04;
+  target[offset + 2] = baseZ + repelSign * band * config.depthLift + jitterC * 0.06;
 }
 
 function gaussian(x: number, y: number, radiusX: number, radiusY: number) {
