@@ -183,7 +183,7 @@ export const SCENE_PHASES: ScenePhase[] = [
       pointSize: 0.0158,
       noise: 0.06,
       intensity: 0.38,
-      opacity: 0.42,
+      opacity: 0.72,
     },
   },
   {
@@ -202,12 +202,12 @@ export const SCENE_PHASES: ScenePhase[] = [
       pointSize: 0.0156,
       noise: 0.054,
       intensity: 0.34,
-      opacity: 0.4,
+      opacity: 0.68,
     },
   },
   {
     key: "project-3",
-    range: [0.705, 0.84],
+    range: [0.705, 0.855],
     camera: {
       position: [0.02, 0.08, 4.52],
       target: [0, 0.04, 0],
@@ -221,12 +221,12 @@ export const SCENE_PHASES: ScenePhase[] = [
       pointSize: 0.0154,
       noise: 0.048,
       intensity: 0.32,
-      opacity: 0.38,
+      opacity: 0.64,
     },
   },
   {
     key: "about",
-    range: [0.84, 0.955],
+    range: [0.855, 0.962],
     camera: {
       position: [0.08, 0, 4.24],
       target: [-0.04, 0.03, 0],
@@ -245,7 +245,7 @@ export const SCENE_PHASES: ScenePhase[] = [
   },
   {
     key: "contact",
-    range: [0.955, 1],
+    range: [0.962, 1],
     camera: {
       position: [0, 0.02, 4.62],
       target: [0, 0.02, 0],

@@ -38,6 +38,9 @@ type QualityProfile = {
   sizeMultiplier: number;
   noiseMultiplier: number;
   textHaloMultiplier: number;
+  sideSpreadMultiplier: number;
+  textScaleMultiplier: number;
+  faceScaleMultiplier: number;
 };
 
 type PointCloudSystemProps = {
@@ -49,7 +52,8 @@ type PointCloudSystemProps = {
 
 export function SceneCanvas({ progress }: SceneCanvasProps) {
   const reducedMotion = Boolean(useReducedMotion());
-  const profile = useQualityProfile(reducedMotion);
+  const projectCardWidth = useProjectCardWidth();
+  const profile = useQualityProfile(reducedMotion, projectCardWidth);
   const basePositions = usePointCloudSource(profile.maxPoints);
 
   return (
@@ -75,6 +79,47 @@ export function SceneCanvas({ progress }: SceneCanvasProps) {
       />
     </Canvas>
   );
+}
+
+function useProjectCardWidth() {
+  const [projectCardWidth, setProjectCardWidth] = useState(0);
+
+  useEffect(() => {
+    let frameId = 0;
+    let observer: ResizeObserver | null = null;
+
+    const updateWidth = () => {
+      const card = document.querySelector<HTMLElement>(".panel.project-card");
+      const nextWidth = card?.getBoundingClientRect().width ?? 0;
+
+      setProjectCardWidth((current) =>
+        Math.abs(current - nextWidth) < 0.5 ? current : nextWidth,
+      );
+
+      if (!card) {
+        frameId = window.requestAnimationFrame(updateWidth);
+        return;
+      }
+
+      if (!observer) {
+        observer = new ResizeObserver(() => {
+          updateWidth();
+        });
+        observer.observe(card);
+      }
+    };
+
+    updateWidth();
+    window.addEventListener("resize", updateWidth);
+
+    return () => {
+      window.removeEventListener("resize", updateWidth);
+      window.cancelAnimationFrame(frameId);
+      observer?.disconnect();
+    };
+  }, []);
+
+  return projectCardWidth;
 }
 
 function PointCloudSystem({
@@ -113,8 +158,16 @@ function PointCloudSystem({
       createMorphTargets(basePositions, {
         textTargets: Object.values(POINT_CLOUD_TEXT_TARGETS),
         haloDensityMultiplier: profile.textHaloMultiplier,
+        sideSpreadMultiplier: profile.sideSpreadMultiplier,
+        textScaleMultiplier: profile.textScaleMultiplier,
       }),
-    [basePositions, profile.textHaloMultiplier, typographyVersion],
+    [
+      basePositions,
+      profile.sideSpreadMultiplier,
+      profile.textScaleMultiplier,
+      profile.textHaloMultiplier,
+      typographyVersion,
+    ],
   );
   const cloudMaterial = useMemo(
     () =>
@@ -241,7 +294,13 @@ function PointCloudSystem({
       phaseState.cloud.rotation[1] + pointerYaw,
       phaseState.cloud.rotation[2],
     );
-    cloud.scale.setScalar(phaseState.cloud.scale);
+    const responsiveCloudScaleMultiplier = getResponsiveCloudScaleMultiplier(
+      phaseState.current.cloud.shape,
+      phaseState.next.cloud.shape,
+      blend,
+      profile,
+    );
+    cloud.scale.setScalar(phaseState.cloud.scale * responsiveCloudScaleMultiplier);
     cloudMaterial.size = phaseState.cloud.pointSize * profile.sizeMultiplier;
     cloudMaterial.opacity = phaseState.cloud.opacity;
 
@@ -335,7 +394,7 @@ function usePointCloudSource(maxPoints: number) {
   }, [fallbackPositions, maxPoints, rawAssetPositions]);
 }
 
-function useQualityProfile(reducedMotion: boolean) {
+function useQualityProfile(reducedMotion: boolean, projectCardWidth: number) {
   const [profile, setProfile] = useState<QualityProfile>({
     maxPoints: reducedMotion
       ? RENDER_DEFAULTS.reducedMaxPoints
@@ -344,12 +403,26 @@ function useQualityProfile(reducedMotion: boolean) {
     sizeMultiplier: reducedMotion ? 1.2 : 1,
     noiseMultiplier: reducedMotion ? 0.5 : 1,
     textHaloMultiplier: reducedMotion ? 0.2 : 1,
+    sideSpreadMultiplier: reducedMotion ? 0.54 : 0.6,
+    textScaleMultiplier: 1,
+    faceScaleMultiplier: 1,
   });
 
   useEffect(() => {
     const computeProfile = () => {
       const width = window.innerWidth;
       const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
+      const mobileTextScale =
+        width >= 900
+          ? 1
+          : 0.42 +
+            Math.pow(THREE.MathUtils.clamp((width - 300) / 600, 0, 1), 1.35) * 0.58;
+      const mobileFaceScale = mobileTextScale;
+      const sideSpreadMultiplier = computeSideSpreadMultiplier(
+        width,
+        projectCardWidth,
+        reducedMotion,
+      );
       const memory =
         "deviceMemory" in navigator
           ? (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8
@@ -364,6 +437,9 @@ function useQualityProfile(reducedMotion: boolean) {
           sizeMultiplier: 1.18,
           noiseMultiplier: 0.18,
           textHaloMultiplier: 0.12,
+          sideSpreadMultiplier,
+          textScaleMultiplier: mobileTextScale,
+          faceScaleMultiplier: mobileFaceScale,
         });
         return;
       }
@@ -378,6 +454,9 @@ function useQualityProfile(reducedMotion: boolean) {
         sizeMultiplier: constrainedDevice ? 1.12 : 1,
         noiseMultiplier: constrainedDevice ? 0.3 : 0.48,
         textHaloMultiplier: constrainedDevice ? 0.42 : 1,
+        sideSpreadMultiplier,
+        textScaleMultiplier: mobileTextScale,
+        faceScaleMultiplier: mobileFaceScale,
       });
     };
 
@@ -387,9 +466,54 @@ function useQualityProfile(reducedMotion: boolean) {
     return () => {
       window.removeEventListener("resize", computeProfile);
     };
-  }, [reducedMotion]);
+  }, [projectCardWidth, reducedMotion]);
 
   return profile;
+}
+
+function computeSideSpreadMultiplier(
+  viewportWidth: number,
+  projectCardWidth: number,
+  reducedMotion: boolean,
+) {
+  const safeCardWidth =
+    projectCardWidth > 0
+      ? projectCardWidth
+      : viewportWidth < 900
+        ? viewportWidth * 0.82
+        : viewportWidth * 0.72;
+  const sideGap = Math.max((viewportWidth - safeCardWidth) * 0.5, 0);
+  const normalizedGap = THREE.MathUtils.clamp((sideGap - 16) / 304, 0, 1);
+  const base = reducedMotion ? 0.5 : 0.54;
+  const range = reducedMotion ? 0.14 : 0.18;
+
+  return THREE.MathUtils.clamp(
+    base + normalizedGap * range,
+    reducedMotion ? 0.5 : 0.54,
+    reducedMotion ? 0.64 : 0.72,
+  );
+}
+
+function getResponsiveCloudScaleMultiplier(
+  currentShape: PointCloudShape,
+  nextShape: PointCloudShape,
+  mix: number,
+  profile: QualityProfile,
+) {
+  const currentMultiplier =
+    currentShape === "face"
+      ? profile.faceScaleMultiplier
+      : currentShape === "text"
+        ? profile.textScaleMultiplier
+        : 1;
+  const nextMultiplier =
+    nextShape === "face"
+      ? profile.faceScaleMultiplier
+      : nextShape === "text"
+        ? profile.textScaleMultiplier
+        : 1;
+
+  return lerp(currentMultiplier, nextMultiplier, mix);
 }
 
 function sampleSceneProgress(progress: number) {

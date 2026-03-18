@@ -14,6 +14,8 @@ const IMPORT_SCAN_ORIENTATION = {
 type CreateMorphTargetsOptions = {
   textTargets?: PointCloudTextTarget[];
   haloDensityMultiplier?: number;
+  sideSpreadMultiplier?: number;
+  textScaleMultiplier?: number;
 };
 
 export function samplePositions(
@@ -165,6 +167,8 @@ export function createMorphTargets(
   const settle = new Float32Array(basePositions.length);
   const textTargets = options.textTargets ?? [];
   const haloDensityMultiplier = options.haloDensityMultiplier ?? 1;
+  const sideSpreadMultiplier = options.sideSpreadMultiplier ?? 1;
+  const textScaleMultiplier = options.textScaleMultiplier ?? 1;
   const columns = Math.max(18, Math.round(Math.sqrt(pointCount * 1.45)));
   const rows = Math.ceil(pointCount / columns);
   const depthBands: number = 7;
@@ -205,25 +209,27 @@ export function createMorphTargets(
       jitterA * 0.08;
 
     ribbon[offset] =
-      side * (sideCore + sideWave * 0.12 + jitterA * 0.08);
+      side * (sideCore + sideWave * 0.12 + jitterA * 0.08) * sideSpreadMultiplier;
     ribbon[offset + 1] =
       gridY + Math.sin(innerToOuter * 5.2 + waveV * 1.7 + side * 0.5) * 0.18;
     ribbon[offset + 2] =
       Math.cos(innerToOuter * 5.8 + waveV * 3.4) * 0.22 + band * 0.26 + jitterC * 0.08;
 
     helix[offset] =
-      side *
+      (side *
         (1.18 +
           innerToOuter * 0.62 +
           Math.cos(waveV * 3.1 + band * 3.8 + side * 0.4) * 0.12) +
-      jitterA * 0.05;
+        jitterA * 0.05) *
+      sideSpreadMultiplier;
     helix[offset + 1] =
       (v - 0.5) * 2.12 + Math.sin(waveV * 3.8 + innerToOuter * 2.4 + side * 0.7) * 0.22;
     helix[offset + 2] =
       Math.sin(waveV * 4.4 + innerToOuter * 4.2) * 0.3 + band * 0.28 + jitterB * 0.08;
 
     veil[offset] =
-      side * (1.06 + innerToOuter * 0.78 + sideLift * 0.1) + jitterB * 0.05;
+      (side * (1.06 + innerToOuter * 0.78 + sideLift * 0.1) + jitterB * 0.05) *
+      sideSpreadMultiplier;
     veil[offset + 1] =
       (v - 0.5) * 2.24 + Math.sin(waveU * 1.4 + waveV * 1.9 + side * 0.6) * 0.12;
     veil[offset + 2] =
@@ -246,9 +252,17 @@ export function createMorphTargets(
   };
 
   for (const textTarget of textTargets) {
+    const scaledTextTarget = {
+      ...textTarget,
+      width: textTarget.width * textScaleMultiplier,
+      height: textTarget.height * textScaleMultiplier,
+      depth: textTarget.depth * textScaleMultiplier,
+      haloRadius: textTarget.haloRadius * textScaleMultiplier,
+    };
+
     targets[textTarget.id] = createTextMorphTarget(
       pointCount,
-      textTarget,
+      scaledTextTarget,
       haloDensityMultiplier,
       ribbon,
     );

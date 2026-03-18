@@ -86,11 +86,6 @@ function IntroSection({ progress }: { progress: MotionValue<number> }) {
     opacity: useTransform(progress, [0, 0.02, 0.1], [1, 0.78, 0]),
     x: useTransform(progress, [0, 0.1], [0, -420]),
   };
-  const introNoteOpacity = useTransform(progress, [0, 0.02, 0.1], [1, 0.8, 0]);
-  const introNoteStyle = {
-    opacity: isIntroNoteVisible ? introNoteOpacity : 0,
-    x: useTransform(progress, [0, 0.1], [0, 320]),
-  };
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -116,11 +111,13 @@ function IntroSection({ progress }: { progress: MotionValue<number> }) {
                 a software engineer obsessed with building products that feel a little bit
                 magical
               </p>
+              <div
+                className="intro-note"
+                style={{ opacity: isIntroNoteVisible ? 1 : 0 }}
+              >
+                <p className="intro-note__text">(yep, that&apos;s a real LIDAR scan of my head)</p>
+              </div>
             </div>
-          </motion.div>
-
-          <motion.div className="intro-note" style={introNoteStyle}>
-            <p className="intro-note__text">(yep, that&apos;s a real LIDAR scan of my head)</p>
           </motion.div>
         </div>
       </div>
@@ -133,6 +130,7 @@ function ProjectCardSection({
 }: {
   project: ProjectEntry;
 }) {
+  const [showStack, setShowStack] = useState(false);
   const sectionRef = useRef<HTMLElement>(null);
   const { scrollYProgress } = useScroll({
     target: sectionRef,
@@ -150,15 +148,16 @@ function ProjectCardSection({
   const y = useTransform(focus, [0, 1], [26, 0]);
   const opacity = useTransform(focus, [0, 1], [0.84, 1]);
   const mediaScale = useTransform(focus, [0, 1], [1.01, 1.05]);
-  const borderAlpha = useTransform(focus, [0, 1], [0.12, 0.28]);
-  const glowAlpha = useTransform(focus, [0, 1], [0.02, 0.08]);
+  const borderAlpha = useTransform(focus, [0, 1], [0.06, 0.15]);
+  const glowAlpha = useTransform(focus, [0, 1], [0.012, 0.04]);
   const overlayAlpha = useTransform(focus, [0, 1], [0.22, 0.4]);
   const borderColor = useMotionTemplate`rgba(255, 255, 255, ${borderAlpha})`;
   const cardShadow = useMotionTemplate`0 30px 90px rgba(0, 0, 0, 0.52), 0 0 48px rgba(255, 255, 255, ${glowAlpha})`;
   const imageOverlay = useMotionTemplate`linear-gradient(180deg, rgba(4, 4, 4, 0.02) 0%, rgba(4, 4, 4, ${overlayAlpha}) 100%)`;
   const titleId = `${project.slug}-title`;
+  const stackId = `${project.slug}-stack`;
   const copyStyle = {
-    paddingLeft: "clamp(0.28rem, 0.55vw, 0.45rem)",
+    paddingLeft: "clamp(0.55rem, 0.9vw, 0.8rem)",
     paddingRight: "clamp(0.9rem, 1.3vw, 1.1rem)",
   };
   const titleStyle = {
@@ -218,7 +217,23 @@ function ProjectCardSection({
               ))}
             </ul>
 
-            <ul className="project-tags" role="list">
+            <button
+              type="button"
+              className="cta-link project-stack-toggle"
+              aria-controls={stackId}
+              aria-expanded={showStack}
+              onClick={() => {
+                setShowStack((current) => !current);
+              }}
+            >
+              {showStack ? "Hide Stack" : "Show Stack"}
+            </button>
+
+            <ul
+              id={stackId}
+              className={`project-tags ${showStack ? "project-tags--expanded" : ""}`.trim()}
+              role="list"
+            >
               {project.tags.map((tag) => (
                 <li key={tag} className="tag">
                   {tag}
