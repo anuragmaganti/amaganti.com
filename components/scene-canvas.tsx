@@ -58,6 +58,7 @@ type QualityProfile = {
   textHaloMultiplier: number;
   textScaleMultiplier: number;
   faceScaleMultiplier: number;
+  projectsTextScaleMultiplier: number;
 };
 
 type PointCloudSystemProps = {
@@ -289,8 +290,8 @@ function PointCloudSystem({
       phaseState.cloud.rotation[2],
     );
     const responsiveCloudScaleMultiplier = getResponsiveCloudScaleMultiplier(
-      phaseState.current.cloud.shape,
-      phaseState.next.cloud.shape,
+      phaseState.current.cloud,
+      phaseState.next.cloud,
       blend,
       profile,
     );
@@ -668,6 +669,7 @@ function useQualityProfile(reducedMotion: boolean) {
     textHaloMultiplier: reducedMotion ? 0.2 : 1,
     textScaleMultiplier: 1,
     faceScaleMultiplier: 1,
+    projectsTextScaleMultiplier: 1,
   });
 
   useEffect(() => {
@@ -680,6 +682,7 @@ function useQualityProfile(reducedMotion: boolean) {
           : 0.42 +
             Math.pow(THREE.MathUtils.clamp((width - 300) / 600, 0, 1), 1.35) * 0.58;
       const mobileFaceScale = mobileTextScale;
+      const projectsDesktopScale = width >= 1280 ? 0.86 : 1;
       const memory =
         "deviceMemory" in navigator
           ? (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8
@@ -696,6 +699,7 @@ function useQualityProfile(reducedMotion: boolean) {
           textHaloMultiplier: 0.12,
           textScaleMultiplier: mobileTextScale,
           faceScaleMultiplier: mobileFaceScale,
+          projectsTextScaleMultiplier: projectsDesktopScale,
         });
         return;
       }
@@ -712,6 +716,7 @@ function useQualityProfile(reducedMotion: boolean) {
         textHaloMultiplier: constrainedDevice ? 0.42 : 1,
         textScaleMultiplier: mobileTextScale,
         faceScaleMultiplier: mobileFaceScale,
+        projectsTextScaleMultiplier: projectsDesktopScale,
       });
     };
 
@@ -727,22 +732,34 @@ function useQualityProfile(reducedMotion: boolean) {
 }
 
 function getResponsiveCloudScaleMultiplier(
-  currentShape: PointCloudShape,
-  nextShape: PointCloudShape,
+  currentCloud: {
+    shape: PointCloudShape;
+    textTargetId?: PointCloudTextTargetId;
+  },
+  nextCloud: {
+    shape: PointCloudShape;
+    textTargetId?: PointCloudTextTargetId;
+  },
   mix: number,
   profile: QualityProfile,
 ) {
   const currentMultiplier =
-    currentShape === "face"
+    currentCloud.shape === "face"
       ? profile.faceScaleMultiplier
-      : currentShape === "text"
-        ? profile.textScaleMultiplier
+      : currentCloud.shape === "text"
+        ? profile.textScaleMultiplier *
+          (currentCloud.textTargetId === "projects"
+            ? profile.projectsTextScaleMultiplier
+            : 1)
         : 1;
   const nextMultiplier =
-    nextShape === "face"
+    nextCloud.shape === "face"
       ? profile.faceScaleMultiplier
-      : nextShape === "text"
-        ? profile.textScaleMultiplier
+      : nextCloud.shape === "text"
+        ? profile.textScaleMultiplier *
+          (nextCloud.textTargetId === "projects"
+            ? profile.projectsTextScaleMultiplier
+            : 1)
         : 1;
 
   return lerp(currentMultiplier, nextMultiplier, mix);

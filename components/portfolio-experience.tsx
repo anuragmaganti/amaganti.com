@@ -12,7 +12,7 @@ import {
   useSpring,
   useTransform,
 } from "motion/react";
-import { type Ref, useEffect, useRef, useState } from "react";
+import { type Ref, type RefObject, useEffect, useRef, useState } from "react";
 
 import {
   contentSectionsById,
@@ -56,6 +56,14 @@ const INTRO_BACKDROP_SCROLL_STOPS = [
   getSectionProgressPoint("about-stage", 0.58),
   getSectionProgressPoint("about-stage", 0.92),
 ];
+const ABOUT_MAGNET_TARGET_PROGRESS = getSectionProgressPoint("about-stage", 0.08);
+const ABOUT_MAGNET_RADIUS = 140;
+const ABOUT_RELEASE_RADIUS = 260;
+const ABOUT_STRONG_WHEEL_DELTA = 52;
+const ABOUT_STRONG_TOUCH_DELTA = 42;
+const ABOUT_SNAP_SUPPRESS_MS = 420;
+const ABOUT_SNAP_LOCK_MS = 520;
+const ABOUT_SNAP_VELOCITY = 0.72;
 
 export function PortfolioExperience() {
   const shellRef = useRef<HTMLDivElement>(null);
@@ -68,6 +76,7 @@ export function PortfolioExperience() {
     damping: 24,
     mass: 0.24,
   });
+  useAboutMagneticSnap(shellRef, ABOUT_MAGNET_TARGET_PROGRESS);
   const meterScale = useTransform(sceneProgress, [0, 1], [0.08, 1]);
   const introBackdropOpacity = useTransform(sceneProgress, INTRO_BACKDROP_SCROLL_STOPS, [
     1, 1, 0.18, 0,
@@ -113,6 +122,141 @@ export function PortfolioExperience() {
       </main>
     </div>
   );
+}
+
+function useAboutMagneticSnap(
+  shellRef: RefObject<HTMLDivElement | null>,
+  targetProgress: number,
+) {
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
+
+    const shell = shellRef.current;
+
+    if (!shell) {
+      return;
+    }
+
+    let frameId = 0;
+    let touchStartY = 0;
+    let isTouching = false;
+    const suppressUntil = { current: 0 };
+    const lockUntil = { current: 0 };
+    const scrollMetrics = {
+      y: window.scrollY,
+      time: performance.now(),
+    };
+
+    const getTargetScrollTop = () => {
+      const shellRect = shell.getBoundingClientRect();
+      const shellTop = window.scrollY + shellRect.top;
+      const scrollableHeight = Math.max(shell.scrollHeight - window.innerHeight, 1);
+
+      return shellTop + scrollableHeight * targetProgress;
+    };
+
+    const evaluateSnap = () => {
+      frameId = 0;
+
+      const now = performance.now();
+      const currentY = window.scrollY;
+      const targetY = getTargetScrollTop();
+      const distance = targetY - currentY;
+      const absoluteDistance = Math.abs(distance);
+      const deltaTime = Math.max(now - scrollMetrics.time, 1);
+      const velocity = Math.abs(currentY - scrollMetrics.y) / deltaTime;
+
+      scrollMetrics.y = currentY;
+      scrollMetrics.time = now;
+
+      if (absoluteDistance < 2) {
+        return;
+      }
+
+      if (now < suppressUntil.current || now < lockUntil.current) {
+        return;
+      }
+
+      if (absoluteDistance > ABOUT_RELEASE_RADIUS) {
+        return;
+      }
+
+      if (absoluteDistance <= ABOUT_MAGNET_RADIUS || velocity <= ABOUT_SNAP_VELOCITY) {
+        lockUntil.current = now + ABOUT_SNAP_LOCK_MS;
+        window.scrollTo({
+          top: targetY,
+          behavior: "smooth",
+        });
+      }
+    };
+
+    const scheduleEvaluate = () => {
+      if (frameId) {
+        return;
+      }
+
+      frameId = window.requestAnimationFrame(evaluateSnap);
+    };
+
+    const handleScroll = () => {
+      scheduleEvaluate();
+    };
+
+    const handleWheel = (event: WheelEvent) => {
+      if (Math.abs(event.deltaY) >= ABOUT_STRONG_WHEEL_DELTA) {
+        suppressUntil.current = performance.now() + ABOUT_SNAP_SUPPRESS_MS;
+      }
+
+      scheduleEvaluate();
+    };
+
+    const handleTouchStart = (event: TouchEvent) => {
+      touchStartY = event.touches[0]?.clientY ?? 0;
+      isTouching = true;
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      if (!isTouching) {
+        return;
+      }
+
+      const currentY = event.touches[0]?.clientY ?? touchStartY;
+
+      if (Math.abs(currentY - touchStartY) >= ABOUT_STRONG_TOUCH_DELTA) {
+        suppressUntil.current = performance.now() + ABOUT_SNAP_SUPPRESS_MS;
+      }
+    };
+
+    const handleTouchEnd = () => {
+      isTouching = false;
+      scheduleEvaluate();
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("wheel", handleWheel, { passive: true });
+    window.addEventListener("touchstart", handleTouchStart, { passive: true });
+    window.addEventListener("touchmove", handleTouchMove, { passive: true });
+    window.addEventListener("touchend", handleTouchEnd, { passive: true });
+    window.addEventListener("resize", scheduleEvaluate, { passive: true });
+
+    scheduleEvaluate();
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("wheel", handleWheel);
+      window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchend", handleTouchEnd);
+      window.removeEventListener("resize", scheduleEvaluate);
+    };
+  }, [shellRef, targetProgress]);
 }
 
 function PortfolioSectionRenderer({

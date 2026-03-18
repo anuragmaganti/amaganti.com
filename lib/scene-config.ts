@@ -17,7 +17,7 @@ export type SceneBeatKey =
   | "project-1"
   | "project-2"
   | "project-3"
-  | "about"
+  | "project-3-hold"
   | "contact";
 
 export type SectionKind =
@@ -95,7 +95,7 @@ export type ScenePresetId =
   | "project-card-1"
   | "project-card-2"
   | "project-card-3"
-  | "outro-orbital"
+  | "project-card-3-hold"
   | "outro-face";
 
 export type SceneBeatDefinition = {
@@ -183,14 +183,14 @@ export const SCENE_PRESETS: Record<ScenePresetId, ScenePreset> = {
   },
   "about-transform": {
     camera: {
-      position: [0, 0.48, 4.5],
-      target: [0, 1.06, 0],
+      position: [0, 0.12, 4.5],
+      target: [0, 0.14, 0],
       fov: 30,
     },
     cloud: {
       shape: "text",
       textTargetId: "about-me",
-      position: [0, 1.18, 0],
+      position: [0, 0.96, 0],
       rotation: [0.01, 0.04, 0],
       scale: 1.02,
       pointSize: 0.0158,
@@ -201,14 +201,14 @@ export const SCENE_PRESETS: Record<ScenePresetId, ScenePreset> = {
   },
   "about-title": {
     camera: {
-      position: [0, 0.52, 4.46],
-      target: [0, 1.14, 0],
+      position: [0, 0.12, 4.46],
+      target: [0, 0.14, 0],
       fov: 29,
     },
     cloud: {
       shape: "text",
       textTargetId: "about-me",
-      position: [0, 1.26, 0],
+      position: [0, 1.08, 0],
       rotation: [0, 0.03, 0],
       scale: 1,
       pointSize: 0.0154,
@@ -322,21 +322,21 @@ export const SCENE_PRESETS: Record<ScenePresetId, ScenePreset> = {
       opacity: 0.64,
     },
   },
-  "outro-orbital": {
+  "project-card-3-hold": {
     camera: {
-      position: [0.08, 0, 4.24],
-      target: [-0.04, 0.03, 0],
-      fov: 32,
+      position: [0.02, 0.08, 4.52],
+      target: [0, 0.04, 0],
+      fov: 35,
     },
     cloud: {
-      shape: "orbital",
-      position: [-0.12, 0.06, -0.02],
-      rotation: [-0.12, 0.26, -0.06],
-      scale: 1.06,
-      pointSize: 0.0158,
-      noise: 0.032,
-      intensity: 0.2,
-      opacity: 0.28,
+      shape: "project-field-3",
+      position: [0, 0.06, -0.08],
+      rotation: [-0.08, 0.26, -0.04],
+      scale: 1.74,
+      pointSize: 0.0154,
+      noise: 0.052,
+      intensity: 0.34,
+      opacity: 0.64,
     },
   },
   "outro-face": {
@@ -465,14 +465,14 @@ export const PORTFOLIO_SECTIONS: SectionDefinition[] = [
     durationWeight: 145,
     sceneBeats: [
       {
-        key: "about",
-        presetId: "outro-orbital",
-        durationWeight: 107,
+        key: "project-3-hold",
+        presetId: "project-card-3-hold",
+        durationWeight: 82,
       },
       {
         key: "contact",
         presetId: "outro-face",
-        durationWeight: 38,
+        durationWeight: 63,
       },
     ],
   },
@@ -493,6 +493,18 @@ export function getSectionProgressRange(sectionId: SectionId) {
 export function getSectionProgressPoint(sectionId: SectionId, localProgress: number) {
   const [start, end] = getSectionProgressRange(sectionId);
   return roundProgress(start + (end - start) * clamp(localProgress, 0, 1));
+}
+
+export function getSceneBeatProgressPoint(beatKey: SceneBeatKey, localProgress = 0) {
+  const phase = SCENE_PHASES.find((scenePhase) => scenePhase.key === beatKey);
+
+  if (!phase) {
+    return 0;
+  }
+
+  return roundProgress(
+    phase.range[0] + (phase.range[1] - phase.range[0]) * clamp(localProgress, 0, 1),
+  );
 }
 
 function buildSceneConfiguration(
