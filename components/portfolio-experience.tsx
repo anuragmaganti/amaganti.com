@@ -4,13 +4,14 @@ import dynamic from "next/dynamic";
 import type { MotionValue } from "motion";
 import Image from "next/image";
 import {
+  AnimatePresence,
   motion,
   useMotionTemplate,
   useScroll,
   useSpring,
   useTransform,
 } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { type Ref, useEffect, useRef, useState } from "react";
 
 import { projects, type ProjectEntry } from "@/lib/content";
 
@@ -21,6 +22,13 @@ const SceneCanvas = dynamic(
     loading: () => <div className="scene-placeholder" aria-hidden />,
   },
 );
+
+const INTRO_LOAD_EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
+const INTRO_TEXT_REVEAL_DURATION = 1.72;
+const INTRO_TEXT_FADE_DURATION = 0.92;
+const INTRO_TEXT_MOVE_DELAY = 1.28;
+const INTRO_SCENE_DELAY = 2.08;
+const INTRO_CHROME_DELAY = 2.22;
 
 export function PortfolioExperience() {
   const shellRef = useRef<HTMLDivElement>(null);
@@ -48,15 +56,26 @@ export function PortfolioExperience() {
         style={{ opacity: introBackdropOpacity }}
       />
 
-      <div className="scene-frame" aria-hidden>
+      <motion.div
+        className="scene-frame"
+        aria-hidden
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: INTRO_SCENE_DELAY, duration: 1.08, ease: INTRO_LOAD_EASE }}
+      >
         <SceneCanvas progress={sceneProgress} />
-      </div>
+      </motion.div>
 
-      <div className="site-chrome">
+      <motion.div
+        className="site-chrome"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: INTRO_CHROME_DELAY, duration: 0.72, ease: INTRO_LOAD_EASE }}
+      >
         <div className="scroll-meter-shell" aria-hidden>
           <motion.span className="scroll-meter" style={{ scaleX: meterScale }} />
         </div>
-      </div>
+      </motion.div>
 
       <main className="page-stage" id="top">
         <IntroSection progress={sceneProgress} />
@@ -81,16 +100,93 @@ function SceneStageSection({ className = "" }: { className?: string }) {
 }
 
 function IntroSection({ progress }: { progress: MotionValue<number> }) {
-  const [isIntroNoteVisible, setIsIntroNoteVisible] = useState(false);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
+  const measureTitleRef = useRef<HTMLParagraphElement>(null);
+  const measureSubtitleRef = useRef<HTMLParagraphElement>(null);
+  const measureNoteRef = useRef<HTMLDivElement>(null);
+  const [isIntroLeadCentered, setIsIntroLeadCentered] = useState(true);
+  const [introLoadState, setIntroLoadState] = useState({
+    ready: false,
+    x: 0,
+    y: 0,
+    titleX: 0,
+    subtitleX: 0,
+    noteX: 0,
+  });
   const introCopyStyle = {
     opacity: useTransform(progress, [0, 0.02, 0.1], [1, 0.78, 0]),
     x: useTransform(progress, [0, 0.1], [0, -420]),
   };
+  const getCenteredOffset = (copyRect: DOMRect, childRect: DOMRect) => {
+    const finalLeft = childRect.left - copyRect.left;
+    const centeredLeft = (copyRect.width - childRect.width) * 0.5;
+
+    return centeredLeft - finalLeft;
+  };
+  const renderIntroCopy = (refs?: {
+    titleRef?: Ref<HTMLParagraphElement>;
+    subtitleRef?: Ref<HTMLParagraphElement>;
+    noteRef?: Ref<HTMLDivElement>;
+  }) => (
+    <div className="intro-copy">
+      <p ref={refs?.titleRef} className="intro-title intro-copy-block">
+        <span>Hi, I'm</span>
+        <span>Anurag</span>
+      </p>
+      <p ref={refs?.subtitleRef} className="intro-subtitle intro-copy-block">
+        a software engineer obsessed with building products that feel a little bit magical
+      </p>
+      <div ref={refs?.noteRef} className="intro-note intro-copy-block">
+        <p className="intro-note__text">(yep, that&apos;s a real LIDAR scan of my head)</p>
+      </div>
+    </div>
+  );
+
+  useEffect(() => {
+    let frameA = 0;
+    let frameB = 0;
+
+    const measureIntroCopy = () => {
+      const stageRect = stageRef.current?.getBoundingClientRect();
+      const copyRect = measureRef.current?.getBoundingClientRect();
+      const titleRect = measureTitleRef.current?.getBoundingClientRect();
+      const subtitleRect = measureSubtitleRef.current?.getBoundingClientRect();
+      const noteRect = measureNoteRef.current?.getBoundingClientRect();
+
+      if (!stageRect || !copyRect || !titleRect || !subtitleRect || !noteRect) {
+        return;
+      }
+
+      const finalLeft = copyRect.left - stageRect.left;
+      const finalTop = copyRect.top - stageRect.top;
+      const centeredLeft = (stageRect.width - copyRect.width) * 0.5;
+      const centeredTop = (stageRect.height - copyRect.height) * 0.5;
+
+      setIntroLoadState({
+        ready: true,
+        x: centeredLeft - finalLeft,
+        y: centeredTop - finalTop,
+        titleX: getCenteredOffset(copyRect, titleRect),
+        subtitleX: getCenteredOffset(copyRect, subtitleRect),
+        noteX: getCenteredOffset(copyRect, noteRect),
+      });
+    };
+
+    frameA = window.requestAnimationFrame(() => {
+      frameB = window.requestAnimationFrame(measureIntroCopy);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameA);
+      window.cancelAnimationFrame(frameB);
+    };
+  }, []);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
-      setIsIntroNoteVisible(true);
-    }, 1000);
+      setIsIntroLeadCentered(false);
+    }, INTRO_TEXT_MOVE_DELAY * 1000);
 
     return () => {
       window.clearTimeout(timeoutId);
@@ -100,25 +196,110 @@ function IntroSection({ progress }: { progress: MotionValue<number> }) {
   return (
     <section className="scroll-section scroll-section--intro" aria-label="Point cloud introduction">
       <div className="section-sticky section-sticky--intro">
-        <div className="intro-stage">
-          <motion.div className="intro-copy-shell" style={introCopyStyle}>
-            <div className="intro-copy">
-              <p className="intro-title">
-                <span>Hi, I'm</span>
-                <span>Anurag</span>
-              </p>
-              <p className="intro-subtitle">
-                a software engineer obsessed with building products that feel a little bit
-                magical
-              </p>
-              <div
-                className="intro-note"
-                style={{ opacity: isIntroNoteVisible ? 1 : 0 }}
-              >
-                <p className="intro-note__text">(yep, that&apos;s a real LIDAR scan of my head)</p>
-              </div>
+        <div className="intro-stage" ref={stageRef}>
+          {!introLoadState.ready ? (
+            <div
+              ref={measureRef}
+              className="intro-copy-shell intro-copy-shell--measure"
+              aria-hidden="true"
+            >
+              {renderIntroCopy({
+                titleRef: measureTitleRef,
+                subtitleRef: measureSubtitleRef,
+                noteRef: measureNoteRef,
+              })}
             </div>
-          </motion.div>
+          ) : null}
+
+          {introLoadState.ready ? (
+            <motion.div
+              className="intro-copy-shell"
+              initial={{
+                opacity: 0,
+                x: introLoadState.x,
+                y: introLoadState.y,
+              }}
+              animate={{
+                opacity: 1,
+                x: 0,
+                y: 0,
+              }}
+              transition={{
+                opacity: {
+                  duration: INTRO_TEXT_FADE_DURATION,
+                  ease: INTRO_LOAD_EASE,
+                },
+                x: {
+                  duration: INTRO_TEXT_REVEAL_DURATION,
+                  delay: INTRO_TEXT_MOVE_DELAY,
+                  ease: INTRO_LOAD_EASE,
+                },
+                y: {
+                  duration: INTRO_TEXT_REVEAL_DURATION,
+                  delay: INTRO_TEXT_MOVE_DELAY,
+                  ease: INTRO_LOAD_EASE,
+                },
+              }}
+            >
+              <motion.div style={introCopyStyle}>
+                <div className="intro-copy">
+                  <motion.p
+                    className={[
+                      "intro-title",
+                      "intro-copy-block",
+                      isIntroLeadCentered ? "intro-title--centered" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    initial={{ x: introLoadState.titleX }}
+                    animate={{ x: 0 }}
+                    transition={{
+                      duration: INTRO_TEXT_REVEAL_DURATION,
+                      delay: INTRO_TEXT_MOVE_DELAY,
+                      ease: INTRO_LOAD_EASE,
+                    }}
+                  >
+                    <span>Hi, I'm</span>
+                    <span>Anurag</span>
+                  </motion.p>
+
+                  <motion.p
+                    className={[
+                      "intro-subtitle",
+                      "intro-copy-block",
+                      isIntroLeadCentered ? "intro-subtitle--centered" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    initial={{ x: introLoadState.subtitleX }}
+                    animate={{ x: 0 }}
+                    transition={{
+                      duration: INTRO_TEXT_REVEAL_DURATION,
+                      delay: INTRO_TEXT_MOVE_DELAY,
+                      ease: INTRO_LOAD_EASE,
+                    }}
+                  >
+                    a software engineer obsessed with building products that feel a little bit magical
+                  </motion.p>
+
+                  <motion.div
+                    className="intro-note intro-copy-block"
+                    initial={{ x: introLoadState.noteX }}
+                    animate={{ x: 0 }}
+                    transition={{
+                      duration: INTRO_TEXT_REVEAL_DURATION,
+                      delay: INTRO_TEXT_MOVE_DELAY,
+                      ease: INTRO_LOAD_EASE,
+                    }}
+                  >
+                    <p className="intro-note__text">
+                      (yep, that&apos;s a real LIDAR scan of my head)
+                    </p>
+                  </motion.div>
+                </div>
+              </motion.div>
+            </motion.div>
+          ) : null}
         </div>
       </div>
     </section>
@@ -131,6 +312,7 @@ function ProjectCardSection({
   project: ProjectEntry;
 }) {
   const [showStack, setShowStack] = useState(false);
+  const [compactStack, setCompactStack] = useState(false);
   const sectionRef = useRef<HTMLElement>(null);
   const { scrollYProgress } = useScroll({
     target: sectionRef,
@@ -165,6 +347,25 @@ function ProjectCardSection({
     fontSize: "clamp(1.78rem, 2.65vw, 2.9rem)",
     lineHeight: 0.96,
   };
+  const stackEase: [number, number, number, number] = [0.22, 1, 0.36, 1];
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 640px)");
+    const syncCompactStack = () => {
+      setCompactStack(media.matches);
+
+      if (!media.matches) {
+        setShowStack(false);
+      }
+    };
+
+    syncCompactStack();
+    media.addEventListener("change", syncCompactStack);
+
+    return () => {
+      media.removeEventListener("change", syncCompactStack);
+    };
+  }, []);
 
   return (
     <section
@@ -217,29 +418,95 @@ function ProjectCardSection({
               ))}
             </ul>
 
-            <button
-              type="button"
-              className="cta-link project-stack-toggle"
-              aria-controls={stackId}
-              aria-expanded={showStack}
-              onClick={() => {
-                setShowStack((current) => !current);
-              }}
-            >
-              {showStack ? "Hide Stack" : "Show Stack"}
-            </button>
+            {compactStack ? (
+              <>
+                <button
+                  type="button"
+                  className="cta-link project-stack-toggle"
+                  aria-controls={stackId}
+                  aria-expanded={showStack}
+                  onClick={() => {
+                    setShowStack((current) => !current);
+                  }}
+                >
+                  {showStack ? "Hide Stack" : "Show Stack"}
+                </button>
 
-            <ul
-              id={stackId}
-              className={`project-tags ${showStack ? "project-tags--expanded" : ""}`.trim()}
-              role="list"
-            >
-              {project.tags.map((tag) => (
-                <li key={tag} className="tag">
-                  {tag}
-                </li>
-              ))}
-            </ul>
+                <AnimatePresence initial={false}>
+                  {showStack ? (
+                    <motion.ul
+                      id={stackId}
+                      className="project-tags project-tags--collapsible"
+                      role="list"
+                      initial="hidden"
+                      animate="visible"
+                      exit="exit"
+                      variants={{
+                        hidden: {
+                          height: 0,
+                          opacity: 0,
+                          y: -6,
+                        },
+                        visible: {
+                          height: "auto",
+                          opacity: 1,
+                          y: 0,
+                          transition: {
+                            height: { duration: 0.38, ease: stackEase },
+                            opacity: { duration: 0.22, ease: stackEase },
+                            y: { duration: 0.3, ease: stackEase },
+                            staggerChildren: 0.028,
+                            delayChildren: 0.04,
+                          },
+                        },
+                        exit: {
+                          height: 0,
+                          opacity: 0,
+                          y: -4,
+                          transition: {
+                            height: { duration: 0.26, ease: stackEase },
+                            opacity: { duration: 0.16, ease: stackEase },
+                            y: { duration: 0.2, ease: stackEase },
+                            staggerChildren: 0.018,
+                            staggerDirection: -1,
+                          },
+                        },
+                      }}
+                    >
+                      {project.tags.map((tag) => (
+                        <motion.li
+                          key={tag}
+                          className="tag"
+                          variants={{
+                            hidden: { opacity: 0, y: -4 },
+                            visible: {
+                              opacity: 1,
+                              y: 0,
+                              transition: { duration: 0.22, ease: stackEase },
+                            },
+                            exit: {
+                              opacity: 0,
+                              y: -3,
+                              transition: { duration: 0.14, ease: stackEase },
+                            },
+                          }}
+                        >
+                          {tag}
+                        </motion.li>
+                      ))}
+                    </motion.ul>
+                  ) : null}
+                </AnimatePresence>
+              </>
+            ) : (
+              <ul id={stackId} className="project-tags" role="list">
+                {project.tags.map((tag) => (
+                  <li key={tag} className="tag">
+                    {tag}
+                  </li>
+                ))}
+              </ul>
+            )}
 
             <div className="project-card__actions">
               <a
