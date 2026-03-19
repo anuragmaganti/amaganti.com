@@ -12,6 +12,7 @@
     "@react-three/drei": "latest",
     "@react-three/fiber": "latest",
     "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
     "motion": "latest",
     "next": "16.2.0",
     "react": "19.2.4",
