@@ -187,9 +187,9 @@ function PointCloudSystem({
   const localCardRightAxis = useMemo(() => new THREE.Vector3(), []);
   const localCardUpAxis = useMemo(() => new THREE.Vector3(), []);
   const localCardPlaneNormal = useMemo(() => new THREE.Vector3(), []);
-  const localCardPoint = useMemo(() => new THREE.Vector3(), []);
   const cardNdcPoint = useMemo(() => new THREE.Vector2(), []);
   const localPointDelta = useMemo(() => new THREE.Vector3(), []);
+  const elapsedTimeRef = useRef(0);
 
   useEffect(() => {
     const unsubscribe = progress.on("change", () => {
@@ -255,7 +255,7 @@ function PointCloudSystem({
     };
   }, [cloudMaterial, geometry]);
 
-  useFrame(({ camera, clock }, delta) => {
+  useFrame(({ camera }, delta) => {
     const perspectiveCamera = camera as THREE.PerspectiveCamera;
     const phaseState = sampleSceneProgress(progress.get());
     const shapeFrom =
@@ -264,9 +264,11 @@ function PointCloudSystem({
       morphTargets[resolveMorphTargetId(phaseState.next.cloud)] ?? morphTargets.face;
     const noise = phaseState.cloud.noise * profile.noiseMultiplier;
     const blend = reducedMotion ? Math.min(phaseState.mix, 0.6) : phaseState.mix;
+    elapsedTimeRef.current += delta;
     const pulse = reducedMotion
       ? 0.24
-      : 0.34 + 0.26 * Math.sin(progress.get() * Math.PI * 6 + clock.elapsedTime * 0.2);
+      : 0.34 +
+        0.26 * Math.sin(progress.get() * Math.PI * 6 + elapsedTimeRef.current * 0.2);
     const pointerLerp = 1 - Math.exp(-delta * POINTER_SMOOTHING);
     const pointerPresenceLerp = 1 - Math.exp(-delta * POINTER_PRESENCE_SMOOTHING);
 
@@ -895,8 +897,6 @@ function getMouseRepulsionShapeWeight(shape: PointCloudShape) {
       return 0.52;
     case "project-field-3":
       return 0.48;
-    case "orbital":
-      return 0.34;
     case "settle":
       return 0.3;
     default:

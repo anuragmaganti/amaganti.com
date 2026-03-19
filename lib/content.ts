@@ -22,7 +22,7 @@ export type ContentSectionEntry = {
   body: string[];
 };
 
-export const projects: ProjectEntry[] = [
+const projects: ProjectEntry[] = [
   {
     slug: "project-01",
     title: "Text2Speech.dev",
@@ -111,7 +111,7 @@ export const projectsBySlug = Object.fromEntries(
   projects.map((project) => [project.slug, project]),
 ) as Record<ProjectSlug, ProjectEntry>;
 
-export const contentSections: ContentSectionEntry[] = [
+const contentSections: ContentSectionEntry[] = [
   {
     id: "about-me",
     body: [],

@@ -7,7 +7,7 @@ export type SectionId =
   | ProjectSlug
   | "outro";
 
-export type SceneBeatKey =
+type SceneBeatKey =
   | "intro"
   | "about-transform"
   | "about-title"
@@ -20,12 +20,11 @@ export type SceneBeatKey =
   | "project-3-hold"
   | "contact";
 
-export type SectionKind =
+type SectionKind =
   | "intro"
   | "particle-text"
   | "content-stage"
   | "card"
-  | "spacer"
   | "outro";
 export type SectionDomVariant =
   | "intro"
@@ -37,7 +36,6 @@ export type SectionDomVariant =
 export type PointCloudShape =
   | "face"
   | "text"
-  | "orbital"
   | "project-field-1"
   | "project-field-2"
   | "project-field-3"
@@ -85,7 +83,7 @@ type ScenePreset = {
   cloud: SceneCloudState;
 };
 
-export type ScenePresetId =
+type ScenePresetId =
   | "intro-face"
   | "about-transform"
   | "about-title"
@@ -98,7 +96,7 @@ export type ScenePresetId =
   | "project-card-3-hold"
   | "outro-face";
 
-export type SceneBeatDefinition = {
+type SceneBeatDefinition = {
   key: SceneBeatKey;
   presetId: ScenePresetId;
   durationWeight: number;
@@ -115,7 +113,7 @@ export type SectionDefinition = {
   sceneBeats: SceneBeatDefinition[];
 };
 
-export type ScenePhase = {
+type ScenePhase = {
   key: SceneBeatKey;
   range: [number, number];
   camera: SceneCameraState;
@@ -163,7 +161,7 @@ export const RENDER_DEFAULTS = {
   mobileDpr: [1, 1.1] as [number, number],
 };
 
-export const SCENE_PRESETS: Record<ScenePresetId, ScenePreset> = {
+const SCENE_PRESETS: Record<ScenePresetId, ScenePreset> = {
   "intro-face": {
     camera: {
       position: [-0.04, 0.02, 4.72],
@@ -483,28 +481,16 @@ const { sectionRanges, scenePhases } = buildSceneConfiguration(
   SCENE_PRESETS,
 );
 
-export const SECTION_PROGRESS_RANGES = sectionRanges;
+const SECTION_PROGRESS_RANGES = sectionRanges;
 export const SCENE_PHASES = scenePhases;
 
-export function getSectionProgressRange(sectionId: SectionId) {
+function getSectionProgressRange(sectionId: SectionId) {
   return SECTION_PROGRESS_RANGES[sectionId];
 }
 
 export function getSectionProgressPoint(sectionId: SectionId, localProgress: number) {
   const [start, end] = getSectionProgressRange(sectionId);
   return roundProgress(start + (end - start) * clamp(localProgress, 0, 1));
-}
-
-export function getSceneBeatProgressPoint(beatKey: SceneBeatKey, localProgress = 0) {
-  const phase = SCENE_PHASES.find((scenePhase) => scenePhase.key === beatKey);
-
-  if (!phase) {
-    return 0;
-  }
-
-  return roundProgress(
-    phase.range[0] + (phase.range[1] - phase.range[0]) * clamp(localProgress, 0, 1),
-  );
 }
 
 function buildSceneConfiguration(

@@ -38,6 +38,7 @@ html {
 
 body {
   margin: 0;
+  position: relative;
   min-height: 100vh;
   overflow-x: hidden;
   background:
@@ -663,18 +664,12 @@ select {
   pointer-events: none;
 }
 
-.panel h1,
 .panel h2 {
   margin: 0;
   font-family: var(--font-display), sans-serif;
   font-weight: 600;
   letter-spacing: -0.04em;
   line-height: 0.92;
-}
-
-.panel h1 {
-  max-width: 11ch;
-  font-size: clamp(3.5rem, 10vw, 8.2rem);
 }
 
 .panel h2 {
@@ -946,11 +941,6 @@ select {
     );
   }
 
-  .intro-note {
-    right: clamp(0.8rem, 2vw, 1.5rem);
-    top: 45%;
-  }
-
   .intro-title {
     font-size: clamp(3.5rem, 11vw, 5.6rem);
   }
@@ -958,10 +948,6 @@ select {
   .intro-subtitle {
     max-width: 15ch;
     font-size: clamp(1.35rem, 5vw, 2rem);
-  }
-
-  .panel h1 {
-    font-size: clamp(2.8rem, 16vw, 5.6rem);
   }
 
   .panel h2 {

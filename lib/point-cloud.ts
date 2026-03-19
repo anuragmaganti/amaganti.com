@@ -259,7 +259,6 @@ export function createMorphTargets(
   options: CreateMorphTargetsOptions = {},
 ): Record<PointCloudTargetId, Float32Array> {
   const pointCount = Math.floor(basePositions.length / 3);
-  const orbital = new Float32Array(basePositions.length);
   const projectField1 = new Float32Array(basePositions.length);
   const projectField2 = new Float32Array(basePositions.length);
   const projectField3 = new Float32Array(basePositions.length);
@@ -277,28 +276,11 @@ export function createMorphTargets(
     const row = Math.floor(index / columns);
     const u = columns === 1 ? 0 : column / (columns - 1);
     const v = rows === 1 ? 0 : row / (rows - 1);
-    const waveU = u * TWO_PI;
-    const waveV = v * TWO_PI;
-    const gridY = (0.5 - v) * 1.8;
     const bandIndex = index % depthBands;
     const band = depthBands === 1 ? 0 : bandIndex / (depthBands - 1) - 0.5;
     const jitterA = pseudoRandom(index, 0.17) - 0.5;
     const jitterB = pseudoRandom(index, 0.47) - 0.5;
     const jitterC = pseudoRandom(index, 0.81) - 0.5;
-
-    // Keep transforms as layered particle fields rather than single-strand splines.
-    const orbitalAngle =
-      waveU * 1.75 + band * 0.9 + Math.sin(waveV * 1.2 + jitterA * 2) * 0.16;
-    const orbitalRadius = 0.38 + v * 0.54 + jitterA * 0.08;
-
-    orbital[offset] =
-      Math.cos(orbitalAngle) * orbitalRadius + band * 0.12 + jitterB * 0.06;
-    orbital[offset + 1] =
-      (v - 0.5) * 1.5 + Math.sin(waveU * 2.4 + band * 3.2) * 0.26 + jitterC * 0.08;
-    orbital[offset + 2] =
-      Math.sin(orbitalAngle) * orbitalRadius * 0.78 +
-      Math.cos(waveV * 3.2 + waveU) * 0.14 +
-      jitterA * 0.08;
 
     writeProjectFieldPosition(
       projectField1,
@@ -341,7 +323,6 @@ export function createMorphTargets(
 
   const targets: Partial<Record<PointCloudTargetId, Float32Array>> = {
     face: basePositions,
-    orbital,
     "project-field-1": projectField1,
     "project-field-2": projectField2,
     "project-field-3": projectField3,

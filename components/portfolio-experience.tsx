@@ -7,8 +7,8 @@ import {
   AnimatePresence,
   motion,
   useMotionTemplate,
+  useMotionValue,
   useMotionValueEvent,
-  useScroll,
   useSpring,
   useTransform,
 } from "motion/react";
@@ -65,12 +65,82 @@ const ABOUT_SNAP_SUPPRESS_MS = 420;
 const ABOUT_SNAP_LOCK_MS = 520;
 const ABOUT_SNAP_VELOCITY = 0.72;
 
+function clamp01(value: number) {
+  return Math.max(0, Math.min(1, value));
+}
+
+function getShellScrollProgress(rect: DOMRect, viewportHeight: number) {
+  const scrollableHeight = Math.max(rect.height - viewportHeight, 1);
+
+  return clamp01(-rect.top / scrollableHeight);
+}
+
+function getViewportCrossProgress(rect: DOMRect, viewportHeight: number) {
+  const travel = Math.max(rect.height + viewportHeight, 1);
+
+  return clamp01((viewportHeight - rect.top) / travel);
+}
+
+function useElementScrollProgress<T extends HTMLElement>(
+  targetRef: RefObject<T | null>,
+  measureProgress: (rect: DOMRect, viewportHeight: number) => number,
+) {
+  const progress = useMotionValue(0);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    let frameId = 0;
+    let observer: ResizeObserver | null = null;
+
+    const update = () => {
+      frameId = 0;
+
+      const target = targetRef.current;
+
+      if (!target) {
+        return;
+      }
+
+      progress.set(measureProgress(target.getBoundingClientRect(), window.innerHeight || 1));
+    };
+
+    const scheduleUpdate = () => {
+      if (frameId) {
+        return;
+      }
+
+      frameId = window.requestAnimationFrame(update);
+    };
+
+    scheduleUpdate();
+
+    window.addEventListener("scroll", scheduleUpdate, { passive: true });
+    window.addEventListener("resize", scheduleUpdate, { passive: true });
+    window.addEventListener("load", scheduleUpdate);
+
+    if (targetRef.current) {
+      observer = new ResizeObserver(scheduleUpdate);
+      observer.observe(targetRef.current);
+    }
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener("scroll", scheduleUpdate);
+      window.removeEventListener("resize", scheduleUpdate);
+      window.removeEventListener("load", scheduleUpdate);
+      observer?.disconnect();
+    };
+  }, [measureProgress, progress, targetRef]);
+
+  return progress;
+}
+
 export function PortfolioExperience() {
   const shellRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: shellRef,
-    offset: ["start start", "end end"],
-  });
+  const scrollYProgress = useElementScrollProgress(shellRef, getShellScrollProgress);
   const sceneProgress = useSpring(scrollYProgress, {
     stiffness: 120,
     damping: 24,
@@ -275,7 +345,6 @@ function PortfolioSectionRenderer({
       return <ParticleContentSection section={section} content={content ?? undefined} />;
     }
     case "particle-text":
-    case "spacer":
     case "outro":
       return <SceneStageSection section={section} />;
     case "card": {
@@ -567,10 +636,10 @@ function ProjectCardSection({
   const [compactStack, setCompactStack] = useState(false);
   const sectionRef = useRef<HTMLElement>(null);
   const cardRef = useRef<HTMLElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ["start end", "end start"],
-  });
+  const scrollYProgress = useElementScrollProgress(
+    sectionRef,
+    getViewportCrossProgress,
+  );
   const focus = useSpring(
     useTransform(scrollYProgress, [0.04, 0.28, 0.72, 0.96], [0, 1, 1, 0]),
     {
