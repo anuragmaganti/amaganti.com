@@ -68,6 +68,28 @@ type PointCloudSystemProps = {
   profile: QualityProfile;
 };
 
+type ParticleState = {
+  x: number;
+  y: number;
+  z: number;
+  spreadX: number;
+  spreadY: number;
+  spreadZ: number;
+};
+
+type MouseRepulsionState = {
+  active: boolean;
+  strength: number;
+};
+
+type CardExclusionState = {
+  active: boolean;
+  halfWidth: number;
+  halfHeight: number;
+  strength: number;
+  targetStrength: number;
+};
+
 export function SceneCanvas({ progress }: SceneCanvasProps) {
   const reducedMotion = Boolean(useReducedMotion());
   const profile = useQualityProfile(reducedMotion);
@@ -269,14 +291,12 @@ function PointCloudSystem({
       ? 0.24
       : 0.34 +
         0.26 * Math.sin(progress.get() * Math.PI * 6 + elapsedTimeRef.current * 0.2);
-    const pointerLerp = 1 - Math.exp(-delta * POINTER_SMOOTHING);
-    const pointerPresenceLerp = 1 - Math.exp(-delta * POINTER_PRESENCE_SMOOTHING);
-
-    pointerCurrent.lerp(pointerTarget, pointerLerp);
-    pointerPresenceCurrent.current = lerp(
-      pointerPresenceCurrent.current,
+    updatePointerState(
+      pointerCurrent,
+      pointerTarget,
+      pointerPresenceCurrent,
       pointerPresenceTarget.current,
-      pointerPresenceLerp,
+      delta,
     );
 
     const trackingStrength =
@@ -321,255 +341,85 @@ function PointCloudSystem({
       cloudWorldPosition,
     );
 
-    let hasInteractionPoint = false;
-    let interactionStrength = 0;
-    const cardExclusionPhaseWeight = getCardExclusionWeight(
-      phaseState.current.cloud.shape,
-      phaseState.next.cloud.shape,
+    const cardExclusionState = resolveCardExclusionState({
+      currentShape: phaseState.current.cloud.shape,
+      nextShape: phaseState.next.cloud.shape,
       blend,
-    );
-    const exclusionSnapshot = exclusionSnapshotRef.current;
-    const exclusionTargetStrength =
-      exclusionSnapshot && cardExclusionPhaseWeight > 0.001
-        ? exclusionSnapshot.strength * cardExclusionPhaseWeight
-        : 0;
-    const exclusionLerp = 1 - Math.exp(-delta * CARD_EXCLUSION_SMOOTHING);
-    exclusionStrengthCurrent.current = lerp(
-      exclusionStrengthCurrent.current,
-      exclusionTargetStrength,
-      exclusionLerp,
-    );
-
-    let hasCardExclusion = false;
-    let cardHalfWidth = 0;
-    let cardHalfHeight = 0;
-
-    if (exclusionSnapshot && exclusionStrengthCurrent.current > 0.001) {
-      if (
-        projectScreenPointToLocal(
-          exclusionSnapshot.rect.left + exclusionSnapshot.rect.width * 0.5,
-          exclusionSnapshot.rect.top + exclusionSnapshot.rect.height * 0.5,
-          perspectiveCamera,
-          raycaster,
-          interactionPlane,
-          cardNdcPoint,
-          worldInteractionPoint,
-          localCardCenter,
-          cloud,
-        ) &&
-        projectScreenPointToLocal(
-          exclusionSnapshot.rect.left,
-          exclusionSnapshot.rect.top + exclusionSnapshot.rect.height * 0.5,
-          perspectiveCamera,
-          raycaster,
-          interactionPlane,
-          cardNdcPoint,
-          worldInteractionPoint,
-          localCardLeftMid,
-          cloud,
-        ) &&
-        projectScreenPointToLocal(
-          exclusionSnapshot.rect.right,
-          exclusionSnapshot.rect.top + exclusionSnapshot.rect.height * 0.5,
-          perspectiveCamera,
-          raycaster,
-          interactionPlane,
-          cardNdcPoint,
-          worldInteractionPoint,
-          localCardRightMid,
-          cloud,
-        ) &&
-        projectScreenPointToLocal(
-          exclusionSnapshot.rect.left + exclusionSnapshot.rect.width * 0.5,
-          exclusionSnapshot.rect.top,
-          perspectiveCamera,
-          raycaster,
-          interactionPlane,
-          cardNdcPoint,
-          worldInteractionPoint,
-          localCardTopMid,
-          cloud,
-        ) &&
-        projectScreenPointToLocal(
-          exclusionSnapshot.rect.left + exclusionSnapshot.rect.width * 0.5,
-          exclusionSnapshot.rect.bottom,
-          perspectiveCamera,
-          raycaster,
-          interactionPlane,
-          cardNdcPoint,
-          worldInteractionPoint,
-          localCardBottomMid,
-          cloud,
-        )
-      ) {
-        localCardRightAxis
-          .copy(localCardRightMid)
-          .sub(localCardLeftMid)
-          .normalize();
-        localCardUpAxis
-          .copy(localCardTopMid)
-          .sub(localCardBottomMid)
-          .normalize();
-        localCardPlaneNormal
-          .crossVectors(localCardRightAxis, localCardUpAxis)
-          .normalize();
-        localCardUpAxis
-          .crossVectors(localCardPlaneNormal, localCardRightAxis)
-          .normalize();
-
-        cardHalfWidth = localCardCenter.distanceTo(localCardRightMid);
-        cardHalfHeight = localCardCenter.distanceTo(localCardTopMid);
-        hasCardExclusion = cardHalfWidth > 0.001 && cardHalfHeight > 0.001;
-      }
-    }
-
-    if (pointerPresenceCurrent.current > 0.001) {
-      interactionStrength =
-        pointerPresenceCurrent.current *
-        getMouseRepulsionWeight(
-          phaseState.current.cloud.shape,
-          phaseState.next.cloud.shape,
-          blend,
-        );
-
-      if (interactionStrength > 0.001) {
-        pointerRayCurrent.set(pointerCurrent.x, -pointerCurrent.y);
-        raycaster.setFromCamera(pointerRayCurrent, perspectiveCamera);
-
-        if (raycaster.ray.intersectPlane(interactionPlane, worldInteractionPoint)) {
-          localInteractionPoint.copy(worldInteractionPoint);
-          cloud.worldToLocal(localInteractionPoint);
-          hasInteractionPoint = true;
-        }
-      }
-    }
+      exclusionSnapshot: exclusionSnapshotRef.current,
+      exclusionStrengthCurrent,
+      delta,
+      perspectiveCamera,
+      raycaster,
+      interactionPlane,
+      cardNdcPoint,
+      worldInteractionPoint,
+      localCardCenter,
+      localCardLeftMid,
+      localCardRightMid,
+      localCardTopMid,
+      localCardBottomMid,
+      localCardRightAxis,
+      localCardUpAxis,
+      localCardPlaneNormal,
+      cloud,
+    });
+    const mouseRepulsionState = resolveMouseRepulsionState({
+      pointerPresence: pointerPresenceCurrent.current,
+      pointerCurrent,
+      pointerRayCurrent,
+      currentShape: phaseState.current.cloud.shape,
+      nextShape: phaseState.next.cloud.shape,
+      blend,
+      perspectiveCamera,
+      raycaster,
+      interactionPlane,
+      worldInteractionPoint,
+      localInteractionPoint,
+      cloud,
+    });
+    const particle: ParticleState = {
+      x: 0,
+      y: 0,
+      z: 0,
+      spreadX: 0,
+      spreadY: 0,
+      spreadZ: 0,
+    };
 
     for (let index = 0; index < pointCount; index += 1) {
       const offset = index * 3;
-      let x = lerp(shapeFrom[offset], shapeTo[offset], blend);
-      let y = lerp(shapeFrom[offset + 1], shapeTo[offset + 1], blend);
-      let z = lerp(shapeFrom[offset + 2], shapeTo[offset + 2], blend);
+      sampleParticlePosition(
+        particle,
+        index,
+        offset,
+        shapeFrom,
+        shapeTo,
+        blend,
+        noise,
+        phaseState.cloud.intensity,
+        pulse,
+        seeds,
+      );
 
-      const drift =
-        noise * (0.01 + ((index % 5) * 0.0012)) * phaseState.cloud.intensity * pulse;
-      const seedA = seeds[index * 2];
-      const seedB = seeds[index * 2 + 1];
-      const spreadX = seedA - 0.5;
-      const spreadY = seedB - 0.5;
-      const spreadZ = (seedA + seedB) * 0.5 - 0.5;
-
-      x += spreadX * drift;
-      y += spreadY * drift * 0.8;
-      z += spreadZ * drift * 1.15;
-
-      if (hasInteractionPoint) {
-        let repelX = x - localInteractionPoint.x;
-        let repelY = y - localInteractionPoint.y;
-        let repelZ = z - localInteractionPoint.z;
-        let repelLengthSq = repelX * repelX + repelY * repelY + repelZ * repelZ;
-
-        if (repelLengthSq < MOUSE_REPULSION_RADIUS_SQ) {
-          if (repelLengthSq < 0.000001) {
-            repelX = spreadX || 0.001;
-            repelY = spreadY || 0.001;
-            repelZ = spreadZ || 0.001;
-            repelLengthSq = repelX * repelX + repelY * repelY + repelZ * repelZ;
-          }
-
-          const repelLength = Math.sqrt(repelLengthSq);
-          const falloff = 1 - repelLength / MOUSE_REPULSION_RADIUS;
-          const displacement =
-            MOUSE_REPULSION_DISPLACEMENT * falloff * falloff * interactionStrength;
-          const inverseLength = 1 / repelLength;
-
-          x += repelX * inverseLength * displacement;
-          y += repelY * inverseLength * displacement;
-          z += repelZ * inverseLength * displacement * MOUSE_REPULSION_DEPTH_BOOST;
-        }
+      if (mouseRepulsionState.active) {
+        applyMouseRepulsion(particle, localInteractionPoint, mouseRepulsionState.strength);
       }
 
-      if (hasCardExclusion) {
-        localPointDelta.set(
-          x - localCardCenter.x,
-          y - localCardCenter.y,
-          z - localCardCenter.z,
+      if (cardExclusionState.active) {
+        applyCardExclusion(
+          particle,
+          cardExclusionState,
+          localCardCenter,
+          localCardRightAxis,
+          localCardUpAxis,
+          localCardPlaneNormal,
+          localPointDelta,
         );
-        const planeX = localPointDelta.dot(localCardRightAxis);
-        const planeY = localPointDelta.dot(localCardUpAxis);
-        const absX = Math.abs(planeX);
-        const absY = Math.abs(planeY);
-        const softPadX = cardHalfWidth * CARD_EXCLUSION_SOFT_PAD + 0.045;
-        const softPadY = cardHalfHeight * CARD_EXCLUSION_SOFT_PAD + 0.045;
-        const softHalfWidth = cardHalfWidth + softPadX;
-        const softHalfHeight = cardHalfHeight + softPadY;
-
-        if (absX < softHalfWidth && absY < softHalfHeight) {
-          let pushX = 0;
-          let pushY = 0;
-          let pushMagnitude = 0;
-
-          if (absX < cardHalfWidth && absY < cardHalfHeight) {
-            const xToEdge = cardHalfWidth - absX;
-            const yToEdge = cardHalfHeight - absY;
-            const overshoot =
-              Math.min(cardHalfWidth, cardHalfHeight) * CARD_EXCLUSION_OVERSHOOT + 0.03;
-
-            if (xToEdge < yToEdge) {
-              pushX = planeX >= 0 ? 1 : -1;
-              pushMagnitude = (xToEdge + overshoot) * CARD_EXCLUSION_HARD_STRENGTH;
-            } else {
-              pushY = planeY >= 0 ? 1 : -1;
-              pushMagnitude = (yToEdge + overshoot) * CARD_EXCLUSION_HARD_STRENGTH;
-            }
-          } else {
-            const clampedX = clamp(planeX, -cardHalfWidth, cardHalfWidth);
-            const clampedY = clamp(planeY, -cardHalfHeight, cardHalfHeight);
-            const deltaX = planeX - clampedX;
-            const deltaY = planeY - clampedY;
-            const deltaLength = Math.hypot(deltaX, deltaY);
-
-            if (deltaLength > 0.0001) {
-              pushX = deltaX / deltaLength;
-              pushY = deltaY / deltaLength;
-            } else if (softHalfWidth - absX < softHalfHeight - absY) {
-              pushX = planeX >= 0 ? 1 : -1;
-            } else {
-              pushY = planeY >= 0 ? 1 : -1;
-            }
-
-            const softRadius = Math.max(softPadX, softPadY);
-            const falloff = 1 - clamp(deltaLength / Math.max(softRadius, 0.0001), 0, 1);
-            pushMagnitude = falloff * falloff * CARD_EXCLUSION_SOFT_STRENGTH;
-          }
-
-          pushMagnitude *= exclusionStrengthCurrent.current;
-
-          if (pushMagnitude > 0.0001) {
-            x +=
-              (localCardRightAxis.x * pushX + localCardUpAxis.x * pushY) * pushMagnitude +
-              localCardPlaneNormal.x *
-                pushMagnitude *
-                CARD_EXCLUSION_DEPTH_FACTOR *
-                exclusionStrengthCurrent.current;
-            y +=
-              (localCardRightAxis.y * pushX + localCardUpAxis.y * pushY) * pushMagnitude +
-              localCardPlaneNormal.y *
-                pushMagnitude *
-                CARD_EXCLUSION_DEPTH_FACTOR *
-                exclusionStrengthCurrent.current;
-            z +=
-              (localCardRightAxis.z * pushX + localCardUpAxis.z * pushY) * pushMagnitude +
-              localCardPlaneNormal.z *
-                pushMagnitude *
-                CARD_EXCLUSION_DEPTH_FACTOR *
-                exclusionStrengthCurrent.current;
-          }
-        }
       }
 
-      renderPositions[offset] = x;
-      renderPositions[offset + 1] = y;
-      renderPositions[offset + 2] = z;
+      renderPositions[offset] = particle.x;
+      renderPositions[offset + 1] = particle.y;
+      renderPositions[offset + 2] = particle.z;
     }
 
     geometry.attributes.position.needsUpdate = true;
@@ -577,13 +427,398 @@ function PointCloudSystem({
     if (
       pointerCurrent.distanceToSquared(pointerTarget) > 0.00004 ||
       Math.abs(pointerPresenceCurrent.current - pointerPresenceTarget.current) > 0.00004 ||
-      Math.abs(exclusionStrengthCurrent.current - exclusionTargetStrength) > 0.00004
+      Math.abs(exclusionStrengthCurrent.current - cardExclusionState.targetStrength) > 0.00004
     ) {
       invalidate();
     }
   });
 
   return <primitive object={cloud} />;
+}
+
+function updatePointerState(
+  pointerCurrent: THREE.Vector2,
+  pointerTarget: THREE.Vector2,
+  pointerPresenceCurrent: { current: number },
+  pointerPresenceTarget: number,
+  delta: number,
+) {
+  const pointerLerp = 1 - Math.exp(-delta * POINTER_SMOOTHING);
+  const pointerPresenceLerp = 1 - Math.exp(-delta * POINTER_PRESENCE_SMOOTHING);
+
+  pointerCurrent.lerp(pointerTarget, pointerLerp);
+  pointerPresenceCurrent.current = lerp(
+    pointerPresenceCurrent.current,
+    pointerPresenceTarget,
+    pointerPresenceLerp,
+  );
+}
+
+function resolveMouseRepulsionState({
+  pointerPresence,
+  pointerCurrent,
+  pointerRayCurrent,
+  currentShape,
+  nextShape,
+  blend,
+  perspectiveCamera,
+  raycaster,
+  interactionPlane,
+  worldInteractionPoint,
+  localInteractionPoint,
+  cloud,
+}: {
+  pointerPresence: number;
+  pointerCurrent: THREE.Vector2;
+  pointerRayCurrent: THREE.Vector2;
+  currentShape: PointCloudShape;
+  nextShape: PointCloudShape;
+  blend: number;
+  perspectiveCamera: THREE.PerspectiveCamera;
+  raycaster: THREE.Raycaster;
+  interactionPlane: THREE.Plane;
+  worldInteractionPoint: THREE.Vector3;
+  localInteractionPoint: THREE.Vector3;
+  cloud: THREE.Points;
+}): MouseRepulsionState {
+  if (pointerPresence <= 0.001) {
+    return { active: false, strength: 0 };
+  }
+
+  const strength =
+    pointerPresence * getMouseRepulsionWeight(currentShape, nextShape, blend);
+
+  if (strength <= 0.001) {
+    return { active: false, strength };
+  }
+
+  pointerRayCurrent.set(pointerCurrent.x, -pointerCurrent.y);
+  raycaster.setFromCamera(pointerRayCurrent, perspectiveCamera);
+
+  if (!raycaster.ray.intersectPlane(interactionPlane, worldInteractionPoint)) {
+    return { active: false, strength };
+  }
+
+  localInteractionPoint.copy(worldInteractionPoint);
+  cloud.worldToLocal(localInteractionPoint);
+
+  return { active: true, strength };
+}
+
+function resolveCardExclusionState({
+  currentShape,
+  nextShape,
+  blend,
+  exclusionSnapshot,
+  exclusionStrengthCurrent,
+  delta,
+  perspectiveCamera,
+  raycaster,
+  interactionPlane,
+  cardNdcPoint,
+  worldInteractionPoint,
+  localCardCenter,
+  localCardLeftMid,
+  localCardRightMid,
+  localCardTopMid,
+  localCardBottomMid,
+  localCardRightAxis,
+  localCardUpAxis,
+  localCardPlaneNormal,
+  cloud,
+}: {
+  currentShape: PointCloudShape;
+  nextShape: PointCloudShape;
+  blend: number;
+  exclusionSnapshot: { rect: ProjectCardExclusionRect; strength: number } | null;
+  exclusionStrengthCurrent: { current: number };
+  delta: number;
+  perspectiveCamera: THREE.PerspectiveCamera;
+  raycaster: THREE.Raycaster;
+  interactionPlane: THREE.Plane;
+  cardNdcPoint: THREE.Vector2;
+  worldInteractionPoint: THREE.Vector3;
+  localCardCenter: THREE.Vector3;
+  localCardLeftMid: THREE.Vector3;
+  localCardRightMid: THREE.Vector3;
+  localCardTopMid: THREE.Vector3;
+  localCardBottomMid: THREE.Vector3;
+  localCardRightAxis: THREE.Vector3;
+  localCardUpAxis: THREE.Vector3;
+  localCardPlaneNormal: THREE.Vector3;
+  cloud: THREE.Points;
+}): CardExclusionState {
+  const phaseWeight = getCardExclusionWeight(currentShape, nextShape, blend);
+  const targetStrength =
+    exclusionSnapshot && phaseWeight > 0.001
+      ? exclusionSnapshot.strength * phaseWeight
+      : 0;
+  const exclusionLerp = 1 - Math.exp(-delta * CARD_EXCLUSION_SMOOTHING);
+  exclusionStrengthCurrent.current = lerp(
+    exclusionStrengthCurrent.current,
+    targetStrength,
+    exclusionLerp,
+  );
+
+  if (!exclusionSnapshot || exclusionStrengthCurrent.current <= 0.001) {
+    return {
+      active: false,
+      halfWidth: 0,
+      halfHeight: 0,
+      strength: exclusionStrengthCurrent.current,
+      targetStrength,
+    };
+  }
+
+  const centerX = exclusionSnapshot.rect.left + exclusionSnapshot.rect.width * 0.5;
+  const centerY = exclusionSnapshot.rect.top + exclusionSnapshot.rect.height * 0.5;
+
+  const hasCardProjection =
+    projectScreenPointToLocal(
+      centerX,
+      centerY,
+      perspectiveCamera,
+      raycaster,
+      interactionPlane,
+      cardNdcPoint,
+      worldInteractionPoint,
+      localCardCenter,
+      cloud,
+    ) &&
+    projectScreenPointToLocal(
+      exclusionSnapshot.rect.left,
+      centerY,
+      perspectiveCamera,
+      raycaster,
+      interactionPlane,
+      cardNdcPoint,
+      worldInteractionPoint,
+      localCardLeftMid,
+      cloud,
+    ) &&
+    projectScreenPointToLocal(
+      exclusionSnapshot.rect.right,
+      centerY,
+      perspectiveCamera,
+      raycaster,
+      interactionPlane,
+      cardNdcPoint,
+      worldInteractionPoint,
+      localCardRightMid,
+      cloud,
+    ) &&
+    projectScreenPointToLocal(
+      centerX,
+      exclusionSnapshot.rect.top,
+      perspectiveCamera,
+      raycaster,
+      interactionPlane,
+      cardNdcPoint,
+      worldInteractionPoint,
+      localCardTopMid,
+      cloud,
+    ) &&
+    projectScreenPointToLocal(
+      centerX,
+      exclusionSnapshot.rect.bottom,
+      perspectiveCamera,
+      raycaster,
+      interactionPlane,
+      cardNdcPoint,
+      worldInteractionPoint,
+      localCardBottomMid,
+      cloud,
+    );
+
+  if (!hasCardProjection) {
+    return {
+      active: false,
+      halfWidth: 0,
+      halfHeight: 0,
+      strength: exclusionStrengthCurrent.current,
+      targetStrength,
+    };
+  }
+
+  localCardRightAxis
+    .copy(localCardRightMid)
+    .sub(localCardLeftMid)
+    .normalize();
+  localCardUpAxis
+    .copy(localCardTopMid)
+    .sub(localCardBottomMid)
+    .normalize();
+  localCardPlaneNormal
+    .crossVectors(localCardRightAxis, localCardUpAxis)
+    .normalize();
+  localCardUpAxis
+    .crossVectors(localCardPlaneNormal, localCardRightAxis)
+    .normalize();
+
+  const halfWidth = localCardCenter.distanceTo(localCardRightMid);
+  const halfHeight = localCardCenter.distanceTo(localCardTopMid);
+  const active = halfWidth > 0.001 && halfHeight > 0.001;
+
+  return {
+    active,
+    halfWidth,
+    halfHeight,
+    strength: exclusionStrengthCurrent.current,
+    targetStrength,
+  };
+}
+
+function sampleParticlePosition(
+  particle: ParticleState,
+  index: number,
+  offset: number,
+  shapeFrom: Float32Array,
+  shapeTo: Float32Array,
+  blend: number,
+  noise: number,
+  intensity: number,
+  pulse: number,
+  seeds: Float32Array,
+) {
+  particle.x = lerp(shapeFrom[offset], shapeTo[offset], blend);
+  particle.y = lerp(shapeFrom[offset + 1], shapeTo[offset + 1], blend);
+  particle.z = lerp(shapeFrom[offset + 2], shapeTo[offset + 2], blend);
+
+  const drift = noise * (0.01 + ((index % 5) * 0.0012)) * intensity * pulse;
+  const seedA = seeds[index * 2];
+  const seedB = seeds[index * 2 + 1];
+
+  particle.spreadX = seedA - 0.5;
+  particle.spreadY = seedB - 0.5;
+  particle.spreadZ = (seedA + seedB) * 0.5 - 0.5;
+  particle.x += particle.spreadX * drift;
+  particle.y += particle.spreadY * drift * 0.8;
+  particle.z += particle.spreadZ * drift * 1.15;
+}
+
+function applyMouseRepulsion(
+  particle: ParticleState,
+  localInteractionPoint: THREE.Vector3,
+  interactionStrength: number,
+) {
+  let repelX = particle.x - localInteractionPoint.x;
+  let repelY = particle.y - localInteractionPoint.y;
+  let repelZ = particle.z - localInteractionPoint.z;
+  let repelLengthSq = repelX * repelX + repelY * repelY + repelZ * repelZ;
+
+  if (repelLengthSq >= MOUSE_REPULSION_RADIUS_SQ) {
+    return;
+  }
+
+  if (repelLengthSq < 0.000001) {
+    repelX = particle.spreadX || 0.001;
+    repelY = particle.spreadY || 0.001;
+    repelZ = particle.spreadZ || 0.001;
+    repelLengthSq = repelX * repelX + repelY * repelY + repelZ * repelZ;
+  }
+
+  const repelLength = Math.sqrt(repelLengthSq);
+  const falloff = 1 - repelLength / MOUSE_REPULSION_RADIUS;
+  const displacement =
+    MOUSE_REPULSION_DISPLACEMENT * falloff * falloff * interactionStrength;
+  const inverseLength = 1 / repelLength;
+
+  particle.x += repelX * inverseLength * displacement;
+  particle.y += repelY * inverseLength * displacement;
+  particle.z += repelZ * inverseLength * displacement * MOUSE_REPULSION_DEPTH_BOOST;
+}
+
+function applyCardExclusion(
+  particle: ParticleState,
+  cardExclusion: CardExclusionState,
+  localCardCenter: THREE.Vector3,
+  localCardRightAxis: THREE.Vector3,
+  localCardUpAxis: THREE.Vector3,
+  localCardPlaneNormal: THREE.Vector3,
+  localPointDelta: THREE.Vector3,
+) {
+  localPointDelta.set(
+    particle.x - localCardCenter.x,
+    particle.y - localCardCenter.y,
+    particle.z - localCardCenter.z,
+  );
+  const planeX = localPointDelta.dot(localCardRightAxis);
+  const planeY = localPointDelta.dot(localCardUpAxis);
+  const absX = Math.abs(planeX);
+  const absY = Math.abs(planeY);
+  const softPadX = cardExclusion.halfWidth * CARD_EXCLUSION_SOFT_PAD + 0.045;
+  const softPadY = cardExclusion.halfHeight * CARD_EXCLUSION_SOFT_PAD + 0.045;
+  const softHalfWidth = cardExclusion.halfWidth + softPadX;
+  const softHalfHeight = cardExclusion.halfHeight + softPadY;
+
+  if (absX >= softHalfWidth || absY >= softHalfHeight) {
+    return;
+  }
+
+  let pushX = 0;
+  let pushY = 0;
+  let pushMagnitude = 0;
+
+  if (absX < cardExclusion.halfWidth && absY < cardExclusion.halfHeight) {
+    const xToEdge = cardExclusion.halfWidth - absX;
+    const yToEdge = cardExclusion.halfHeight - absY;
+    const overshoot =
+      Math.min(cardExclusion.halfWidth, cardExclusion.halfHeight) *
+        CARD_EXCLUSION_OVERSHOOT +
+      0.03;
+
+    if (xToEdge < yToEdge) {
+      pushX = planeX >= 0 ? 1 : -1;
+      pushMagnitude = (xToEdge + overshoot) * CARD_EXCLUSION_HARD_STRENGTH;
+    } else {
+      pushY = planeY >= 0 ? 1 : -1;
+      pushMagnitude = (yToEdge + overshoot) * CARD_EXCLUSION_HARD_STRENGTH;
+    }
+  } else {
+    const clampedX = clamp(planeX, -cardExclusion.halfWidth, cardExclusion.halfWidth);
+    const clampedY = clamp(planeY, -cardExclusion.halfHeight, cardExclusion.halfHeight);
+    const deltaX = planeX - clampedX;
+    const deltaY = planeY - clampedY;
+    const deltaLength = Math.hypot(deltaX, deltaY);
+
+    if (deltaLength > 0.0001) {
+      pushX = deltaX / deltaLength;
+      pushY = deltaY / deltaLength;
+    } else if (softHalfWidth - absX < softHalfHeight - absY) {
+      pushX = planeX >= 0 ? 1 : -1;
+    } else {
+      pushY = planeY >= 0 ? 1 : -1;
+    }
+
+    const softRadius = Math.max(softPadX, softPadY);
+    const falloff = 1 - clamp(deltaLength / Math.max(softRadius, 0.0001), 0, 1);
+    pushMagnitude = falloff * falloff * CARD_EXCLUSION_SOFT_STRENGTH;
+  }
+
+  pushMagnitude *= cardExclusion.strength;
+
+  if (pushMagnitude <= 0.0001) {
+    return;
+  }
+
+  particle.x +=
+    (localCardRightAxis.x * pushX + localCardUpAxis.x * pushY) * pushMagnitude +
+    localCardPlaneNormal.x *
+      pushMagnitude *
+      CARD_EXCLUSION_DEPTH_FACTOR *
+      cardExclusion.strength;
+  particle.y +=
+    (localCardRightAxis.y * pushX + localCardUpAxis.y * pushY) * pushMagnitude +
+    localCardPlaneNormal.y *
+      pushMagnitude *
+      CARD_EXCLUSION_DEPTH_FACTOR *
+      cardExclusion.strength;
+  particle.z +=
+    (localCardRightAxis.z * pushX + localCardUpAxis.z * pushY) * pushMagnitude +
+    localCardPlaneNormal.z *
+      pushMagnitude *
+      CARD_EXCLUSION_DEPTH_FACTOR *
+      cardExclusion.strength;
 }
 
 function usePointCloudSource(maxPoints: number) {

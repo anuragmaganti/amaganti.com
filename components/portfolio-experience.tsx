@@ -12,7 +12,7 @@ import {
   useSpring,
   useTransform,
 } from "motion/react";
-import { type Ref, type RefObject, useEffect, useRef, useState } from "react";
+import { type ReactNode, type Ref, type RefObject, useEffect, useRef, useState } from "react";
 
 import {
   contentSectionsById,
@@ -28,6 +28,7 @@ import {
 } from "@/lib/scene-config";
 import {
   removeProjectCardExclusion,
+  type ProjectCardExclusionRect,
   upsertProjectCardExclusion,
 } from "@/lib/project-card-exclusion-store";
 
@@ -64,6 +65,87 @@ const ABOUT_STRONG_TOUCH_DELTA = 42;
 const ABOUT_SNAP_SUPPRESS_MS = 420;
 const ABOUT_SNAP_LOCK_MS = 520;
 const ABOUT_SNAP_VELOCITY = 0.72;
+const INTRO_TITLE_LINES = ["Hi, I'm", "Anurag"] as const;
+const INTRO_SUBTITLE_TEXT =
+  "a software engineer obsessed with building products that feel a little bit magical";
+const INTRO_NOTE_TEXT = "(yep, that's a real LIDAR scan of my head)";
+const PROJECT_STACK_EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
+const PROJECT_TAG_LIST_VARIANTS = {
+  hidden: {
+    height: 0,
+    opacity: 0,
+    y: -6,
+  },
+  visible: {
+    height: "auto",
+    opacity: 1,
+    y: 0,
+    transition: {
+      height: { duration: 0.38, ease: PROJECT_STACK_EASE },
+      opacity: { duration: 0.22, ease: PROJECT_STACK_EASE },
+      y: { duration: 0.3, ease: PROJECT_STACK_EASE },
+      staggerChildren: 0.028,
+      delayChildren: 0.04,
+    },
+  },
+  exit: {
+    height: 0,
+    opacity: 0,
+    y: -4,
+    transition: {
+      height: { duration: 0.26, ease: PROJECT_STACK_EASE },
+      opacity: { duration: 0.16, ease: PROJECT_STACK_EASE },
+      y: { duration: 0.2, ease: PROJECT_STACK_EASE },
+      staggerChildren: 0.018,
+      staggerDirection: -1,
+    },
+  },
+} as const;
+const PROJECT_TAG_ITEM_VARIANTS = {
+  hidden: { opacity: 0, y: -4 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.22, ease: PROJECT_STACK_EASE },
+  },
+  exit: {
+    opacity: 0,
+    y: -3,
+    transition: { duration: 0.14, ease: PROJECT_STACK_EASE },
+  },
+} as const;
+
+type IntroCopyContentProps = {
+  titleClassName: string;
+  subtitleClassName: string;
+  noteClassName: string;
+  titleRef?: Ref<HTMLParagraphElement>;
+  subtitleRef?: Ref<HTMLParagraphElement>;
+  noteRef?: Ref<HTMLDivElement>;
+  renderTitle?: (props: {
+    className: string;
+    ref?: Ref<HTMLParagraphElement>;
+    children: ReactNode;
+  }) => ReactNode;
+  renderSubtitle?: (props: {
+    className: string;
+    ref?: Ref<HTMLParagraphElement>;
+    children: ReactNode;
+  }) => ReactNode;
+  renderNote?: (props: {
+    className: string;
+    ref?: Ref<HTMLDivElement>;
+    children: ReactNode;
+  }) => ReactNode;
+};
+
+type ProjectTagListProps = {
+  compact: boolean;
+  showStack: boolean;
+  stackId: string;
+  tags: string[];
+  onToggle: () => void;
+};
 
 function clamp01(value: number) {
   return Math.max(0, Math.min(1, value));
@@ -136,6 +218,180 @@ function useElementScrollProgress<T extends HTMLElement>(
   }, [measureProgress, progress, targetRef]);
 
   return progress;
+}
+
+function readProjectCardExclusionRect(element: HTMLElement): ProjectCardExclusionRect {
+  const rect = element.getBoundingClientRect();
+
+  return {
+    left: rect.left,
+    top: rect.top,
+    right: rect.right,
+    bottom: rect.bottom,
+    width: rect.width,
+    height: rect.height,
+  };
+}
+
+function syncProjectCardExclusion(
+  id: string,
+  element: HTMLElement | null,
+  strength: number,
+) {
+  if (!element) {
+    return;
+  }
+
+  upsertProjectCardExclusion(id, readProjectCardExclusionRect(element), strength);
+}
+
+function useProjectCardExclusion(
+  id: string,
+  cardRef: RefObject<HTMLElement | null>,
+  exclusionStrength: MotionValue<number>,
+  scrollYProgress: MotionValue<number>,
+) {
+  useEffect(() => {
+    let frameId = 0;
+    let observer: ResizeObserver | null = null;
+
+    const syncCurrentRect = () => {
+      syncProjectCardExclusion(id, cardRef.current, exclusionStrength.get());
+    };
+
+    const scheduleSync = () => {
+      window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(syncCurrentRect);
+    };
+
+    scheduleSync();
+    window.addEventListener("resize", scheduleSync, { passive: true });
+
+    if (cardRef.current) {
+      observer = new ResizeObserver(scheduleSync);
+      observer.observe(cardRef.current);
+    }
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener("resize", scheduleSync);
+      observer?.disconnect();
+      removeProjectCardExclusion(id);
+    };
+  }, [cardRef, exclusionStrength, id]);
+
+  useMotionValueEvent(scrollYProgress, "change", () => {
+    syncProjectCardExclusion(id, cardRef.current, exclusionStrength.get());
+  });
+
+  useMotionValueEvent(exclusionStrength, "change", (latest) => {
+    syncProjectCardExclusion(id, cardRef.current, latest);
+  });
+}
+
+function IntroCopyContent({
+  titleClassName,
+  subtitleClassName,
+  noteClassName,
+  titleRef,
+  subtitleRef,
+  noteRef,
+  renderTitle,
+  renderSubtitle,
+  renderNote,
+}: IntroCopyContentProps) {
+  const titleChildren = INTRO_TITLE_LINES.map((line) => <span key={line}>{line}</span>);
+  const noteChildren = <p className="intro-note__text">{INTRO_NOTE_TEXT}</p>;
+
+  return (
+    <div className="intro-copy">
+      {renderTitle ? (
+        renderTitle({ className: titleClassName, ref: titleRef, children: titleChildren })
+      ) : (
+        <p ref={titleRef} className={titleClassName}>
+          {titleChildren}
+        </p>
+      )}
+
+      {renderSubtitle ? (
+        renderSubtitle({
+          className: subtitleClassName,
+          ref: subtitleRef,
+          children: INTRO_SUBTITLE_TEXT,
+        })
+      ) : (
+        <p ref={subtitleRef} className={subtitleClassName}>
+          {INTRO_SUBTITLE_TEXT}
+        </p>
+      )}
+
+      {renderNote ? (
+        renderNote({ className: noteClassName, ref: noteRef, children: noteChildren })
+      ) : (
+        <div ref={noteRef} className={noteClassName}>
+          {noteChildren}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProjectTagList({
+  compact,
+  showStack,
+  stackId,
+  tags,
+  onToggle,
+}: ProjectTagListProps) {
+  if (!compact) {
+    return (
+      <ul id={stackId} className="project-tags" role="list">
+        {tags.map((tag) => (
+          <li key={tag} className="tag">
+            {tag}
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        className="cta-link project-stack-toggle"
+        aria-controls={stackId}
+        aria-expanded={showStack}
+        onClick={onToggle}
+      >
+        {showStack ? "Hide Stack" : "Show Stack"}
+      </button>
+
+      <AnimatePresence initial={false}>
+        {showStack ? (
+          <motion.ul
+            id={stackId}
+            className="project-tags project-tags--collapsible"
+            role="list"
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            variants={PROJECT_TAG_LIST_VARIANTS}
+          >
+            {tags.map((tag) => (
+              <motion.li
+                key={tag}
+                className="tag"
+                variants={PROJECT_TAG_ITEM_VARIANTS}
+              >
+                {tag}
+              </motion.li>
+            ))}
+          </motion.ul>
+        ) : null}
+      </AnimatePresence>
+    </>
+  );
 }
 
 export function PortfolioExperience() {
@@ -442,24 +698,6 @@ function IntroSection({
 
     return centeredLeft - finalLeft;
   };
-  const renderIntroCopy = (refs?: {
-    titleRef?: Ref<HTMLParagraphElement>;
-    subtitleRef?: Ref<HTMLParagraphElement>;
-    noteRef?: Ref<HTMLDivElement>;
-  }) => (
-    <div className="intro-copy">
-      <p ref={refs?.titleRef} className="intro-title intro-copy-block">
-        <span>Hi, I'm</span>
-        <span>Anurag</span>
-      </p>
-      <p ref={refs?.subtitleRef} className="intro-subtitle intro-copy-block">
-        a software engineer obsessed with building products that feel a little bit magical
-      </p>
-      <div ref={refs?.noteRef} className="intro-note intro-copy-block">
-        <p className="intro-note__text">(yep, that&apos;s a real LIDAR scan of my head)</p>
-      </div>
-    </div>
-  );
 
   useEffect(() => {
     let frameA = 0;
@@ -524,11 +762,14 @@ function IntroSection({
               className="intro-copy-shell intro-copy-shell--measure"
               aria-hidden="true"
             >
-              {renderIntroCopy({
-                titleRef: measureTitleRef,
-                subtitleRef: measureSubtitleRef,
-                noteRef: measureNoteRef,
-              })}
+              <IntroCopyContent
+                titleClassName="intro-title intro-copy-block"
+                subtitleClassName="intro-subtitle intro-copy-block"
+                noteClassName="intro-note intro-copy-block"
+                titleRef={measureTitleRef}
+                subtitleRef={measureSubtitleRef}
+                noteRef={measureNoteRef}
+              />
             </div>
           ) : null}
 
@@ -563,61 +804,65 @@ function IntroSection({
               }}
             >
               <motion.div style={introCopyStyle}>
-                <div className="intro-copy">
-                  <motion.p
-                    className={[
-                      "intro-title",
-                      "intro-copy-block",
-                      isIntroLeadCentered ? "intro-title--centered" : "",
-                    ]
-                      .filter(Boolean)
-                      .join(" ")}
-                    initial={{ x: introLoadState.titleX }}
-                    animate={{ x: 0 }}
-                    transition={{
-                      duration: INTRO_TEXT_REVEAL_DURATION,
-                      delay: INTRO_TEXT_MOVE_DELAY,
-                      ease: INTRO_LOAD_EASE,
-                    }}
-                  >
-                    <span>Hi, I'm</span>
-                    <span>Anurag</span>
-                  </motion.p>
-
-                  <motion.p
-                    className={[
-                      "intro-subtitle",
-                      "intro-copy-block",
-                      isIntroLeadCentered ? "intro-subtitle--centered" : "",
-                    ]
-                      .filter(Boolean)
-                      .join(" ")}
-                    initial={{ x: introLoadState.subtitleX }}
-                    animate={{ x: 0 }}
-                    transition={{
-                      duration: INTRO_TEXT_REVEAL_DURATION,
-                      delay: INTRO_TEXT_MOVE_DELAY,
-                      ease: INTRO_LOAD_EASE,
-                    }}
-                  >
-                    a software engineer obsessed with building products that feel a little bit magical
-                  </motion.p>
-
-                  <motion.div
-                    className="intro-note intro-copy-block"
-                    initial={{ x: introLoadState.noteX }}
-                    animate={{ x: 0 }}
-                    transition={{
-                      duration: INTRO_TEXT_REVEAL_DURATION,
-                      delay: INTRO_TEXT_MOVE_DELAY,
-                      ease: INTRO_LOAD_EASE,
-                    }}
-                  >
-                    <p className="intro-note__text">
-                      (yep, that&apos;s a real LIDAR scan of my head)
-                    </p>
-                  </motion.div>
-                </div>
+                <IntroCopyContent
+                  titleClassName={[
+                    "intro-title",
+                    "intro-copy-block",
+                    isIntroLeadCentered ? "intro-title--centered" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  subtitleClassName={[
+                    "intro-subtitle",
+                    "intro-copy-block",
+                    isIntroLeadCentered ? "intro-subtitle--centered" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  noteClassName="intro-note intro-copy-block"
+                  renderTitle={({ className, children }) => (
+                    <motion.p
+                      className={className}
+                      initial={{ x: introLoadState.titleX }}
+                      animate={{ x: 0 }}
+                      transition={{
+                        duration: INTRO_TEXT_REVEAL_DURATION,
+                        delay: INTRO_TEXT_MOVE_DELAY,
+                        ease: INTRO_LOAD_EASE,
+                      }}
+                    >
+                      {children}
+                    </motion.p>
+                  )}
+                  renderSubtitle={({ className, children }) => (
+                    <motion.p
+                      className={className}
+                      initial={{ x: introLoadState.subtitleX }}
+                      animate={{ x: 0 }}
+                      transition={{
+                        duration: INTRO_TEXT_REVEAL_DURATION,
+                        delay: INTRO_TEXT_MOVE_DELAY,
+                        ease: INTRO_LOAD_EASE,
+                      }}
+                    >
+                      {children}
+                    </motion.p>
+                  )}
+                  renderNote={({ className, children }) => (
+                    <motion.div
+                      className={className}
+                      initial={{ x: introLoadState.noteX }}
+                      animate={{ x: 0 }}
+                      transition={{
+                        duration: INTRO_TEXT_REVEAL_DURATION,
+                        delay: INTRO_TEXT_MOVE_DELAY,
+                        ease: INTRO_LOAD_EASE,
+                      }}
+                    >
+                      {children}
+                    </motion.div>
+                  )}
+                />
               </motion.div>
             </motion.div>
           ) : null}
@@ -681,7 +926,6 @@ function ProjectCardSection({
     fontSize: "clamp(1.78rem, 2.65vw, 2.9rem)",
     lineHeight: 0.96,
   };
-  const stackEase: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 640px)");
@@ -700,88 +944,7 @@ function ProjectCardSection({
       media.removeEventListener("change", syncCompactStack);
     };
   }, []);
-
-  useEffect(() => {
-    let frameId = 0;
-    let observer: ResizeObserver | null = null;
-
-    const syncExclusionRect = () => {
-      const card = cardRef.current;
-
-      if (!card) {
-        return;
-      }
-
-      const rect = card.getBoundingClientRect();
-
-      upsertProjectCardExclusion(project.slug, {
-        left: rect.left,
-        top: rect.top,
-        right: rect.right,
-        bottom: rect.bottom,
-        width: rect.width,
-        height: rect.height,
-      }, exclusionStrength.get());
-    };
-
-    const scheduleSync = () => {
-      window.cancelAnimationFrame(frameId);
-      frameId = window.requestAnimationFrame(syncExclusionRect);
-    };
-
-    scheduleSync();
-    window.addEventListener("resize", scheduleSync, { passive: true });
-
-    if (cardRef.current) {
-      observer = new ResizeObserver(scheduleSync);
-      observer.observe(cardRef.current);
-    }
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-      window.removeEventListener("resize", scheduleSync);
-      observer?.disconnect();
-      removeProjectCardExclusion(project.slug);
-    };
-  }, [exclusionStrength, project.slug]);
-
-  useMotionValueEvent(scrollYProgress, "change", () => {
-    const card = cardRef.current;
-
-    if (!card) {
-      return;
-    }
-
-    const rect = card.getBoundingClientRect();
-
-    upsertProjectCardExclusion(project.slug, {
-      left: rect.left,
-      top: rect.top,
-      right: rect.right,
-      bottom: rect.bottom,
-      width: rect.width,
-      height: rect.height,
-    }, exclusionStrength.get());
-  });
-
-  useMotionValueEvent(exclusionStrength, "change", (latest) => {
-    const card = cardRef.current;
-
-    if (!card) {
-      return;
-    }
-
-    const rect = card.getBoundingClientRect();
-
-    upsertProjectCardExclusion(project.slug, {
-      left: rect.left,
-      top: rect.top,
-      right: rect.right,
-      bottom: rect.bottom,
-      width: rect.width,
-      height: rect.height,
-    }, latest);
-  });
+  useProjectCardExclusion(project.slug, cardRef, exclusionStrength, scrollYProgress);
 
   return (
     <section
@@ -835,95 +998,15 @@ function ProjectCardSection({
               ))}
             </ul>
 
-            {compactStack ? (
-              <>
-                <button
-                  type="button"
-                  className="cta-link project-stack-toggle"
-                  aria-controls={stackId}
-                  aria-expanded={showStack}
-                  onClick={() => {
-                    setShowStack((current) => !current);
-                  }}
-                >
-                  {showStack ? "Hide Stack" : "Show Stack"}
-                </button>
-
-                <AnimatePresence initial={false}>
-                  {showStack ? (
-                    <motion.ul
-                      id={stackId}
-                      className="project-tags project-tags--collapsible"
-                      role="list"
-                      initial="hidden"
-                      animate="visible"
-                      exit="exit"
-                      variants={{
-                        hidden: {
-                          height: 0,
-                          opacity: 0,
-                          y: -6,
-                        },
-                        visible: {
-                          height: "auto",
-                          opacity: 1,
-                          y: 0,
-                          transition: {
-                            height: { duration: 0.38, ease: stackEase },
-                            opacity: { duration: 0.22, ease: stackEase },
-                            y: { duration: 0.3, ease: stackEase },
-                            staggerChildren: 0.028,
-                            delayChildren: 0.04,
-                          },
-                        },
-                        exit: {
-                          height: 0,
-                          opacity: 0,
-                          y: -4,
-                          transition: {
-                            height: { duration: 0.26, ease: stackEase },
-                            opacity: { duration: 0.16, ease: stackEase },
-                            y: { duration: 0.2, ease: stackEase },
-                            staggerChildren: 0.018,
-                            staggerDirection: -1,
-                          },
-                        },
-                      }}
-                    >
-                      {project.tags.map((tag) => (
-                        <motion.li
-                          key={tag}
-                          className="tag"
-                          variants={{
-                            hidden: { opacity: 0, y: -4 },
-                            visible: {
-                              opacity: 1,
-                              y: 0,
-                              transition: { duration: 0.22, ease: stackEase },
-                            },
-                            exit: {
-                              opacity: 0,
-                              y: -3,
-                              transition: { duration: 0.14, ease: stackEase },
-                            },
-                          }}
-                        >
-                          {tag}
-                        </motion.li>
-                      ))}
-                    </motion.ul>
-                  ) : null}
-                </AnimatePresence>
-              </>
-            ) : (
-              <ul id={stackId} className="project-tags" role="list">
-                {project.tags.map((tag) => (
-                  <li key={tag} className="tag">
-                    {tag}
-                  </li>
-                ))}
-              </ul>
-            )}
+            <ProjectTagList
+              compact={compactStack}
+              showStack={showStack}
+              stackId={stackId}
+              tags={project.tags}
+              onToggle={() => {
+                setShowStack((current) => !current);
+              }}
+            />
 
             <div className="project-card__actions">
               <a

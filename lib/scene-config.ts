@@ -83,6 +83,11 @@ type ScenePreset = {
   cloud: SceneCloudState;
 };
 
+type ScenePresetOverrides = {
+  camera?: Partial<SceneCameraState>;
+  cloud?: Partial<SceneCloudState>;
+};
+
 type ScenePresetId =
   | "intro-face"
   | "about-transform"
@@ -161,33 +166,139 @@ export const RENDER_DEFAULTS = {
   mobileDpr: [1, 1.1] as [number, number],
 };
 
-const SCENE_PRESETS: Record<ScenePresetId, ScenePreset> = {
-  "intro-face": {
+function createScenePreset(
+  camera: SceneCameraState,
+  cloud: SceneCloudState,
+): ScenePreset {
+  return { camera, cloud };
+}
+
+function extendScenePreset(
+  base: ScenePreset,
+  overrides: ScenePresetOverrides,
+): ScenePreset {
+  return {
     camera: {
-      position: [-0.04, 0.02, 4.72],
-      target: [0.05, 0.02, 0],
-      fov: 29,
+      ...base.camera,
+      ...overrides.camera,
     },
     cloud: {
-      shape: "face",
-      position: [0.22, 0.02, 0],
-      rotation: [0.02, 0.04, 0],
-      scale: 1.14,
-      pointSize: 0.0185,
-      noise: 0.03,
-      intensity: 0.22,
-      opacity: 0.98,
+      ...base.cloud,
+      ...overrides.cloud,
     },
+  };
+}
+
+function createSceneBeat(
+  key: SceneBeatKey,
+  presetId: ScenePresetId,
+  durationWeight: number,
+): SceneBeatDefinition {
+  return {
+    key,
+    presetId,
+    durationWeight,
+  };
+}
+
+function createCardSection(
+  id: ProjectSlug,
+  durationWeight: number,
+  beatKey: SceneBeatKey,
+  presetId: ScenePresetId,
+): SectionDefinition {
+  return {
+    id,
+    kind: "card",
+    domVariant: "project",
+    projectSlug: id,
+    durationWeight,
+    sceneBeats: [createSceneBeat(beatKey, presetId, 1)],
+  };
+}
+
+const INTRO_FACE_PRESET = createScenePreset(
+  {
+    position: [-0.04, 0.02, 4.72],
+    target: [0.05, 0.02, 0],
+    fov: 29,
   },
-  "about-transform": {
+  {
+    shape: "face",
+    position: [0.22, 0.02, 0],
+    rotation: [0.02, 0.04, 0],
+    scale: 1.14,
+    pointSize: 0.0185,
+    noise: 0.03,
+    intensity: 0.22,
+    opacity: 0.98,
+  },
+);
+
+const ABOUT_TITLE_PRESET = createScenePreset(
+  {
+    position: [0, 0.12, 4.46],
+    target: [0, 0.14, 0],
+    fov: 29,
+  },
+  {
+    shape: "text",
+    textTargetId: "about-me",
+    position: [0, 1.08, 0],
+    rotation: [0, 0.03, 0],
+    scale: 1,
+    pointSize: 0.0154,
+    noise: 0.022,
+    intensity: 0.22,
+    opacity: 0.98,
+  },
+);
+
+const PROJECTS_HERO_PRESET = createScenePreset(
+  {
+    position: [0.02, 0.04, 4.24],
+    target: [0.01, 0.03, 0],
+    fov: 30,
+  },
+  {
+    shape: "text",
+    textTargetId: "projects",
+    position: [0.03, 0.04, 0],
+    rotation: [0, 0.03, 0],
+    scale: 1.02,
+    pointSize: 0.017,
+    noise: 0.022,
+    intensity: 0.22,
+    opacity: 0.98,
+  },
+);
+
+const PROJECT_CARD_3_PRESET = createScenePreset(
+  {
+    position: [0.02, 0.08, 4.52],
+    target: [0, 0.04, 0],
+    fov: 35,
+  },
+  {
+    shape: "project-field-3",
+    position: [0, 0.06, -0.08],
+    rotation: [-0.08, 0.26, -0.04],
+    scale: 1.74,
+    pointSize: 0.0154,
+    noise: 0.052,
+    intensity: 0.34,
+    opacity: 0.64,
+  },
+);
+
+const SCENE_PRESETS: Record<ScenePresetId, ScenePreset> = {
+  "intro-face": INTRO_FACE_PRESET,
+  "about-transform": extendScenePreset(ABOUT_TITLE_PRESET, {
     camera: {
       position: [0, 0.12, 4.5],
-      target: [0, 0.14, 0],
       fov: 30,
     },
     cloud: {
-      shape: "text",
-      textTargetId: "about-me",
       position: [0, 0.96, 0],
       rotation: [0.01, 0.04, 0],
       scale: 1.02,
@@ -196,34 +307,14 @@ const SCENE_PRESETS: Record<ScenePresetId, ScenePreset> = {
       intensity: 0.28,
       opacity: 0.97,
     },
-  },
-  "about-title": {
-    camera: {
-      position: [0, 0.12, 4.46],
-      target: [0, 0.14, 0],
-      fov: 29,
-    },
-    cloud: {
-      shape: "text",
-      textTargetId: "about-me",
-      position: [0, 1.08, 0],
-      rotation: [0, 0.03, 0],
-      scale: 1,
-      pointSize: 0.0154,
-      noise: 0.022,
-      intensity: 0.22,
-      opacity: 0.98,
-    },
-  },
-  "projects-transform": {
+  }),
+  "about-title": ABOUT_TITLE_PRESET,
+  "projects-transform": extendScenePreset(PROJECTS_HERO_PRESET, {
     camera: {
       position: [0.01, 0.03, 4.26],
       target: [0.01, 0.03, 0],
-      fov: 30,
     },
     cloud: {
-      shape: "text",
-      textTargetId: "projects",
       position: [0.02, 0.04, 0],
       rotation: [0.01, 0.02, 0],
       scale: 1.04,
@@ -232,43 +323,20 @@ const SCENE_PRESETS: Record<ScenePresetId, ScenePreset> = {
       intensity: 0.3,
       opacity: 0.96,
     },
-  },
-  "projects-hero": {
-    camera: {
-      position: [0.02, 0.04, 4.24],
-      target: [0.01, 0.03, 0],
-      fov: 30,
-    },
-    cloud: {
-      shape: "text",
-      textTargetId: "projects",
-      position: [0.03, 0.04, 0],
-      rotation: [0, 0.03, 0],
-      scale: 1.02,
-      pointSize: 0.017,
-      noise: 0.022,
-      intensity: 0.22,
-      opacity: 0.98,
-    },
-  },
-  "projects-reveal": {
+  }),
+  "projects-hero": PROJECTS_HERO_PRESET,
+  "projects-reveal": extendScenePreset(PROJECTS_HERO_PRESET, {
     camera: {
       position: [0.02, 0.04, 4.38],
-      target: [0.01, 0.03, 0],
       fov: 31,
     },
     cloud: {
-      shape: "text",
-      textTargetId: "projects",
-      position: [0.03, 0.04, 0],
-      rotation: [0, 0.03, 0],
       scale: 1.01,
       pointSize: 0.0169,
       noise: 0.024,
       intensity: 0.24,
-      opacity: 0.98,
     },
-  },
+  }),
   "project-card-1": {
     camera: {
       position: [0.02, 0.02, 4.62],
@@ -303,40 +371,8 @@ const SCENE_PRESETS: Record<ScenePresetId, ScenePreset> = {
       opacity: 0.68,
     },
   },
-  "project-card-3": {
-    camera: {
-      position: [0.02, 0.08, 4.52],
-      target: [0, 0.04, 0],
-      fov: 35,
-    },
-    cloud: {
-      shape: "project-field-3",
-      position: [0, 0.06, -0.08],
-      rotation: [-0.08, 0.26, -0.04],
-      scale: 1.74,
-      pointSize: 0.0154,
-      noise: 0.052,
-      intensity: 0.34,
-      opacity: 0.64,
-    },
-  },
-  "project-card-3-hold": {
-    camera: {
-      position: [0.02, 0.08, 4.52],
-      target: [0, 0.04, 0],
-      fov: 35,
-    },
-    cloud: {
-      shape: "project-field-3",
-      position: [0, 0.06, -0.08],
-      rotation: [-0.08, 0.26, -0.04],
-      scale: 1.74,
-      pointSize: 0.0154,
-      noise: 0.052,
-      intensity: 0.34,
-      opacity: 0.64,
-    },
-  },
+  "project-card-3": PROJECT_CARD_3_PRESET,
+  "project-card-3-hold": PROJECT_CARD_3_PRESET,
   "outro-face": {
     camera: {
       position: [0, 0.02, 4.62],
@@ -363,13 +399,7 @@ export const PORTFOLIO_SECTIONS: SectionDefinition[] = [
     domVariant: "intro",
     ariaLabel: "Point cloud introduction",
     durationWeight: 150,
-    sceneBeats: [
-      {
-        key: "intro",
-        presetId: "intro-face",
-        durationWeight: 1,
-      },
-    ],
+    sceneBeats: [createSceneBeat("intro", "intro-face", 1)],
   },
   {
     id: "about-stage",
@@ -379,16 +409,8 @@ export const PORTFOLIO_SECTIONS: SectionDefinition[] = [
     contentId: "about-me",
     durationWeight: 156,
     sceneBeats: [
-      {
-        key: "about-transform",
-        presetId: "about-transform",
-        durationWeight: 44,
-      },
-      {
-        key: "about-title",
-        presetId: "about-title",
-        durationWeight: 112,
-      },
+      createSceneBeat("about-transform", "about-transform", 44),
+      createSceneBeat("about-title", "about-title", 112),
     ],
   },
   {
@@ -397,81 +419,22 @@ export const PORTFOLIO_SECTIONS: SectionDefinition[] = [
     domVariant: "transform",
     durationWeight: 236,
     sceneBeats: [
-      {
-        key: "transform",
-        presetId: "projects-transform",
-        durationWeight: 55,
-      },
-      {
-        key: "hero",
-        presetId: "projects-hero",
-        durationWeight: 103,
-      },
-      {
-        key: "reveal",
-        presetId: "projects-reveal",
-        durationWeight: 78,
-      },
+      createSceneBeat("transform", "projects-transform", 55),
+      createSceneBeat("hero", "projects-hero", 103),
+      createSceneBeat("reveal", "projects-reveal", 78),
     ],
   },
-  {
-    id: "project-01",
-    kind: "card",
-    domVariant: "project",
-    projectSlug: "project-01",
-    durationWeight: 174,
-    sceneBeats: [
-      {
-        key: "project-1",
-        presetId: "project-card-1",
-        durationWeight: 1,
-      },
-    ],
-  },
-  {
-    id: "project-02",
-    kind: "card",
-    domVariant: "project",
-    projectSlug: "project-02",
-    durationWeight: 145,
-    sceneBeats: [
-      {
-        key: "project-2",
-        presetId: "project-card-2",
-        durationWeight: 1,
-      },
-    ],
-  },
-  {
-    id: "project-03",
-    kind: "card",
-    domVariant: "project",
-    projectSlug: "project-03",
-    durationWeight: 150,
-    sceneBeats: [
-      {
-        key: "project-3",
-        presetId: "project-card-3",
-        durationWeight: 1,
-      },
-    ],
-  },
+  createCardSection("project-01", 174, "project-1", "project-card-1"),
+  createCardSection("project-02", 145, "project-2", "project-card-2"),
+  createCardSection("project-03", 150, "project-3", "project-card-3"),
   {
     id: "outro",
     kind: "outro",
     domVariant: "outro",
     durationWeight: 145,
     sceneBeats: [
-      {
-        key: "project-3-hold",
-        presetId: "project-card-3-hold",
-        durationWeight: 82,
-      },
-      {
-        key: "contact",
-        presetId: "outro-face",
-        durationWeight: 63,
-      },
+      createSceneBeat("project-3-hold", "project-card-3-hold", 82),
+      createSceneBeat("contact", "outro-face", 63),
     ],
   },
 ];
