@@ -61,6 +61,7 @@ type QualityProfile = {
   faceScaleMultiplier: number;
   aboutTextScaleMultiplier: number;
   projectsTextScaleMultiplier: number;
+  introFaceOffset: [number, number];
 };
 
 type PointCloudSystemProps = {
@@ -324,17 +325,27 @@ function PointCloudSystem({
     const pointerPitch = pointerCurrent.y * 0.08 * trackingStrength;
     const pointerYaw = pointerCurrent.x * 0.14 * trackingStrength;
 
-    cloud.position.set(...phaseState.cloud.position);
-    cloud.rotation.set(
-      phaseState.cloud.rotation[0] + pointerPitch,
-      phaseState.cloud.rotation[1] + pointerYaw,
-      phaseState.cloud.rotation[2],
-    );
     const responsiveCloudScaleMultiplier = getResponsiveCloudScaleMultiplier(
       phaseState.current.cloud,
       phaseState.next.cloud,
       blend,
       profile,
+    );
+    const responsiveIntroFaceOffset = getResponsiveIntroFaceOffset(
+      phaseState.current.key,
+      phaseState.next.key,
+      blend,
+      profile,
+    );
+    cloud.position.set(
+      phaseState.cloud.position[0] + responsiveIntroFaceOffset[0],
+      phaseState.cloud.position[1] + responsiveIntroFaceOffset[1],
+      phaseState.cloud.position[2],
+    );
+    cloud.rotation.set(
+      phaseState.cloud.rotation[0] + pointerPitch,
+      phaseState.cloud.rotation[1] + pointerYaw,
+      phaseState.cloud.rotation[2],
     );
     cloud.scale.setScalar(
       phaseState.cloud.scale * responsiveCloudScaleMultiplier,
@@ -945,6 +956,7 @@ function useQualityProfile(reducedMotion: boolean) {
     faceScaleMultiplier: 1,
     aboutTextScaleMultiplier: 1,
     projectsTextScaleMultiplier: 1,
+    introFaceOffset: [0, 0],
   });
 
   useEffect(() => {
@@ -960,6 +972,8 @@ function useQualityProfile(reducedMotion: boolean) {
       const mobileFaceScale = mobileTextScale;
       const aboutDesktopScale = width >= 900 ? 0.84 : 1;
       const projectsDesktopScale = width >= 1280 ? 0.86 : 1;
+      const introFaceOffset: [number, number] =
+        width <= 640 ? [-0.12, -0.15] : [0, 0];
       const memory =
         "deviceMemory" in navigator
           ? ((navigator as Navigator & { deviceMemory?: number })
@@ -980,6 +994,7 @@ function useQualityProfile(reducedMotion: boolean) {
           faceScaleMultiplier: mobileFaceScale,
           aboutTextScaleMultiplier: aboutDesktopScale,
           projectsTextScaleMultiplier: projectsDesktopScale,
+          introFaceOffset,
         });
         return;
       }
@@ -998,6 +1013,7 @@ function useQualityProfile(reducedMotion: boolean) {
         faceScaleMultiplier: mobileFaceScale,
         aboutTextScaleMultiplier: aboutDesktopScale,
         projectsTextScaleMultiplier: projectsDesktopScale,
+        introFaceOffset,
       });
     };
 
@@ -1048,6 +1064,23 @@ function getResponsiveCloudScaleMultiplier(
         : 1;
 
   return lerp(currentMultiplier, nextMultiplier, mix);
+}
+
+function getResponsiveIntroFaceOffset(
+  currentPhaseKey: string,
+  nextPhaseKey: string,
+  mix: number,
+  profile: QualityProfile,
+) {
+  const currentOffset =
+    currentPhaseKey === "intro" ? profile.introFaceOffset : ([0, 0] as const);
+  const nextOffset =
+    nextPhaseKey === "intro" ? profile.introFaceOffset : ([0, 0] as const);
+
+  return [
+    lerp(currentOffset[0], nextOffset[0], mix),
+    lerp(currentOffset[1], nextOffset[1], mix),
+  ] as const;
 }
 
 function sampleSceneProgress(progress: number) {

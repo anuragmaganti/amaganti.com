@@ -990,12 +990,35 @@ select {
   }
 
   .intro-stage {
-    align-items: center;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: clamp(0.9rem, 4vh, 1.6rem);
+    padding-bottom: clamp(10rem, 26vh, 13.5rem);
   }
 
   .intro-copy {
-    max-width: calc(100% - 46vw);
-    transform: translate(0.7rem, clamp(-3.8rem, -8vh, -2rem));
+    width: min(100%, 21.5rem);
+    max-width: min(100%, 21.5rem);
+    padding-left: 0;
+    transform: translate(0, 0);
+    text-align: center;
+  }
+
+  .intro-copy-block {
+    justify-self: center;
+  }
+
+  .intro-title,
+  .intro-subtitle {
+    text-align: center;
+  }
+
+  .intro-title {
+    justify-items: center;
+  }
+
+  .intro-note {
+    margin-inline: auto;
   }
 
   .intro-note__text {
