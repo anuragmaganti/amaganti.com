@@ -10,12 +10,40 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "amaganti.com",
-  description:
-    "A scroll-driven portfolio exploring cinematic interaction design, spatial systems, and product thinking.",
+  description: "Anurag Maganti's personal website",
   metadataBase: new URL("https://amaganti.com"),
+  alternates: {
+    canonical: "/",
+  },
   icons: {
     icon: "/icon.svg",
     shortcut: "/icon.svg",
+  },
+  openGraph: {
+    title: "amaganti.com",
+    description: "Anurag Maganti's personal website",
+    url: "https://amaganti.com",
+    siteName: "amaganti.com",
+    type: "website",
+    images: [
+      {
+        url: "/metadata/metadataImg.png",
+        width: 1210,
+        height: 778,
+        alt: "amaganti.com share preview image",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "amaganti.com",
+    description: "Anurag Maganti's personal website",
+    images: [
+      {
+        url: "/metadata/metadataImg.png",
+        alt: "amaganti.com share preview image",
+      },
+    ],
   },
 };
 

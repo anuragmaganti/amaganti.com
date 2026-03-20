@@ -40,9 +40,11 @@ const projects: ProjectEntry[] = [
       "Auth, credits, and upgrade flow for productized use",
     ],
     tags: [
-      "Next.js",
       "TypeScript",
       "Python",
+      "Next.js",
+      "React",
+      "Tailwind",
       "Prisma",
       "Postgres",
       "Better Auth",
@@ -73,7 +75,7 @@ const projects: ProjectEntry[] = [
       "Reorderable sections and repeatable entries",
       "Template switching and print-ready output",
     ],
-    tags: ["React", "JavaScript", "Vite", "CSS", "Local storage"],
+    tags: ["React", "JavaScript", "CSS", "Local storage"],
     imageSrc: "/projects/resumeloomr-v2.png",
     imageAlt:
       "ResumeLoomr interface showing a resume editor, section navigation, and live printable resume preview.",
@@ -96,7 +98,7 @@ const projects: ProjectEntry[] = [
       "Clear and export flow for finished signatures",
       "Performance-aware React patterns for stable gesture input",
     ],
-    tags: ["React", "MediaPipe", "HTML Canvas", "WebRTC"],
+    tags: ["React", "Javascript", "MediaPipe", "HTML Canvas", "WebRTC"],
     imageSrc: "/projects/webcamsign.png",
     imageAlt:
       "WebcamSign interface showing a signature canvas, step-by-step signing instructions, live preview, camera controls, and SVG export actions.",
