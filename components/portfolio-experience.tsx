@@ -16,13 +16,14 @@ import { type ReactNode, type Ref, type RefObject, useEffect, useRef, useState }
 
 import {
   contentSectionsById,
-  type ContentSectionEntry,
   projectsBySlug,
+  type ContentSectionEntry,
   type ProjectEntry,
 } from "@/lib/content";
 import {
+  ABOUT_PROGRESS_MARKERS,
+  INTRO_COPY_PROGRESS_STOPS,
   PORTFOLIO_SECTIONS,
-  getSectionProgressPoint,
   type SectionDefinition,
   type SectionDomVariant,
 } from "@/lib/scene-config";
@@ -46,25 +47,44 @@ const INTRO_TEXT_FADE_DURATION = 0.92;
 const INTRO_TEXT_MOVE_DELAY = 1.28;
 const INTRO_SCENE_DELAY = 2.08;
 const INTRO_CHROME_DELAY = 2.22;
-const INTRO_COPY_SCROLL_STOPS = [
-  getSectionProgressPoint("intro", 0),
-  getSectionProgressPoint("intro", 2 / 15),
-  getSectionProgressPoint("intro", 2 / 3),
+const INTRO_COPY_SCROLL_STOPS: [number, number, number] = [...INTRO_COPY_PROGRESS_STOPS];
+const INTRO_BACKDROP_SCROLL_STOPS: [number, number, number, number] = [
+  ...ABOUT_PROGRESS_MARKERS.introBackdrop,
 ];
-const INTRO_BACKDROP_SCROLL_STOPS = [
-  getSectionProgressPoint("intro", 0),
-  getSectionProgressPoint("about-stage", 0.08),
-  getSectionProgressPoint("about-stage", 0.58),
-  getSectionProgressPoint("about-stage", 0.92),
-];
-const ABOUT_MAGNET_TARGET_PROGRESS = getSectionProgressPoint("about-stage", 0.08);
-const ABOUT_MAGNET_RADIUS = 140;
-const ABOUT_RELEASE_RADIUS = 260;
-const ABOUT_STRONG_WHEEL_DELTA = 52;
-const ABOUT_STRONG_TOUCH_DELTA = 42;
-const ABOUT_SNAP_SUPPRESS_MS = 420;
-const ABOUT_SNAP_LOCK_MS = 520;
-const ABOUT_SNAP_VELOCITY = 0.72;
+const ABOUT_MAGNET_TARGET_PROGRESS = ABOUT_PROGRESS_MARKERS.magnetTarget;
+const ABOUT_BODY_EXIT_SCROLL_STOPS: [number, number] = [...ABOUT_PROGRESS_MARKERS.bodyExit];
+const ABOUT_PARAGRAPH_ENTER_SPAN =
+  ABOUT_MAGNET_TARGET_PROGRESS - INTRO_COPY_SCROLL_STOPS[0];
+const ABOUT_PARAGRAPH_REVEALS = [
+  {
+    enterStart: INTRO_COPY_SCROLL_STOPS[0],
+    enterEnd: ABOUT_MAGNET_TARGET_PROGRESS,
+    fromX: -160,
+    fromY: 0,
+    exitX: 60,
+  },
+  {
+    enterStart: INTRO_COPY_SCROLL_STOPS[0] + ABOUT_PARAGRAPH_ENTER_SPAN * 0.08,
+    enterEnd: INTRO_COPY_SCROLL_STOPS[0] + ABOUT_PARAGRAPH_ENTER_SPAN * 0.68,
+    fromX: 160,
+    fromY: 0,
+    exitX: -60,
+  },
+  {
+    enterStart: INTRO_COPY_SCROLL_STOPS[0] + ABOUT_PARAGRAPH_ENTER_SPAN * 0.16,
+    enterEnd: INTRO_COPY_SCROLL_STOPS[0] + ABOUT_PARAGRAPH_ENTER_SPAN * 0.84,
+    fromX: -160,
+    fromY: 0,
+    exitX: 60,
+  },
+] as const;
+const CONTENT_STAGE_MAGNET_RADIUS = 140;
+const CONTENT_STAGE_RELEASE_RADIUS = 260;
+const CONTENT_STAGE_STRONG_WHEEL_DELTA = 52;
+const CONTENT_STAGE_STRONG_TOUCH_DELTA = 42;
+const CONTENT_STAGE_SNAP_SUPPRESS_MS = 420;
+const CONTENT_STAGE_SNAP_LOCK_MS = 520;
+const CONTENT_STAGE_SNAP_VELOCITY = 0.72;
 const INTRO_TITLE_LINES = ["Hi, I'm", "Anurag"] as const;
 const INTRO_SUBTITLE_TEXT =
   "a software engineer obsessed with building products that feel a little bit magical";
@@ -112,6 +132,33 @@ const PROJECT_TAG_ITEM_VARIANTS = {
     opacity: 0,
     y: -3,
     transition: { duration: 0.14, ease: PROJECT_STACK_EASE },
+  },
+} as const;
+
+type ContentStageOverlayLayout = ContentSectionEntry["layout"];
+
+type ContentStageParagraphReveal = {
+  enterStart: number;
+  enterEnd: number;
+  fromX: number;
+  fromY: number;
+  exitX: number;
+};
+
+type ContentStageOverlayConfig = {
+  layout: ContentStageOverlayLayout;
+  exitStops: readonly [number, number];
+  paragraphs: readonly ContentStageParagraphReveal[];
+};
+
+const CONTENT_STAGE_OVERLAY_CONFIG: Record<
+  ContentSectionEntry["id"],
+  ContentStageOverlayConfig
+> = {
+  "about-me": {
+    layout: "top-overlay",
+    exitStops: ABOUT_BODY_EXIT_SCROLL_STOPS,
+    paragraphs: ABOUT_PARAGRAPH_REVEALS,
   },
 } as const;
 
@@ -402,7 +449,7 @@ export function PortfolioExperience() {
     damping: 24,
     mass: 0.24,
   });
-  useAboutMagneticSnap(shellRef, ABOUT_MAGNET_TARGET_PROGRESS);
+  useMagneticSectionSnap(shellRef, ABOUT_MAGNET_TARGET_PROGRESS);
   const meterScale = useTransform(sceneProgress, [0, 1], [0.08, 1]);
   const introBackdropOpacity = useTransform(sceneProgress, INTRO_BACKDROP_SCROLL_STOPS, [
     1, 1, 0.18, 0,
@@ -450,7 +497,7 @@ export function PortfolioExperience() {
   );
 }
 
-function useAboutMagneticSnap(
+function useMagneticSectionSnap(
   shellRef: RefObject<HTMLDivElement | null>,
   targetProgress: number,
 ) {
@@ -509,12 +556,15 @@ function useAboutMagneticSnap(
         return;
       }
 
-      if (absoluteDistance > ABOUT_RELEASE_RADIUS) {
+      if (absoluteDistance > CONTENT_STAGE_RELEASE_RADIUS) {
         return;
       }
 
-      if (absoluteDistance <= ABOUT_MAGNET_RADIUS || velocity <= ABOUT_SNAP_VELOCITY) {
-        lockUntil.current = now + ABOUT_SNAP_LOCK_MS;
+      if (
+        absoluteDistance <= CONTENT_STAGE_MAGNET_RADIUS ||
+        velocity <= CONTENT_STAGE_SNAP_VELOCITY
+      ) {
+        lockUntil.current = now + CONTENT_STAGE_SNAP_LOCK_MS;
         window.scrollTo({
           top: targetY,
           behavior: "smooth",
@@ -535,8 +585,8 @@ function useAboutMagneticSnap(
     };
 
     const handleWheel = (event: WheelEvent) => {
-      if (Math.abs(event.deltaY) >= ABOUT_STRONG_WHEEL_DELTA) {
-        suppressUntil.current = performance.now() + ABOUT_SNAP_SUPPRESS_MS;
+      if (Math.abs(event.deltaY) >= CONTENT_STAGE_STRONG_WHEEL_DELTA) {
+        suppressUntil.current = performance.now() + CONTENT_STAGE_SNAP_SUPPRESS_MS;
       }
 
       scheduleEvaluate();
@@ -554,8 +604,8 @@ function useAboutMagneticSnap(
 
       const currentY = event.touches[0]?.clientY ?? touchStartY;
 
-      if (Math.abs(currentY - touchStartY) >= ABOUT_STRONG_TOUCH_DELTA) {
-        suppressUntil.current = performance.now() + ABOUT_SNAP_SUPPRESS_MS;
+      if (Math.abs(currentY - touchStartY) >= CONTENT_STAGE_STRONG_TOUCH_DELTA) {
+        suppressUntil.current = performance.now() + CONTENT_STAGE_SNAP_SUPPRESS_MS;
       }
     };
 
@@ -585,6 +635,106 @@ function useAboutMagneticSnap(
   }, [shellRef, targetProgress]);
 }
 
+function ContentStageOverlay({
+  contentId,
+  layout,
+  body,
+  exitStops,
+  paragraphReveals,
+  progress,
+}: {
+  contentId: ContentSectionEntry["id"];
+  layout: ContentStageOverlayLayout;
+  body: string[];
+  exitStops: readonly [number, number];
+  paragraphReveals: readonly ContentStageParagraphReveal[];
+  progress: MotionValue<number>;
+}) {
+  if (body.length === 0) {
+    return null;
+  }
+
+  return (
+    <div
+      className={`content-stage-overlay content-stage-overlay--${layout}`}
+      data-content-stage={contentId}
+    >
+      <div className="content-stage-overlay__shell">
+        <div className="content-stage-overlay__copy">
+          {body.map((paragraph, index) => (
+            <ContentStageParagraph
+              key={paragraph}
+              paragraph={paragraph}
+              progress={progress}
+              exitStops={exitStops}
+              reveal={paragraphReveals[Math.min(index, paragraphReveals.length - 1)]}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ContentStageParagraph({
+  paragraph,
+  progress,
+  exitStops,
+  reveal,
+}: {
+  paragraph: string;
+  progress: MotionValue<number>;
+  exitStops: readonly [number, number];
+  reveal: {
+    enterStart: number;
+    enterEnd: number;
+    fromX: number;
+    fromY: number;
+    exitX: number;
+  };
+}) {
+  const timeline = [
+    reveal.enterStart,
+    reveal.enterEnd,
+    exitStops[0],
+    exitStops[1],
+  ];
+  const opacity = useTransform(
+    progress,
+    timeline,
+    [0, 1, 1, 0],
+  );
+  const x = useTransform(
+    progress,
+    timeline,
+    [reveal.fromX, 0, 0, reveal.exitX],
+  );
+  const y = useTransform(
+    progress,
+    timeline,
+    [reveal.fromY, 0, 0, -12],
+  );
+  const blur = useTransform(
+    progress,
+    timeline,
+    [8, 0, 0, 5],
+  );
+  const filter = useMotionTemplate`blur(${blur}px)`;
+
+  return (
+    <motion.p
+      style={{
+        opacity,
+        x,
+        y,
+        filter,
+      }}
+    >
+      {paragraph}
+    </motion.p>
+  );
+}
+
 function PortfolioSectionRenderer({
   section,
   progress,
@@ -598,7 +748,13 @@ function PortfolioSectionRenderer({
     case "content-stage": {
       const content = section.contentId ? contentSectionsById[section.contentId] : null;
 
-      return <ParticleContentSection section={section} content={content ?? undefined} />;
+      return (
+        <ParticleContentSection
+          section={section}
+          content={content ?? undefined}
+          progress={progress}
+        />
+      );
     }
     case "particle-text":
     case "outro":
@@ -629,36 +785,31 @@ function SceneStageSection({ section }: { section: SectionDefinition }) {
 function ParticleContentSection({
   section,
   content,
+  progress,
 }: {
   section: SectionDefinition;
   content?: ContentSectionEntry;
+  progress: MotionValue<number>;
 }) {
   const body = content?.body ?? [];
+  const overlayConfig = content ? CONTENT_STAGE_OVERLAY_CONFIG[content.id] : null;
 
   return (
     <section
       className={`scroll-section ${getScrollSectionClassName(section.domVariant)}`.trim()}
       aria-label={section.ariaLabel ?? "Content section"}
     >
-      <div className="section-sticky section-sticky--content">
-        <div className="particle-content-stage">
-          <div className="particle-content-stage__title-space" aria-hidden="true" />
-          <div className="particle-content-stage__body-shell">
-            <div
-              className={[
-                "particle-content-stage__body",
-                body.length === 0 ? "particle-content-stage__body--empty" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-            >
-              {body.map((paragraph) => (
-                <p key={paragraph}>{paragraph}</p>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
+      {body.length > 0 && content && overlayConfig ? (
+        <ContentStageOverlay
+          contentId={content.id}
+          layout={overlayConfig.layout}
+          body={body}
+          exitStops={overlayConfig.exitStops}
+          paragraphReveals={overlayConfig.paragraphs}
+          progress={progress}
+        />
+      ) : null}
+      <div className="section-sticky section-sticky--content" />
     </section>
   );
 }

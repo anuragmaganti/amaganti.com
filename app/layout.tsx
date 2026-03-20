@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 
-import "@fontsource/montserrat";
+import "@fontsource/instrument-sans/400.css";
+import "@fontsource/instrument-sans/600.css";
+import "@fontsource/instrument-sans/700.css";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
@@ -10,7 +12,7 @@ export const metadata: Metadata = {
   title: "amaganti.com",
   description:
     "A scroll-driven portfolio exploring cinematic interaction design, spatial systems, and product thinking.",
-  metadataBase: new URL("https://example.com"),
+  metadataBase: new URL("https://amaganti.com"),
   icons: {
     icon: "/icon.svg",
     shortcut: "/icon.svg",

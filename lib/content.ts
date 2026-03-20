@@ -19,6 +19,7 @@ export type ProjectEntry = {
 
 export type ContentSectionEntry = {
   id: ContentSectionId;
+  layout: "top-overlay";
   body: string[];
 };
 
@@ -114,7 +115,12 @@ export const projectsBySlug = Object.fromEntries(
 const contentSections: ContentSectionEntry[] = [
   {
     id: "about-me",
-    body: [],
+    layout: "top-overlay",
+    body: [
+      "I fell in love with interconnected systems as a researcher in cell biology and cancer, where I saw delicate molecular interactions ripple outward and shape the behavior of cellular systems.",
+      "That same fascination drew me to software engineering. I’ve spent the past two years building a startup in the digital asset space by creating software for evolving markets.",
+      "My journey has been an extension of that same curiosity, a chance to explore how code and people interact and to build tools within systems that are constantly evolving.",
+    ],
   },
 ];
 

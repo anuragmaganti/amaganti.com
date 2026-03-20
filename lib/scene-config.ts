@@ -98,7 +98,6 @@ type ScenePresetId =
   | "project-card-1"
   | "project-card-2"
   | "project-card-3"
-  | "project-card-3-hold"
   | "outro-face";
 
 type SceneBeatDefinition = {
@@ -135,9 +134,9 @@ export const POINT_CLOUD_TEXT_TARGETS: Record<
   "about-me": {
     id: "about-me",
     label: "About Me",
-    fontFamily: "Montserrat",
-    fontWeight: 700,
-    fillDensity: 0.82,
+    fontFamily: "Instrument Sans",
+    fontWeight: 400,
+    fillDensity: 0.85,
     haloDensity: 0.12,
     width: 1.84,
     height: 0.46,
@@ -147,7 +146,7 @@ export const POINT_CLOUD_TEXT_TARGETS: Record<
   projects: {
     id: "projects",
     label: "Projects",
-    fontFamily: "Montserrat",
+    fontFamily: "Instrument Sans",
     fontWeight: 700,
     fillDensity: 0.84,
     haloDensity: 0.18,
@@ -372,7 +371,6 @@ const SCENE_PRESETS: Record<ScenePresetId, ScenePreset> = {
     },
   },
   "project-card-3": PROJECT_CARD_3_PRESET,
-  "project-card-3-hold": PROJECT_CARD_3_PRESET,
   "outro-face": {
     camera: {
       position: [0, 0.02, 4.62],
@@ -433,7 +431,7 @@ export const PORTFOLIO_SECTIONS: SectionDefinition[] = [
     domVariant: "outro",
     durationWeight: 145,
     sceneBeats: [
-      createSceneBeat("project-3-hold", "project-card-3-hold", 82),
+      createSceneBeat("project-3-hold", "project-card-3", 82),
       createSceneBeat("contact", "outro-face", 63),
     ],
   },
@@ -451,10 +449,33 @@ function getSectionProgressRange(sectionId: SectionId) {
   return SECTION_PROGRESS_RANGES[sectionId];
 }
 
-export function getSectionProgressPoint(sectionId: SectionId, localProgress: number) {
+export function getSectionProgressPoint(
+  sectionId: SectionId,
+  localProgress: number,
+) {
   const [start, end] = getSectionProgressRange(sectionId);
   return roundProgress(start + (end - start) * clamp(localProgress, 0, 1));
 }
+
+export const INTRO_COPY_PROGRESS_STOPS = [
+  getSectionProgressPoint("intro", 0),
+  getSectionProgressPoint("intro", 2 / 15),
+  getSectionProgressPoint("intro", 2 / 3),
+] as const;
+
+export const ABOUT_PROGRESS_MARKERS = {
+  magnetTarget: getSectionProgressPoint("about-stage", 0.08),
+  bodyExit: [
+    getSectionProgressPoint("about-stage", 0.44),
+    getSectionProgressPoint("about-stage", 0.66),
+  ] as const,
+  introBackdrop: [
+    getSectionProgressPoint("intro", 0),
+    getSectionProgressPoint("about-stage", 0.08),
+    getSectionProgressPoint("about-stage", 0.58),
+    getSectionProgressPoint("about-stage", 0.92),
+  ] as const,
+} as const;
 
 function buildSceneConfiguration(
   sections: SectionDefinition[],

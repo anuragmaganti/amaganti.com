@@ -36,7 +36,8 @@ import {
 const POINTER_SMOOTHING = 14;
 const POINTER_PRESENCE_SMOOTHING = 10;
 const MOUSE_REPULSION_RADIUS = 0.34;
-const MOUSE_REPULSION_RADIUS_SQ = MOUSE_REPULSION_RADIUS * MOUSE_REPULSION_RADIUS;
+const MOUSE_REPULSION_RADIUS_SQ =
+  MOUSE_REPULSION_RADIUS * MOUSE_REPULSION_RADIUS;
 const MOUSE_REPULSION_DISPLACEMENT = 0.14;
 const MOUSE_REPULSION_DEPTH_BOOST = 1.14;
 const CARD_EXCLUSION_SMOOTHING = 10;
@@ -58,6 +59,7 @@ type QualityProfile = {
   textHaloMultiplier: number;
   textScaleMultiplier: number;
   faceScaleMultiplier: number;
+  aboutTextScaleMultiplier: number;
   projectsTextScaleMultiplier: number;
 };
 
@@ -132,7 +134,14 @@ function PointCloudSystem({
     () => new Float32Array(basePositions.length),
     [basePositions.length],
   );
-  const typographyVersion = useTypographyVersion('700 220px "Montserrat"');
+  const typographyDescriptors = useMemo(
+    () =>
+      Object.values(POINT_CLOUD_TEXT_TARGETS).map(
+        (target) => `${target.fontWeight} 220px "${target.fontFamily}"`,
+      ),
+    [],
+  );
+  const typographyVersion = useTypographyVersion(typographyDescriptors);
   const geometry = useMemo(() => {
     const nextGeometry = new THREE.BufferGeometry();
     const attribute = new THREE.BufferAttribute(renderPositions, 3);
@@ -259,7 +268,9 @@ function PointCloudSystem({
       invalidate();
     };
 
-    window.addEventListener("pointermove", handlePointerMove, { passive: true });
+    window.addEventListener("pointermove", handlePointerMove, {
+      passive: true,
+    });
     window.addEventListener("pointerleave", resetPointer);
     window.addEventListener("blur", resetPointer);
 
@@ -281,16 +292,21 @@ function PointCloudSystem({
     const perspectiveCamera = camera as THREE.PerspectiveCamera;
     const phaseState = sampleSceneProgress(progress.get());
     const shapeFrom =
-      morphTargets[resolveMorphTargetId(phaseState.current.cloud)] ?? morphTargets.face;
+      morphTargets[resolveMorphTargetId(phaseState.current.cloud)] ??
+      morphTargets.face;
     const shapeTo =
-      morphTargets[resolveMorphTargetId(phaseState.next.cloud)] ?? morphTargets.face;
+      morphTargets[resolveMorphTargetId(phaseState.next.cloud)] ??
+      morphTargets.face;
     const noise = phaseState.cloud.noise * profile.noiseMultiplier;
-    const blend = reducedMotion ? Math.min(phaseState.mix, 0.6) : phaseState.mix;
+    const blend = reducedMotion
+      ? Math.min(phaseState.mix, 0.6)
+      : phaseState.mix;
     elapsedTimeRef.current += delta;
     const pulse = reducedMotion
       ? 0.24
       : 0.34 +
-        0.26 * Math.sin(progress.get() * Math.PI * 6 + elapsedTimeRef.current * 0.2);
+        0.26 *
+          Math.sin(progress.get() * Math.PI * 6 + elapsedTimeRef.current * 0.2);
     updatePointerState(
       pointerCurrent,
       pointerTarget,
@@ -300,8 +316,11 @@ function PointCloudSystem({
     );
 
     const trackingStrength =
-      getFaceTrackingWeight(phaseState.current.cloud.shape, phaseState.next.cloud.shape, blend) *
-      (reducedMotion ? 0.45 : 1);
+      getFaceTrackingWeight(
+        phaseState.current.cloud.shape,
+        phaseState.next.cloud.shape,
+        blend,
+      ) * (reducedMotion ? 0.45 : 1);
     const pointerPitch = pointerCurrent.y * 0.08 * trackingStrength;
     const pointerYaw = pointerCurrent.x * 0.14 * trackingStrength;
 
@@ -317,7 +336,9 @@ function PointCloudSystem({
       blend,
       profile,
     );
-    cloud.scale.setScalar(phaseState.cloud.scale * responsiveCloudScaleMultiplier);
+    cloud.scale.setScalar(
+      phaseState.cloud.scale * responsiveCloudScaleMultiplier,
+    );
     cloudMaterial.size = phaseState.cloud.pointSize * profile.sizeMultiplier;
     cloudMaterial.opacity = phaseState.cloud.opacity;
 
@@ -402,7 +423,11 @@ function PointCloudSystem({
       );
 
       if (mouseRepulsionState.active) {
-        applyMouseRepulsion(particle, localInteractionPoint, mouseRepulsionState.strength);
+        applyMouseRepulsion(
+          particle,
+          localInteractionPoint,
+          mouseRepulsionState.strength,
+        );
       }
 
       if (cardExclusionState.active) {
@@ -426,8 +451,11 @@ function PointCloudSystem({
 
     if (
       pointerCurrent.distanceToSquared(pointerTarget) > 0.00004 ||
-      Math.abs(pointerPresenceCurrent.current - pointerPresenceTarget.current) > 0.00004 ||
-      Math.abs(exclusionStrengthCurrent.current - cardExclusionState.targetStrength) > 0.00004
+      Math.abs(pointerPresenceCurrent.current - pointerPresenceTarget.current) >
+        0.00004 ||
+      Math.abs(
+        exclusionStrengthCurrent.current - cardExclusionState.targetStrength,
+      ) > 0.00004
     ) {
       invalidate();
     }
@@ -530,7 +558,10 @@ function resolveCardExclusionState({
   currentShape: PointCloudShape;
   nextShape: PointCloudShape;
   blend: number;
-  exclusionSnapshot: { rect: ProjectCardExclusionRect; strength: number } | null;
+  exclusionSnapshot: {
+    rect: ProjectCardExclusionRect;
+    strength: number;
+  } | null;
   exclusionStrengthCurrent: { current: number };
   delta: number;
   perspectiveCamera: THREE.PerspectiveCamera;
@@ -570,8 +601,10 @@ function resolveCardExclusionState({
     };
   }
 
-  const centerX = exclusionSnapshot.rect.left + exclusionSnapshot.rect.width * 0.5;
-  const centerY = exclusionSnapshot.rect.top + exclusionSnapshot.rect.height * 0.5;
+  const centerX =
+    exclusionSnapshot.rect.left + exclusionSnapshot.rect.width * 0.5;
+  const centerY =
+    exclusionSnapshot.rect.top + exclusionSnapshot.rect.height * 0.5;
 
   const hasCardProjection =
     projectScreenPointToLocal(
@@ -640,14 +673,8 @@ function resolveCardExclusionState({
     };
   }
 
-  localCardRightAxis
-    .copy(localCardRightMid)
-    .sub(localCardLeftMid)
-    .normalize();
-  localCardUpAxis
-    .copy(localCardTopMid)
-    .sub(localCardBottomMid)
-    .normalize();
+  localCardRightAxis.copy(localCardRightMid).sub(localCardLeftMid).normalize();
+  localCardUpAxis.copy(localCardTopMid).sub(localCardBottomMid).normalize();
   localCardPlaneNormal
     .crossVectors(localCardRightAxis, localCardUpAxis)
     .normalize();
@@ -684,7 +711,7 @@ function sampleParticlePosition(
   particle.y = lerp(shapeFrom[offset + 1], shapeTo[offset + 1], blend);
   particle.z = lerp(shapeFrom[offset + 2], shapeTo[offset + 2], blend);
 
-  const drift = noise * (0.01 + ((index % 5) * 0.0012)) * intensity * pulse;
+  const drift = noise * (0.01 + (index % 5) * 0.0012) * intensity * pulse;
   const seedA = seeds[index * 2];
   const seedB = seeds[index * 2 + 1];
 
@@ -725,7 +752,8 @@ function applyMouseRepulsion(
 
   particle.x += repelX * inverseLength * displacement;
   particle.y += repelY * inverseLength * displacement;
-  particle.z += repelZ * inverseLength * displacement * MOUSE_REPULSION_DEPTH_BOOST;
+  particle.z +=
+    repelZ * inverseLength * displacement * MOUSE_REPULSION_DEPTH_BOOST;
 }
 
 function applyCardExclusion(
@@ -775,8 +803,16 @@ function applyCardExclusion(
       pushMagnitude = (yToEdge + overshoot) * CARD_EXCLUSION_HARD_STRENGTH;
     }
   } else {
-    const clampedX = clamp(planeX, -cardExclusion.halfWidth, cardExclusion.halfWidth);
-    const clampedY = clamp(planeY, -cardExclusion.halfHeight, cardExclusion.halfHeight);
+    const clampedX = clamp(
+      planeX,
+      -cardExclusion.halfWidth,
+      cardExclusion.halfWidth,
+    );
+    const clampedY = clamp(
+      planeY,
+      -cardExclusion.halfHeight,
+      cardExclusion.halfHeight,
+    );
     const deltaX = planeX - clampedX;
     const deltaY = planeY - clampedY;
     const deltaLength = Math.hypot(deltaX, deltaY);
@@ -822,7 +858,8 @@ function applyCardExclusion(
 }
 
 function usePointCloudSource(maxPoints: number) {
-  const [rawAssetPositions, setRawAssetPositions] = useState<Float32Array | null>(null);
+  const [rawAssetPositions, setRawAssetPositions] =
+    useState<Float32Array | null>(null);
   const fallbackPositions = useMemo(
     () => generateFallbackFacePoints(maxPoints),
     [maxPoints],
@@ -906,6 +943,7 @@ function useQualityProfile(reducedMotion: boolean) {
     textHaloMultiplier: reducedMotion ? 0.2 : 1,
     textScaleMultiplier: 1,
     faceScaleMultiplier: 1,
+    aboutTextScaleMultiplier: 1,
     projectsTextScaleMultiplier: 1,
   });
 
@@ -917,15 +955,19 @@ function useQualityProfile(reducedMotion: boolean) {
         width >= 900
           ? 1
           : 0.42 +
-            Math.pow(THREE.MathUtils.clamp((width - 300) / 600, 0, 1), 1.35) * 0.58;
+            Math.pow(THREE.MathUtils.clamp((width - 300) / 600, 0, 1), 1.35) *
+              0.58;
       const mobileFaceScale = mobileTextScale;
+      const aboutDesktopScale = width >= 900 ? 0.84 : 1;
       const projectsDesktopScale = width >= 1280 ? 0.86 : 1;
       const memory =
         "deviceMemory" in navigator
-          ? (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8
+          ? ((navigator as Navigator & { deviceMemory?: number })
+              .deviceMemory ?? 8)
           : 8;
       const cores = navigator.hardwareConcurrency ?? 8;
-      const constrainedDevice = coarsePointer || width < 900 || memory <= 4 || cores <= 4;
+      const constrainedDevice =
+        coarsePointer || width < 900 || memory <= 4 || cores <= 4;
 
       if (reducedMotion) {
         setProfile({
@@ -936,6 +978,7 @@ function useQualityProfile(reducedMotion: boolean) {
           textHaloMultiplier: 0.12,
           textScaleMultiplier: mobileTextScale,
           faceScaleMultiplier: mobileFaceScale,
+          aboutTextScaleMultiplier: aboutDesktopScale,
           projectsTextScaleMultiplier: projectsDesktopScale,
         });
         return;
@@ -953,6 +996,7 @@ function useQualityProfile(reducedMotion: boolean) {
         textHaloMultiplier: constrainedDevice ? 0.42 : 1,
         textScaleMultiplier: mobileTextScale,
         faceScaleMultiplier: mobileFaceScale,
+        aboutTextScaleMultiplier: aboutDesktopScale,
         projectsTextScaleMultiplier: projectsDesktopScale,
       });
     };
@@ -987,7 +1031,9 @@ function getResponsiveCloudScaleMultiplier(
         ? profile.textScaleMultiplier *
           (currentCloud.textTargetId === "projects"
             ? profile.projectsTextScaleMultiplier
-            : 1)
+            : currentCloud.textTargetId === "about-me"
+              ? profile.aboutTextScaleMultiplier
+              : 1)
         : 1;
   const nextMultiplier =
     nextCloud.shape === "face"
@@ -996,7 +1042,9 @@ function getResponsiveCloudScaleMultiplier(
         ? profile.textScaleMultiplier *
           (nextCloud.textTargetId === "projects"
             ? profile.projectsTextScaleMultiplier
-            : 1)
+            : nextCloud.textTargetId === "about-me"
+              ? profile.aboutTextScaleMultiplier
+              : 1)
         : 1;
 
   return lerp(currentMultiplier, nextMultiplier, mix);
@@ -1169,7 +1217,10 @@ function projectScreenPointToLocal(
 ) {
   const viewportWidth = Math.max(window.innerWidth, 1);
   const viewportHeight = Math.max(window.innerHeight, 1);
-  ndcPoint.set((clientX / viewportWidth) * 2 - 1, 1 - (clientY / viewportHeight) * 2);
+  ndcPoint.set(
+    (clientX / viewportWidth) * 2 - 1,
+    1 - (clientY / viewportHeight) * 2,
+  );
   raycaster.setFromCamera(ndcPoint, camera);
 
   if (!raycaster.ray.intersectPlane(plane, worldPoint)) {
@@ -1192,7 +1243,7 @@ function resolveMorphTargetId(cloud: {
   return cloud.shape === "text" ? "settle" : cloud.shape;
 }
 
-function useTypographyVersion(fontDescriptor: string) {
+function useTypographyVersion(fontDescriptor: string | string[]) {
   const [version, setVersion] = useState(0);
 
   useEffect(() => {
@@ -1201,13 +1252,18 @@ function useTypographyVersion(fontDescriptor: string) {
     }
 
     let cancelled = false;
+    const descriptors = Array.isArray(fontDescriptor)
+      ? fontDescriptor
+      : [fontDescriptor];
 
-    if (document.fonts.check(fontDescriptor)) {
+    if (descriptors.every((descriptor) => document.fonts.check(descriptor))) {
       return;
     }
 
     Promise.all([
-      document.fonts.load(fontDescriptor).catch(() => undefined),
+      ...descriptors.map((descriptor) =>
+        document.fonts.load(descriptor).catch(() => undefined),
+      ),
       document.fonts.ready.catch(() => undefined),
     ]).then(() => {
       if (cancelled) {
@@ -1235,7 +1291,10 @@ function samplePointsFromScene(scene: THREE.Object3D, pointCount: number) {
   scene.updateMatrixWorld(true);
   scene.traverse((child) => {
     if ("isMesh" in child && child.isMesh) {
-      const mesh = child as THREE.Mesh<THREE.BufferGeometry, THREE.Material | THREE.Material[]>;
+      const mesh = child as THREE.Mesh<
+        THREE.BufferGeometry,
+        THREE.Material | THREE.Material[]
+      >;
 
       if (mesh.geometry.getAttribute("position")) {
         meshes.push(mesh);
