@@ -1001,7 +1001,7 @@ select {
     width: min(100%, 21.5rem);
     max-width: min(100%, 21.5rem);
     padding-left: 0;
-    transform: translate(0, -1.85rem);
+    transform: translate(0, -0.4rem);
     text-align: center;
   }
 
