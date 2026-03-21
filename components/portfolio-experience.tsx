@@ -123,7 +123,7 @@ const OUTRO_CONTACT_ITEMS: readonly OutroContactItem[] = [
   },
   {
     label: "Nature publication",
-    href: "https://www.nature.com/articles/s41586-018-0697-7#change-history",
+    href: "https://www.nature.com/articles/s41586-018-0697-7",
     external: true,
   },
 ];
