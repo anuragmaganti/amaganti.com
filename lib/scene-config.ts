@@ -379,7 +379,7 @@ const SCENE_PRESETS: Record<ScenePresetId, ScenePreset> = {
     },
     cloud: {
       shape: "face",
-      position: [0, 0.03, 0],
+      position: [0, 0.2, 0],
       rotation: [0.02, 0.02, 0],
       scale: 1.02,
       pointSize: 0.0185,
@@ -429,6 +429,7 @@ export const PORTFOLIO_SECTIONS: SectionDefinition[] = [
     id: "outro",
     kind: "outro",
     domVariant: "outro",
+    ariaLabel: "Outro links",
     durationWeight: 145,
     sceneBeats: [
       createSceneBeat("project-3-hold", "project-card-3", 82),
@@ -474,6 +475,13 @@ export const ABOUT_PROGRESS_MARKERS = {
     getSectionProgressPoint("about-stage", 0.08),
     getSectionProgressPoint("about-stage", 0.58),
     getSectionProgressPoint("about-stage", 0.92),
+  ] as const,
+} as const;
+
+export const OUTRO_PROGRESS_MARKERS = {
+  contactReveal: [
+    getSectionProgressPoint("outro", 0.62),
+    getSectionProgressPoint("outro", 0.8),
   ] as const,
 } as const;
 

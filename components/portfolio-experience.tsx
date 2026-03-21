@@ -12,7 +12,15 @@ import {
   useSpring,
   useTransform,
 } from "motion/react";
-import { type ReactNode, type Ref, type RefObject, useEffect, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  type ReactNode,
+  type Ref,
+  type RefObject,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import {
   contentSectionsById,
@@ -23,6 +31,7 @@ import {
 import {
   ABOUT_PROGRESS_MARKERS,
   INTRO_COPY_PROGRESS_STOPS,
+  OUTRO_PROGRESS_MARKERS,
   PORTFOLIO_SECTIONS,
   type SectionDefinition,
   type SectionDomVariant,
@@ -53,6 +62,9 @@ const INTRO_BACKDROP_SCROLL_STOPS: [number, number, number, number] = [
 ];
 const ABOUT_MAGNET_TARGET_PROGRESS = ABOUT_PROGRESS_MARKERS.magnetTarget;
 const ABOUT_BODY_EXIT_SCROLL_STOPS: [number, number] = [...ABOUT_PROGRESS_MARKERS.bodyExit];
+const OUTRO_CONTACT_REVEAL_STOPS: [number, number] = [
+  ...OUTRO_PROGRESS_MARKERS.contactReveal,
+];
 const ABOUT_PARAGRAPH_ENTER_SPAN =
   ABOUT_MAGNET_TARGET_PROGRESS - INTRO_COPY_SCROLL_STOPS[0];
 const ABOUT_PARAGRAPH_REVEALS = [
@@ -89,6 +101,15 @@ const INTRO_TITLE_LINES = ["Hi, I'm", "Anurag"] as const;
 const INTRO_SUBTITLE_TEXT =
   "a software engineer obsessed with building products that feel a little bit magical";
 const INTRO_NOTE_TEXT = "(yep, that's a real LIDAR scan of my head)";
+const OUTRO_CONTACT_LABELS = [
+  "Github",
+  "LinkedIn",
+  "Email me",
+  "Nature publication",
+] as const;
+const CLICK_BURST_MAX_ACTIVE = 6;
+const CLICK_BURST_PARTICLE_COUNT = 24;
+const CLICK_BURST_MAX_LIFETIME_MS = 880;
 const PROJECT_STACK_EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 const PROJECT_TAG_LIST_VARIANTS = {
   hidden: {
@@ -151,6 +172,22 @@ type ContentStageOverlayConfig = {
   paragraphs: readonly ContentStageParagraphReveal[];
 };
 
+type ClickBurstParticle = {
+  dx: number;
+  dy: number;
+  size: number;
+  opacity: number;
+  delay: number;
+  duration: number;
+};
+
+type ClickBurst = {
+  id: number;
+  x: number;
+  y: number;
+  particles: ClickBurstParticle[];
+};
+
 const CONTENT_STAGE_OVERLAY_CONFIG: Record<
   ContentSectionEntry["id"],
   ContentStageOverlayConfig
@@ -196,6 +233,25 @@ type ProjectTagListProps = {
 
 function clamp01(value: number) {
   return Math.max(0, Math.min(1, value));
+}
+
+function createClickBurst(id: number, x: number, y: number): ClickBurst {
+  const particles = Array.from({ length: CLICK_BURST_PARTICLE_COUNT }, (_, index) => {
+    const angle =
+      (Math.PI * 2 * index) / CLICK_BURST_PARTICLE_COUNT + (Math.random() - 0.5) * 0.22;
+    const distance = 18 + Math.pow(Math.random(), 0.78) * 42;
+
+    return {
+      dx: Math.cos(angle) * distance,
+      dy: Math.sin(angle) * distance,
+      size: 1.15 + Math.random() * 1.45,
+      opacity: 0.7 + Math.random() * 0.22,
+      delay: Math.random() * 36,
+      duration: 420 + Math.random() * 140,
+    };
+  });
+
+  return { id, x, y, particles };
 }
 
 function getShellScrollProgress(rect: DOMRect, viewportHeight: number) {
@@ -484,6 +540,8 @@ export function PortfolioExperience() {
         </div>
       </motion.div>
 
+      <ClickBurstOverlay />
+
       <main className="page-stage" id="top">
         {PORTFOLIO_SECTIONS.map((section) => (
           <PortfolioSectionRenderer
@@ -493,6 +551,82 @@ export function PortfolioExperience() {
           />
         ))}
       </main>
+    </div>
+  );
+}
+
+function ClickBurstOverlay() {
+  const [bursts, setBursts] = useState<ClickBurst[]>([]);
+  const nextBurstId = useRef(0);
+  const timeoutIds = useRef<number[]>([]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!event.isPrimary) {
+        return;
+      }
+
+      if (event.pointerType === "mouse" && event.button !== 0) {
+        return;
+      }
+
+      const burst = createClickBurst(nextBurstId.current++, event.clientX, event.clientY);
+
+      setBursts((current) => [...current.slice(-(CLICK_BURST_MAX_ACTIVE - 1)), burst]);
+
+      const timeoutId = window.setTimeout(() => {
+        setBursts((current) => current.filter((item) => item.id !== burst.id));
+        timeoutIds.current = timeoutIds.current.filter((value) => value !== timeoutId);
+      }, CLICK_BURST_MAX_LIFETIME_MS);
+
+      timeoutIds.current.push(timeoutId);
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown, { passive: true });
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      timeoutIds.current.forEach((timeoutId) => {
+        window.clearTimeout(timeoutId);
+      });
+      timeoutIds.current = [];
+    };
+  }, []);
+
+  return (
+    <div className="click-burst-overlay" aria-hidden>
+      {bursts.map((burst) => (
+        <div
+          key={burst.id}
+          className="click-burst"
+          style={{ left: burst.x, top: burst.y }}
+        >
+          {burst.particles.map((particle, index) => (
+            <span
+              key={`${burst.id}-${index}`}
+              className="click-burst__particle"
+              style={
+                {
+                  "--click-burst-x": `${particle.dx}px`,
+                  "--click-burst-y": `${particle.dy}px`,
+                  "--click-burst-size": `${particle.size}px`,
+                  "--click-burst-opacity": particle.opacity,
+                  "--click-burst-delay": `${particle.delay}ms`,
+                  "--click-burst-duration": `${particle.duration}ms`,
+                } as CSSProperties
+              }
+            />
+          ))}
+        </div>
+      ))}
     </div>
   );
 }
@@ -757,8 +891,9 @@ function PortfolioSectionRenderer({
       );
     }
     case "particle-text":
-    case "outro":
       return <SceneStageSection section={section} />;
+    case "outro":
+      return <OutroSection section={section} progress={progress} />;
     case "card": {
       const project = section.projectSlug ? projectsBySlug[section.projectSlug] : null;
 
@@ -779,6 +914,49 @@ function SceneStageSection({ section }: { section: SectionDefinition }) {
         <div className="transform-stage" />
       </div>
     </section>
+  );
+}
+
+function OutroSection({
+  section,
+  progress,
+}: {
+  section: SectionDefinition;
+  progress: MotionValue<number>;
+}) {
+  return (
+    <section
+      className={`scroll-section ${getScrollSectionClassName(section.domVariant)}`.trim()}
+      aria-label={section.ariaLabel ?? "Outro"}
+    >
+      <div className="section-sticky section-sticky--center">
+        <div className="transform-stage transform-stage--outro">
+          <OutroContactOverlay progress={progress} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function OutroContactOverlay({ progress }: { progress: MotionValue<number> }) {
+  const opacity = useTransform(progress, OUTRO_CONTACT_REVEAL_STOPS, [0, 1]);
+  const blur = useTransform(progress, OUTRO_CONTACT_REVEAL_STOPS, [10, 0]);
+  const y = useTransform(progress, OUTRO_CONTACT_REVEAL_STOPS, [18, 0]);
+  const filter = useMotionTemplate`blur(${blur}px)`;
+
+  return (
+    <div className="outro-contact-overlay-shell">
+      <motion.div
+        className="outro-contact-overlay"
+        style={{ opacity, y, filter }}
+      >
+        {OUTRO_CONTACT_LABELS.map((label) => (
+          <div key={label} className="outro-contact-overlay__item">
+            <p className="outro-contact-label">{label}</p>
+          </div>
+        ))}
+      </motion.div>
+    </div>
   );
 }
 
