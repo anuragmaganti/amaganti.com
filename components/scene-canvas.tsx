@@ -62,6 +62,8 @@ type QualityProfile = {
   aboutTextScaleMultiplier: number;
   projectsTextScaleMultiplier: number;
   introFaceOffset: [number, number];
+  introCameraYOffset: number;
+  introTargetYOffset: number;
 };
 
 type PointCloudSystemProps = {
@@ -353,8 +355,22 @@ function PointCloudSystem({
     cloudMaterial.size = phaseState.cloud.pointSize * profile.sizeMultiplier;
     cloudMaterial.opacity = phaseState.cloud.opacity;
 
+    const responsiveIntroCameraYOffset = getResponsiveIntroCameraYOffset(
+      phaseState.current.key,
+      phaseState.next.key,
+      blend,
+      profile,
+    );
+    const responsiveIntroTargetYOffset = getResponsiveIntroTargetYOffset(
+      phaseState.current.key,
+      phaseState.next.key,
+      blend,
+      profile,
+    );
     desiredCamera.set(...phaseState.camera.position);
     cameraTarget.set(...phaseState.camera.target);
+    desiredCamera.y += responsiveIntroCameraYOffset;
+    cameraTarget.y += responsiveIntroTargetYOffset;
 
     perspectiveCamera.position.copy(desiredCamera);
     perspectiveCamera.lookAt(cameraTarget);
@@ -957,6 +973,8 @@ function useQualityProfile(reducedMotion: boolean) {
     aboutTextScaleMultiplier: 1,
     projectsTextScaleMultiplier: 1,
     introFaceOffset: [0, 0],
+    introCameraYOffset: 0,
+    introTargetYOffset: 0,
   });
 
   useEffect(() => {
@@ -974,6 +992,8 @@ function useQualityProfile(reducedMotion: boolean) {
       const projectsDesktopScale = width >= 1280 ? 0.86 : 1;
       const introFaceOffset: [number, number] =
         width <= 640 ? [-0.12, -0.15] : [0, 0];
+      const introCameraYOffset = width <= 640 ? 0.18 : 0;
+      const introTargetYOffset = width <= 640 ? 0.42 : 0;
       const memory =
         "deviceMemory" in navigator
           ? ((navigator as Navigator & { deviceMemory?: number })
@@ -995,6 +1015,8 @@ function useQualityProfile(reducedMotion: boolean) {
           aboutTextScaleMultiplier: aboutDesktopScale,
           projectsTextScaleMultiplier: projectsDesktopScale,
           introFaceOffset,
+          introCameraYOffset,
+          introTargetYOffset,
         });
         return;
       }
@@ -1014,6 +1036,8 @@ function useQualityProfile(reducedMotion: boolean) {
         aboutTextScaleMultiplier: aboutDesktopScale,
         projectsTextScaleMultiplier: projectsDesktopScale,
         introFaceOffset,
+        introCameraYOffset,
+        introTargetYOffset,
       });
     };
 
@@ -1081,6 +1105,30 @@ function getResponsiveIntroFaceOffset(
     lerp(currentOffset[0], nextOffset[0], mix),
     lerp(currentOffset[1], nextOffset[1], mix),
   ] as const;
+}
+
+function getResponsiveIntroCameraYOffset(
+  currentPhaseKey: string,
+  nextPhaseKey: string,
+  mix: number,
+  profile: QualityProfile,
+) {
+  const currentOffset = currentPhaseKey === "intro" ? profile.introCameraYOffset : 0;
+  const nextOffset = nextPhaseKey === "intro" ? profile.introCameraYOffset : 0;
+
+  return lerp(currentOffset, nextOffset, mix);
+}
+
+function getResponsiveIntroTargetYOffset(
+  currentPhaseKey: string,
+  nextPhaseKey: string,
+  mix: number,
+  profile: QualityProfile,
+) {
+  const currentOffset = currentPhaseKey === "intro" ? profile.introTargetYOffset : 0;
+  const nextOffset = nextPhaseKey === "intro" ? profile.introTargetYOffset : 0;
+
+  return lerp(currentOffset, nextOffset, mix);
 }
 
 function sampleSceneProgress(progress: number) {
