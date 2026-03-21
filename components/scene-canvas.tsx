@@ -988,12 +988,12 @@ function useQualityProfile(reducedMotion: boolean) {
             Math.pow(THREE.MathUtils.clamp((width - 300) / 600, 0, 1), 1.35) *
               0.58;
       const mobileFaceScale = mobileTextScale;
-      const aboutDesktopScale = width >= 900 ? 0.84 : 1;
-      const projectsDesktopScale = width >= 1280 ? 0.86 : 1;
+      const aboutDesktopScale = width >= 900 ? 0.84 : width <= 640 ? 1.32 : 1;
+      const projectsDesktopScale = width >= 1280 ? 0.86 : width <= 640 ? 1.42 : 1;
       const introFaceOffset: [number, number] =
         width <= 640 ? [-0.12, -0.15] : [0, 0];
-      const introCameraYOffset = width <= 640 ? 0.18 : 0;
-      const introTargetYOffset = width <= 640 ? 0.42 : 0;
+      const introCameraYOffset = width <= 640 ? 0.08 : 0;
+      const introTargetYOffset = width <= 640 ? 0.26 : 0;
       const memory =
         "deviceMemory" in navigator
           ? ((navigator as Navigator & { deviceMemory?: number })
