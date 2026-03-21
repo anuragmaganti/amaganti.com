@@ -101,12 +101,32 @@ const INTRO_TITLE_LINES = ["Hi, I'm", "Anurag"] as const;
 const INTRO_SUBTITLE_TEXT =
   "a software engineer obsessed with building products that feel a little bit magical";
 const INTRO_NOTE_TEXT = "(yep, that's a real LIDAR scan of my head)";
-const OUTRO_CONTACT_LABELS = [
-  "Github",
-  "LinkedIn",
-  "Email me",
-  "Nature publication",
-] as const;
+type OutroContactItem = {
+  label: string;
+  href?: string;
+  external?: boolean;
+};
+
+const OUTRO_CONTACT_ITEMS: readonly OutroContactItem[] = [
+  {
+    label: "Github",
+    href: "https://github.com/anuragmaganti",
+    external: true,
+  },
+  {
+    label: "LinkedIn",
+  },
+  {
+    label: "Email me",
+    href: "mailto:amaganti.dev@gmail.com",
+    external: false,
+  },
+  {
+    label: "Nature publication",
+    href: "https://www.nature.com/articles/s41586-018-0697-7#change-history",
+    external: true,
+  },
+];
 const CLICK_BURST_MAX_ACTIVE = 6;
 const CLICK_BURST_PARTICLE_COUNT = 24;
 const CLICK_BURST_MAX_LIFETIME_MS = 880;
@@ -950,9 +970,25 @@ function OutroContactOverlay({ progress }: { progress: MotionValue<number> }) {
         className="outro-contact-overlay"
         style={{ opacity, y, filter }}
       >
-        {OUTRO_CONTACT_LABELS.map((label) => (
-          <div key={label} className="outro-contact-overlay__item">
-            <p className="outro-contact-label">{label}</p>
+        {OUTRO_CONTACT_ITEMS.map((item) => (
+          <div
+            key={item.label}
+            className={`outro-contact-overlay__item${
+              item.href ? " outro-contact-overlay__item--interactive" : ""
+            }`}
+          >
+            {item.href ? (
+              <a
+                className="outro-contact-label outro-contact-label--link"
+                href={item.href}
+                target={item.external ? "_blank" : undefined}
+                rel={item.external ? "noreferrer" : undefined}
+              >
+                {item.label}
+              </a>
+            ) : (
+              <p className="outro-contact-label">{item.label}</p>
+            )}
           </div>
         ))}
       </motion.div>

@@ -461,7 +461,6 @@ select {
   width: auto;
   min-width: 0;
   pointer-events: auto;
-  cursor: pointer;
   animation: outro-label-hover 1.55s ease-in-out infinite alternate;
   will-change: transform;
 }
@@ -477,16 +476,20 @@ select {
   line-height: 0.95;
   white-space: nowrap;
   text-align: center;
-  cursor: pointer;
   transition:
     transform 280ms var(--ease-standard),
     color 220ms var(--ease-standard);
   will-change: transform, color;
 }
 
+.outro-contact-overlay__item--interactive,
+.outro-contact-label--link {
+  cursor: pointer;
+}
+
 @media (hover: hover) and (pointer: fine) {
-  .outro-contact-overlay__item:hover .outro-contact-label,
-  .outro-contact-overlay__item:focus-within .outro-contact-label {
+  .outro-contact-overlay__item--interactive:hover .outro-contact-label,
+  .outro-contact-overlay__item--interactive:focus-within .outro-contact-label {
     color: rgba(236, 244, 255, 1);
     transform: scale(1.08);
   }
