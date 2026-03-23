@@ -101,6 +101,9 @@ const INTRO_TITLE_LINES = ["Hi, I'm", "Anurag"] as const;
 const INTRO_SUBTITLE_TEXT =
   "a software engineer obsessed with building products that feel a little bit magical";
 const INTRO_NOTE_TEXT = "(yep, that's a real LIDAR scan of my head)";
+const ABOUT_PACT_LINK_TEXT =
+  "building a startup in the digital asset space by creating software for evolving markets.";
+const ABOUT_PACT_LINK_HREF = "https://www.pact.bet/";
 type OutroContactItem = {
   label: string;
   href?: string;
@@ -253,6 +256,32 @@ type ProjectTagListProps = {
 
 function clamp01(value: number) {
   return Math.max(0, Math.min(1, value));
+}
+
+function renderContentStageParagraph(paragraph: string) {
+  const linkStart = paragraph.indexOf(ABOUT_PACT_LINK_TEXT);
+
+  if (linkStart === -1) {
+    return paragraph;
+  }
+
+  const before = paragraph.slice(0, linkStart);
+  const after = paragraph.slice(linkStart + ABOUT_PACT_LINK_TEXT.length);
+
+  return (
+    <>
+      {before}
+      <a
+        className="content-stage-overlay__link"
+        href={ABOUT_PACT_LINK_HREF}
+        target="_blank"
+        rel="noreferrer"
+      >
+        {ABOUT_PACT_LINK_TEXT}
+      </a>
+      {after}
+    </>
+  );
 }
 
 function createClickBurst(id: number, x: number, y: number): ClickBurst {
@@ -884,7 +913,7 @@ function ContentStageParagraph({
         filter,
       }}
     >
-      {paragraph}
+      {renderContentStageParagraph(paragraph)}
     </motion.p>
   );
 }

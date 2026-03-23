@@ -165,6 +165,23 @@ select {
   line-height: 1.65;
 }
 
+.content-stage-overlay__link {
+  color: rgba(245, 247, 251, 0.94);
+  text-decoration-line: underline;
+  text-decoration-color: rgba(245, 247, 251, 0.3);
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.12em;
+  transition:
+    color 220ms var(--ease-standard),
+    text-decoration-color 220ms var(--ease-standard);
+}
+
+.content-stage-overlay__link:hover,
+.content-stage-overlay__link:focus-visible {
+  color: rgba(255, 255, 255, 1);
+  text-decoration-color: rgba(255, 255, 255, 0.72);
+}
+
 .content-stage-overlay--top-overlay .content-stage-overlay__shell {
   width: min(100%, 46rem);
   padding-top: clamp(13.15rem, 35vh, 23.25rem);
