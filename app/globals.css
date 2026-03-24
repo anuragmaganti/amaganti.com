@@ -504,6 +504,23 @@ select {
   cursor: pointer;
 }
 
+.outro-contact-overlay__item--interactive {
+  touch-action: manipulation;
+}
+
+.outro-contact-label--link {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  width: 100%;
+  padding-inline: 0.18em;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: rgba(255, 255, 255, 0.08);
+}
+
 @media (hover: hover) and (pointer: fine) {
   .outro-contact-overlay__item--interactive:hover .outro-contact-label,
   .outro-contact-overlay__item--interactive:focus-within .outro-contact-label {
