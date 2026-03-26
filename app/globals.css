@@ -155,7 +155,7 @@ select {
   margin: 0 auto;
   display: grid;
   gap: clamp(2rem, 4vh, 3rem);
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .content-stage-overlay__copy p {
@@ -167,6 +167,7 @@ select {
 
 .content-stage-overlay__link {
   color: rgba(245, 247, 251, 0.94);
+  pointer-events: auto;
   text-decoration-line: underline;
   text-decoration-color: rgba(245, 247, 251, 0.3);
   text-decoration-thickness: 0.08em;

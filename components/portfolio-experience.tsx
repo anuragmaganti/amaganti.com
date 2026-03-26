@@ -103,7 +103,7 @@ const INTRO_SUBTITLE_TEXT =
 const INTRO_NOTE_TEXT = "(yep, that's a real LIDAR scan of my head)";
 const ABOUT_PACT_LINK_TEXT =
   "building a startup in the digital asset space by creating software for evolving markets.";
-const ABOUT_PACT_LINK_HREF = "https://www.pact.bet/";
+const ABOUT_PACT_LINK_HREF = "https://www.nuopact.com/";
 type OutroContactItem = {
   label: string;
   href?: string;
