@@ -118,6 +118,8 @@ const OUTRO_CONTACT_ITEMS: readonly OutroContactItem[] = [
   },
   {
     label: "LinkedIn",
+    href: "https://www.linkedin.com/in/anuragmaganti/",
+    external: true,
   },
   {
     label: "Email me",
