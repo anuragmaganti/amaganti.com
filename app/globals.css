@@ -463,12 +463,12 @@ select {
 
 .outro-contact-overlay {
   width: fit-content;
-  max-width: calc(100vw - (var(--frame-padding) * 2));
+  max-width: 100%;
   padding-inline: clamp(1rem, 2vw, 2rem);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(2.2rem, 5vw, 6rem);
+  gap: clamp(1.4rem, 3.4vw, 4.25rem);
   pointer-events: none;
 }
 
