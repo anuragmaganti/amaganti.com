@@ -1,114 +1,18 @@
 import type {
-  PointCloudShape,
   PointCloudTargetId,
   PointCloudTextTarget,
 } from "@/lib/scene-config";
+import {
+  PROJECT_FIELD_PRESETS,
+  type ProjectFieldPreset,
+  type ProjectFieldPresetId,
+} from "@/lib/project-field-presets";
 
 const TWO_PI = Math.PI * 2;
 const IMPORT_SCAN_ORIENTATION = {
   x: -Math.PI / 2,
   y: 0,
   z: 0,
-};
-type ProjectFieldTargetId = Extract<
-  PointCloudShape,
-  "project-field-1" | "project-field-2" | "project-field-3"
->;
-
-type ProjectFieldPreset = {
-  xScale: number;
-  yScale: number;
-  depthScale: number;
-  centerPinch: number;
-  edgeFan: number;
-  verticalSpread: number;
-  twist: number;
-  bow: number;
-  sweep: number;
-  horizontalWaveFrequency: number;
-  horizontalWaveAmplitude: number;
-  verticalWaveFrequency: number;
-  verticalWaveAmplitude: number;
-  depthWaveFrequencyX: number;
-  depthWaveFrequencyY: number;
-  depthWaveAmplitude: number;
-  depthBias: number;
-  bandFrequency: number;
-  jitterX: number;
-  jitterY: number;
-  jitterZ: number;
-};
-
-const PROJECT_FIELD_PRESETS: Record<ProjectFieldTargetId, ProjectFieldPreset> = {
-  "project-field-1": {
-    xScale: 1.72,
-    yScale: 1.48,
-    depthScale: 0.28,
-    centerPinch: 0.18,
-    edgeFan: 0.12,
-    verticalSpread: 0.08,
-    twist: 0.16,
-    bow: 0.18,
-    sweep: 0.22,
-    horizontalWaveFrequency: 3.4,
-    horizontalWaveAmplitude: 0.34,
-    verticalWaveFrequency: 2.2,
-    verticalWaveAmplitude: 0.12,
-    depthWaveFrequencyX: 1.9,
-    depthWaveFrequencyY: 2.6,
-    depthWaveAmplitude: 0.18,
-    depthBias: 0.08,
-    bandFrequency: 2.1,
-    jitterX: 0.06,
-    jitterY: 0.08,
-    jitterZ: 0.06,
-  },
-  "project-field-2": {
-    xScale: 1.08,
-    yScale: 1.94,
-    depthScale: 0.34,
-    centerPinch: 0.12,
-    edgeFan: 0.06,
-    verticalSpread: 0.18,
-    twist: 0.54,
-    bow: 0.1,
-    sweep: -0.12,
-    horizontalWaveFrequency: 2.4,
-    horizontalWaveAmplitude: 0.16,
-    verticalWaveFrequency: 3.8,
-    verticalWaveAmplitude: 0.24,
-    depthWaveFrequencyX: 1.3,
-    depthWaveFrequencyY: 3.8,
-    depthWaveAmplitude: 0.24,
-    depthBias: 0.16,
-    bandFrequency: 2.8,
-    jitterX: 0.05,
-    jitterY: 0.07,
-    jitterZ: 0.08,
-  },
-  "project-field-3": {
-    xScale: 1.98,
-    yScale: 1.42,
-    depthScale: 0.36,
-    centerPinch: 0.06,
-    edgeFan: 0.28,
-    verticalSpread: 0.14,
-    twist: 0.26,
-    bow: 0.22,
-    sweep: 0.08,
-    horizontalWaveFrequency: 2.8,
-    horizontalWaveAmplitude: 0.22,
-    verticalWaveFrequency: 2.0,
-    verticalWaveAmplitude: 0.14,
-    depthWaveFrequencyX: 2.8,
-    depthWaveFrequencyY: 1.7,
-    depthWaveAmplitude: 0.28,
-    depthBias: 0.18,
-    bandFrequency: 3.1,
-    jitterX: 0.06,
-    jitterY: 0.08,
-    jitterZ: 0.09,
-  },
 };
 
 type CreateMorphTargetsOptions = {
@@ -259,9 +163,15 @@ export function createMorphTargets(
   options: CreateMorphTargetsOptions = {},
 ): Record<PointCloudTargetId, Float32Array> {
   const pointCount = Math.floor(basePositions.length / 3);
-  const projectField1 = new Float32Array(basePositions.length);
-  const projectField2 = new Float32Array(basePositions.length);
-  const projectField3 = new Float32Array(basePositions.length);
+  const projectPresetIds = Object.keys(
+    PROJECT_FIELD_PRESETS,
+  ) as ProjectFieldPresetId[];
+  const projectFields = Object.fromEntries(
+    projectPresetIds.map((id) => [
+      id,
+      new Float32Array(basePositions.length),
+    ]),
+  ) as Record<ProjectFieldPresetId, Float32Array>;
   const settle = new Float32Array(basePositions.length);
   const textTargets = options.textTargets ?? [];
   const haloDensityMultiplier = options.haloDensityMultiplier ?? 1;
@@ -282,39 +192,19 @@ export function createMorphTargets(
     const jitterB = pseudoRandom(index, 0.47) - 0.5;
     const jitterC = pseudoRandom(index, 0.81) - 0.5;
 
-    writeProjectFieldPosition(
-      projectField1,
-      offset,
-      PROJECT_FIELD_PRESETS["project-field-1"],
-      u,
-      v,
-      band,
-      jitterA,
-      jitterB,
-      jitterC,
-    );
-    writeProjectFieldPosition(
-      projectField2,
-      offset,
-      PROJECT_FIELD_PRESETS["project-field-2"],
-      u,
-      v,
-      band,
-      jitterA,
-      jitterB,
-      jitterC,
-    );
-    writeProjectFieldPosition(
-      projectField3,
-      offset,
-      PROJECT_FIELD_PRESETS["project-field-3"],
-      u,
-      v,
-      band,
-      jitterA,
-      jitterB,
-      jitterC,
-    );
+    for (const presetId of projectPresetIds) {
+      writeProjectFieldPosition(
+        projectFields[presetId],
+        offset,
+        PROJECT_FIELD_PRESETS[presetId],
+        u,
+        v,
+        band,
+        jitterA,
+        jitterB,
+        jitterC,
+      );
+    }
 
     settle[offset] = basePositions[offset] * 0.78;
     settle[offset + 1] = basePositions[offset + 1] * 0.78 - 0.04;
@@ -323,9 +213,7 @@ export function createMorphTargets(
 
   const targets: Partial<Record<PointCloudTargetId, Float32Array>> = {
     face: basePositions,
-    "project-field-1": projectField1,
-    "project-field-2": projectField2,
-    "project-field-3": projectField3,
+    ...projectFields,
     settle,
   };
 

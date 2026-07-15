@@ -1,13 +1,12 @@
-export type ProjectSlug = "project-01" | "project-02" | "project-03";
-export type ContentSectionId = "about-me";
+import type { ProjectFieldPresetId } from "@/lib/project-field-presets";
 
 export type ProjectEntry = {
-  slug: ProjectSlug;
+  slug: string;
   title: string;
   summary: string;
-  description: string[];
-  highlights: string[];
-  tags: string[];
+  description: readonly string[];
+  highlights: readonly string[];
+  tags: readonly string[];
   imageSrc: string;
   imageAlt: string;
   imageWidth: number;
@@ -15,15 +14,10 @@ export type ProjectEntry = {
   href: string;
   linkLabel: string;
   githubHref: string;
+  particlePreset: ProjectFieldPresetId;
 };
 
-export type ContentSectionEntry = {
-  id: ContentSectionId;
-  layout: "top-overlay";
-  body: string[];
-};
-
-const projects: ProjectEntry[] = [
+export const projects = [
   {
     slug: "project-01",
     title: "Text2Speech.dev",
@@ -51,14 +45,15 @@ const projects: ProjectEntry[] = [
       "Polar",
       "AWS S3",
     ],
-    imageSrc: "/projects/text2speech.png",
+    imageSrc: "/projects/text2speech.jpg",
     imageAlt:
       "Text2Speech dashboard showing text input, language selection, voice upload, and speech generation settings.",
-    imageWidth: 2412,
-    imageHeight: 2364,
+    imageWidth: 1600,
+    imageHeight: 1568,
     href: "https://text2speech.dev",
     linkLabel: "View Website",
     githubHref: "https://github.com/anuragmaganti/text-to-speech",
+    particlePreset: "contour-sheet",
   },
   {
     slug: "project-02",
@@ -76,14 +71,15 @@ const projects: ProjectEntry[] = [
       "Template switching and print-ready output",
     ],
     tags: ["React", "JavaScript", "CSS", "Local storage"],
-    imageSrc: "/projects/resumeloomr-v2.png",
+    imageSrc: "/projects/resumeloomr-v2.jpg",
     imageAlt:
       "ResumeLoomr interface showing a resume editor, section navigation, and live printable resume preview.",
-    imageWidth: 2860,
-    imageHeight: 2364,
+    imageWidth: 1600,
+    imageHeight: 1322,
     href: "https://resumeloomr.com/",
     linkLabel: "View Website",
     githubHref: "https://github.com/anuragmaganti/ResumeLoomr",
+    particlePreset: "torsion-column",
   },
   {
     slug: "project-03",
@@ -98,34 +94,114 @@ const projects: ProjectEntry[] = [
       "Clear and export flow for finished signatures",
       "Performance-aware React patterns for stable gesture input",
     ],
-    tags: ["React", "Javascript", "MediaPipe", "HTML Canvas", "WebRTC"],
-    imageSrc: "/projects/webcamsign.png",
+    tags: ["React", "JavaScript", "MediaPipe", "HTML Canvas", "WebRTC"],
+    imageSrc: "/projects/webcamsign.jpg",
     imageAlt:
       "WebcamSign interface showing a signature canvas, step-by-step signing instructions, live preview, camera controls, and SVG export actions.",
-    imageWidth: 3180,
-    imageHeight: 2628,
+    imageWidth: 1600,
+    imageHeight: 1322,
     href: "https://webcamsign.com",
-    linkLabel: "VIEW WEBSITE",
+    linkLabel: "View Website",
     githubHref: "https://github.com/anuragmaganti/signature-webcam-draw",
+    particlePreset: "bloom-fan",
   },
-];
+] as const satisfies readonly ProjectEntry[];
 
-export const projectsBySlug = Object.fromEntries(
-  projects.map((project) => [project.slug, project]),
-) as Record<ProjectSlug, ProjectEntry>;
+export type ProjectSlug = (typeof projects)[number]["slug"];
 
-const contentSections: ContentSectionEntry[] = [
+export const projectsBySlug = projects.reduce<Record<ProjectSlug, ProjectEntry>>(
+  (index, project) => {
+    index[project.slug] = project;
+    return index;
+  },
+  {} as Record<ProjectSlug, ProjectEntry>,
+);
+
+export type ContentTextSegment = {
+  type: "text";
+  text: string;
+};
+
+export type ContentLinkSegment = {
+  type: "link";
+  text: string;
+  href: string;
+  external?: boolean;
+};
+
+export type ContentParagraph = {
+  id: string;
+  segments: readonly (ContentTextSegment | ContentLinkSegment)[];
+  reveal: {
+    enter: readonly [number, number];
+    from: "left" | "right" | "bottom";
+    exitTo: "left" | "right";
+  };
+};
+
+export type ContentSectionEntry = {
+  id: string;
+  title: string;
+  layout: "top-overlay";
+  exit: readonly [number, number];
+  paragraphs: readonly ContentParagraph[];
+};
+
+export const contentSections = [
   {
     id: "about-me",
+    title: "About Me",
     layout: "top-overlay",
-    body: [
-      "I fell in love with interconnected systems as a researcher in cell biology and cancer, where I saw delicate molecular interactions ripple outward and shape the behavior of cellular systems.",
-      "That same fascination drew me to software engineering. I’ve spent the past two years building a startup in the digital asset space by creating software for evolving markets.",
-      "My journey has been an extension of that same curiosity, a chance to explore how code and people interact and to build tools within systems that are constantly evolving.",
+    exit: [0.58, 0.82],
+    paragraphs: [
+      {
+        id: "systems",
+        segments: [
+          {
+            type: "text",
+            text: "I fell in love with interconnected systems as a researcher in cell biology and cancer, where I saw delicate molecular interactions ripple outward and shape the behavior of cellular systems.",
+          },
+        ],
+        reveal: { enter: [-0.22, -0.12], from: "left", exitTo: "right" },
+      },
+      {
+        id: "software",
+        segments: [
+          {
+            type: "text",
+            text: "That same fascination drew me to software engineering. I’ve spent the past two years ",
+          },
+          {
+            type: "link",
+            text: "building a startup in the digital asset space by creating software for evolving markets.",
+            href: "https://www.nuopact.com/",
+            external: true,
+          },
+        ],
+        reveal: { enter: [-0.17, -0.07], from: "right", exitTo: "left" },
+      },
+      {
+        id: "curiosity",
+        segments: [
+          {
+            type: "text",
+            text: "My journey has been an extension of that same curiosity, a chance to explore how code and people interact and to build tools within systems that are constantly evolving.",
+          },
+        ],
+        reveal: { enter: [-0.12, -0.02], from: "left", exitTo: "right" },
+      },
     ],
   },
-];
+] as const satisfies readonly ContentSectionEntry[];
 
-export const contentSectionsById = Object.fromEntries(
-  contentSections.map((section) => [section.id, section]),
-) as Record<ContentSectionId, ContentSectionEntry>;
+export type ContentSectionId = (typeof contentSections)[number]["id"];
+
+export const contentSectionsById = contentSections.reduce<
+  Record<ContentSectionId, ContentSectionEntry>
+>(
+  (index, section) => {
+    index[section.id] = section;
+    return index;
+  },
+  {} as Record<ContentSectionId, ContentSectionEntry>,
+);

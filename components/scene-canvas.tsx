@@ -6,19 +6,17 @@ import type { MotionValue } from "motion";
 import { useReducedMotion } from "motion/react";
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { MeshSurfaceSampler } from "three/examples/jsm/math/MeshSurfaceSampler.js";
-import { PLYLoader } from "three/examples/jsm/loaders/PLYLoader.js";
 
 import {
-  FACE_SCAN_GLB_PATH,
   POINT_CLOUD_ASSET_PATH,
   POINT_CLOUD_TEXT_TARGETS,
   RENDER_DEFAULTS,
-  SCENE_PHASES,
   type PointCloudShape,
   type PointCloudTargetId,
   type PointCloudTextTargetId,
+  type SceneCloudState,
+  type ScenePhase,
+  type SceneTimeline,
 } from "@/lib/scene-config";
 import {
   createMorphTargets,
@@ -49,6 +47,7 @@ const CARD_EXCLUSION_DEPTH_FACTOR = 0.18;
 
 type SceneCanvasProps = {
   progress: MotionValue<number>;
+  timeline: SceneTimeline;
 };
 
 type QualityProfile = {
@@ -61,6 +60,7 @@ type QualityProfile = {
   faceScaleMultiplier: number;
   aboutTextScaleMultiplier: number;
   projectsTextScaleMultiplier: number;
+  aboutTextYOffset: number;
   introFaceOffset: [number, number];
   introCameraYOffset: number;
   introTargetYOffset: number;
@@ -71,6 +71,7 @@ type PointCloudSystemProps = {
   progress: MotionValue<number>;
   reducedMotion: boolean;
   profile: QualityProfile;
+  phases: ScenePhase[];
 };
 
 type ParticleState = {
@@ -95,7 +96,7 @@ type CardExclusionState = {
   targetStrength: number;
 };
 
-export function SceneCanvas({ progress }: SceneCanvasProps) {
+export function SceneCanvas({ progress, timeline }: SceneCanvasProps) {
   const reducedMotion = Boolean(useReducedMotion());
   const profile = useQualityProfile(reducedMotion);
   const basePositions = usePointCloudSource(profile.maxPoints);
@@ -120,6 +121,7 @@ export function SceneCanvas({ progress }: SceneCanvasProps) {
         progress={progress}
         reducedMotion={reducedMotion}
         profile={profile}
+        phases={timeline.phases}
       />
     </Canvas>
   );
@@ -130,6 +132,7 @@ function PointCloudSystem({
   progress,
   reducedMotion,
   profile,
+  phases,
 }: PointCloudSystemProps) {
   const invalidate = useThree((state) => state.invalidate);
   const pointCount = Math.floor(basePositions.length / 3);
@@ -163,20 +166,20 @@ function PointCloudSystem({
 
     return values;
   }, [pointCount]);
-  const morphTargets = useMemo(
-    () =>
-      createMorphTargets(basePositions, {
+  const morphTargets = useMemo(() => {
+    void typographyVersion;
+
+    return createMorphTargets(basePositions, {
         textTargets: Object.values(POINT_CLOUD_TEXT_TARGETS),
         haloDensityMultiplier: profile.textHaloMultiplier,
         textScaleMultiplier: profile.textScaleMultiplier,
-      }),
-    [
-      basePositions,
-      profile.textScaleMultiplier,
-      profile.textHaloMultiplier,
-      typographyVersion,
-    ],
-  );
+      });
+  }, [
+    basePositions,
+    profile.textScaleMultiplier,
+    profile.textHaloMultiplier,
+    typographyVersion,
+  ]);
   const cloudMaterial = useMemo(
     () =>
       new THREE.PointsMaterial({
@@ -224,6 +227,11 @@ function PointCloudSystem({
   const cardNdcPoint = useMemo(() => new THREE.Vector2(), []);
   const localPointDelta = useMemo(() => new THREE.Vector3(), []);
   const elapsedTimeRef = useRef(0);
+  const phaseIndexRef = useRef(0);
+  const particle = useMemo<ParticleState>(
+    () => ({ x: 0, y: 0, z: 0, spreadX: 0, spreadY: 0, spreadZ: 0 }),
+    [],
+  );
 
   useEffect(() => {
     const unsubscribe = progress.on("change", () => {
@@ -234,6 +242,11 @@ function PointCloudSystem({
       unsubscribe();
     };
   }, [invalidate, progress]);
+
+  useEffect(() => {
+    phaseIndexRef.current = 0;
+    invalidate();
+  }, [invalidate, phases]);
 
   useEffect(() => {
     renderPositions.set(morphTargets.face);
@@ -293,7 +306,11 @@ function PointCloudSystem({
 
   useFrame(({ camera }, delta) => {
     const perspectiveCamera = camera as THREE.PerspectiveCamera;
-    const phaseState = sampleSceneProgress(progress.get());
+    const phaseState = sampleSceneProgress(
+      progress.get(),
+      phases,
+      phaseIndexRef,
+    );
     const shapeFrom =
       morphTargets[resolveMorphTargetId(phaseState.current.cloud)] ??
       morphTargets.face;
@@ -339,9 +356,17 @@ function PointCloudSystem({
       blend,
       profile,
     );
+    const responsiveAboutTextYOffset = getResponsiveAboutTextYOffset(
+      phaseState.current.cloud,
+      phaseState.next.cloud,
+      blend,
+      profile,
+    );
     cloud.position.set(
       phaseState.cloud.position[0] + responsiveIntroFaceOffset[0],
-      phaseState.cloud.position[1] + responsiveIntroFaceOffset[1],
+      phaseState.cloud.position[1] +
+        responsiveIntroFaceOffset[1] +
+        responsiveAboutTextYOffset,
       phaseState.cloud.position[2],
     );
     cloud.rotation.set(
@@ -374,8 +399,10 @@ function PointCloudSystem({
 
     perspectiveCamera.position.copy(desiredCamera);
     perspectiveCamera.lookAt(cameraTarget);
-    perspectiveCamera.fov = phaseState.camera.fov;
-    perspectiveCamera.updateProjectionMatrix();
+    if (Math.abs(perspectiveCamera.fov - phaseState.camera.fov) > 0.0001) {
+      perspectiveCamera.fov = phaseState.camera.fov;
+      perspectiveCamera.updateProjectionMatrix();
+    }
     perspectiveCamera.updateMatrixWorld();
 
     cloud.updateMatrixWorld();
@@ -425,15 +452,6 @@ function PointCloudSystem({
       localInteractionPoint,
       cloud,
     });
-    const particle: ParticleState = {
-      x: 0,
-      y: 0,
-      z: 0,
-      spreadX: 0,
-      spreadY: 0,
-      spreadZ: 0,
-    };
-
     for (let index = 0; index < pointCount; index += 1) {
       const offset = index * 3;
       sampleParticlePosition(
@@ -893,9 +911,9 @@ function usePointCloudSource(maxPoints: number) {
   );
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
     const commitPositions = (positions: Float32Array | null) => {
-      if (cancelled || !positions || !positions.length) {
+      if (controller.signal.aborted || !positions || !positions.length) {
         return;
       }
 
@@ -903,48 +921,29 @@ function usePointCloudSource(maxPoints: number) {
         setRawAssetPositions(positions);
       });
     };
-    const loadGlbFallback = () => {
-      const gltfLoader = new GLTFLoader();
-
-      gltfLoader.load(
-        FACE_SCAN_GLB_PATH,
-        (gltf) => {
-          if (cancelled) {
-            return;
-          }
-
-          commitPositions(samplePointsFromScene(gltf.scene, 18000));
-        },
-        undefined,
-        () => undefined,
-      );
-    };
-    const plyLoader = new PLYLoader();
-
-    plyLoader.load(
-      POINT_CLOUD_ASSET_PATH,
-      (geometry) => {
-        if (cancelled) {
-          return;
+    void fetch(POINT_CLOUD_ASSET_PATH, { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Point cloud request failed with ${response.status}`);
         }
 
-        const positions = geometry.getAttribute("position");
-
-        if (!positions || positions.count === 0) {
-          loadGlbFallback();
-          return;
+        return response.arrayBuffer();
+      })
+      .then((buffer) => {
+        if (buffer.byteLength % Float32Array.BYTES_PER_ELEMENT !== 0) {
+          throw new Error("Point cloud asset has an invalid byte length");
         }
 
-        commitPositions(new Float32Array(positions.array as ArrayLike<number>));
-      },
-      undefined,
-      () => {
-        loadGlbFallback();
-      },
-    );
+        commitPositions(new Float32Array(buffer));
+      })
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          console.warn("Falling back to the generated face point cloud.", error);
+        }
+      });
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, []);
 
@@ -972,12 +971,14 @@ function useQualityProfile(reducedMotion: boolean) {
     faceScaleMultiplier: 1,
     aboutTextScaleMultiplier: 1,
     projectsTextScaleMultiplier: 1,
+    aboutTextYOffset: 0,
     introFaceOffset: [0, 0],
     introCameraYOffset: 0,
     introTargetYOffset: 0,
   });
 
   useEffect(() => {
+    let frameId = 0;
     const computeProfile = () => {
       const width = window.innerWidth;
       const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
@@ -990,6 +991,7 @@ function useQualityProfile(reducedMotion: boolean) {
       const mobileFaceScale = mobileTextScale;
       const aboutDesktopScale = width >= 900 ? 0.84 : width <= 640 ? 1.32 : 1;
       const projectsDesktopScale = width >= 1280 ? 0.86 : width <= 640 ? 1.42 : 1;
+      const aboutTextYOffset = width <= 640 ? 0.32 : width < 900 ? 0.14 : 0;
       const introFaceOffset: [number, number] =
         width <= 640 ? [-0.12, -0.15] : [0, 0];
       const introCameraYOffset = width <= 640 ? 0.08 : 0;
@@ -1014,6 +1016,7 @@ function useQualityProfile(reducedMotion: boolean) {
           faceScaleMultiplier: mobileFaceScale,
           aboutTextScaleMultiplier: aboutDesktopScale,
           projectsTextScaleMultiplier: projectsDesktopScale,
+          aboutTextYOffset,
           introFaceOffset,
           introCameraYOffset,
           introTargetYOffset,
@@ -1035,17 +1038,29 @@ function useQualityProfile(reducedMotion: boolean) {
         faceScaleMultiplier: mobileFaceScale,
         aboutTextScaleMultiplier: aboutDesktopScale,
         projectsTextScaleMultiplier: projectsDesktopScale,
+        aboutTextYOffset,
         introFaceOffset,
         introCameraYOffset,
         introTargetYOffset,
       });
     };
+    const scheduleProfileUpdate = () => {
+      if (frameId) {
+        return;
+      }
+
+      frameId = window.requestAnimationFrame(() => {
+        frameId = 0;
+        computeProfile();
+      });
+    };
 
     computeProfile();
-    window.addEventListener("resize", computeProfile);
+    window.addEventListener("resize", scheduleProfileUpdate, { passive: true });
 
     return () => {
-      window.removeEventListener("resize", computeProfile);
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener("resize", scheduleProfileUpdate);
     };
   }, [reducedMotion]);
 
@@ -1107,6 +1122,20 @@ function getResponsiveIntroFaceOffset(
   ] as const;
 }
 
+function getResponsiveAboutTextYOffset(
+  currentCloud: Pick<SceneCloudState, "shape" | "textTargetId">,
+  nextCloud: Pick<SceneCloudState, "shape" | "textTargetId">,
+  mix: number,
+  profile: QualityProfile,
+) {
+  const getOffset = (cloud: Pick<SceneCloudState, "shape" | "textTargetId">) =>
+    cloud.shape === "text" && cloud.textTargetId === "about-me"
+      ? profile.aboutTextYOffset
+      : 0;
+
+  return lerp(getOffset(currentCloud), getOffset(nextCloud), mix);
+}
+
 function getResponsiveIntroCameraYOffset(
   currentPhaseKey: string,
   nextPhaseKey: string,
@@ -1131,20 +1160,29 @@ function getResponsiveIntroTargetYOffset(
   return lerp(currentOffset, nextOffset, mix);
 }
 
-function sampleSceneProgress(progress: number) {
+function sampleSceneProgress(
+  progress: number,
+  phases: ScenePhase[],
+  phaseIndexRef: { current: number },
+) {
   const clampedProgress = THREE.MathUtils.clamp(progress, 0, 1);
-  let activeIndex = SCENE_PHASES.findIndex(
-    (phase, index) =>
-      clampedProgress >= phase.range[0] &&
-      (clampedProgress <= phase.range[1] || index === SCENE_PHASES.length - 1),
-  );
+  let activeIndex = clamp(phaseIndexRef.current, 0, phases.length - 1);
 
-  if (activeIndex < 0) {
-    activeIndex = 0;
+  while (
+    activeIndex < phases.length - 1 &&
+    clampedProgress > phases[activeIndex].range[1]
+  ) {
+    activeIndex += 1;
   }
 
-  const current = SCENE_PHASES[activeIndex];
-  const next = SCENE_PHASES[Math.min(activeIndex + 1, SCENE_PHASES.length - 1)];
+  while (activeIndex > 0 && clampedProgress < phases[activeIndex].range[0]) {
+    activeIndex -= 1;
+  }
+
+  phaseIndexRef.current = activeIndex;
+
+  const current = phases[activeIndex];
+  const next = phases[Math.min(activeIndex + 1, phases.length - 1)];
   const rangeSpan = Math.max(current.range[1] - current.range[0], 0.0001);
   const linearMix = (clampedProgress - current.range[0]) / rangeSpan;
   const mix = smoothstep(THREE.MathUtils.clamp(linearMix, 0, 1));
@@ -1163,6 +1201,11 @@ function sampleSceneProgress(progress: number) {
       textTargetId: blendTextTargetId(
         current.cloud.textTargetId,
         next.cloud.textTargetId,
+        mix,
+      ),
+      projectFieldPresetId: blendProjectFieldPresetId(
+        current.cloud.projectFieldPresetId,
+        next.cloud.projectFieldPresetId,
         mix,
       ),
       position: lerpVector3(current.cloud.position, next.cloud.position, mix),
@@ -1187,6 +1230,14 @@ function blendShape(
 function blendTextTargetId(
   current: PointCloudTextTargetId | undefined,
   next: PointCloudTextTargetId | undefined,
+  mix: number,
+) {
+  return mix < 0.5 ? current : next;
+}
+
+function blendProjectFieldPresetId(
+  current: SceneCloudState["projectFieldPresetId"],
+  next: SceneCloudState["projectFieldPresetId"],
   mix: number,
 ) {
   return mix < 0.5 ? current : next;
@@ -1227,14 +1278,7 @@ function getFaceTrackingWeight(
 }
 
 function getCardExclusionShapeWeight(shape: PointCloudShape) {
-  switch (shape) {
-    case "project-field-1":
-    case "project-field-2":
-    case "project-field-3":
-      return 1;
-    default:
-      return 0;
-  }
+  return shape === "project-field" ? 1 : 0;
 }
 
 function getCardExclusionWeight(
@@ -1255,11 +1299,7 @@ function getMouseRepulsionShapeWeight(shape: PointCloudShape) {
       return 1;
     case "text":
       return 0.18;
-    case "project-field-1":
-      return 0.44;
-    case "project-field-2":
-      return 0.52;
-    case "project-field-3":
+    case "project-field":
       return 0.48;
     case "settle":
       return 0.3;
@@ -1316,12 +1356,19 @@ function projectScreenPointToLocal(
 function resolveMorphTargetId(cloud: {
   shape: PointCloudShape;
   textTargetId?: PointCloudTextTargetId;
+  projectFieldPresetId?: SceneCloudState["projectFieldPresetId"];
 }): PointCloudTargetId {
   if (cloud.shape === "text" && cloud.textTargetId) {
     return cloud.textTargetId;
   }
 
-  return cloud.shape === "text" ? "settle" : cloud.shape;
+  if (cloud.shape === "project-field" && cloud.projectFieldPresetId) {
+    return cloud.projectFieldPresetId;
+  }
+
+  return cloud.shape === "text" || cloud.shape === "project-field"
+    ? "settle"
+    : cloud.shape;
 }
 
 function useTypographyVersion(fontDescriptor: string | string[]) {
@@ -1362,51 +1409,4 @@ function useTypographyVersion(fontDescriptor: string | string[]) {
   }, [fontDescriptor]);
 
   return version;
-}
-
-function samplePointsFromScene(scene: THREE.Object3D, pointCount: number) {
-  const meshes: Array<
-    THREE.Mesh<THREE.BufferGeometry, THREE.Material | THREE.Material[]>
-  > = [];
-
-  scene.updateMatrixWorld(true);
-  scene.traverse((child) => {
-    if ("isMesh" in child && child.isMesh) {
-      const mesh = child as THREE.Mesh<
-        THREE.BufferGeometry,
-        THREE.Material | THREE.Material[]
-      >;
-
-      if (mesh.geometry.getAttribute("position")) {
-        meshes.push(mesh);
-      }
-    }
-  });
-
-  if (!meshes.length) {
-    return new Float32Array();
-  }
-
-  const totalWeight = meshes.reduce((sum, mesh) => {
-    return sum + mesh.geometry.getAttribute("position").count;
-  }, 0);
-  const samples: number[] = [];
-  const tempPosition = new THREE.Vector3();
-
-  meshes.forEach((mesh, meshIndex) => {
-    const weight = mesh.geometry.getAttribute("position").count / totalWeight;
-    const sampleCount =
-      meshIndex === meshes.length - 1
-        ? pointCount - Math.floor(samples.length / 3)
-        : Math.max(256, Math.floor(pointCount * weight));
-    const sampler = new MeshSurfaceSampler(mesh).build();
-
-    for (let index = 0; index < sampleCount; index += 1) {
-      sampler.sample(tempPosition);
-      tempPosition.applyMatrix4(mesh.matrixWorld);
-      samples.push(tempPosition.x, tempPosition.y, tempPosition.z);
-    }
-  });
-
-  return new Float32Array(samples);
 }

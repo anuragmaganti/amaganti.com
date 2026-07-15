@@ -1,4 +1,10 @@
-import type { ContentSectionId, ProjectSlug } from "@/lib/content";
+import {
+  projects,
+  type ContentSectionId,
+  type ProjectEntry,
+  type ProjectSlug,
+} from "@/lib/content";
+import type { ProjectFieldPresetId } from "@/lib/project-field-presets";
 
 export type SectionId =
   | "intro"
@@ -7,25 +13,13 @@ export type SectionId =
   | ProjectSlug
   | "outro";
 
-type SceneBeatKey =
-  | "intro"
-  | "about-transform"
-  | "about-title"
-  | "transform"
-  | "hero"
-  | "reveal"
-  | "project-1"
-  | "project-2"
-  | "project-3"
-  | "project-3-hold"
-  | "contact";
-
 type SectionKind =
   | "intro"
   | "particle-text"
   | "content-stage"
   | "card"
   | "outro";
+
 export type SectionDomVariant =
   | "intro"
   | "transform"
@@ -33,14 +27,7 @@ export type SectionDomVariant =
   | "project"
   | "outro";
 
-export type PointCloudShape =
-  | "face"
-  | "text"
-  | "project-field-1"
-  | "project-field-2"
-  | "project-field-3"
-  | "settle";
-
+export type PointCloudShape = "face" | "text" | "project-field" | "settle";
 export type PointCloudTextTargetId = "projects" | "about-me";
 
 export type PointCloudTextTarget = {
@@ -57,8 +44,10 @@ export type PointCloudTextTarget = {
 };
 
 export type PointCloudTargetId =
-  | Exclude<PointCloudShape, "text">
-  | PointCloudTextTargetId;
+  | "face"
+  | "settle"
+  | PointCloudTextTargetId
+  | ProjectFieldPresetId;
 
 type SceneCameraState = {
   position: [number, number, number];
@@ -66,9 +55,10 @@ type SceneCameraState = {
   fov: number;
 };
 
-type SceneCloudState = {
+export type SceneCloudState = {
   shape: PointCloudShape;
   textTargetId?: PointCloudTextTargetId;
+  projectFieldPresetId?: ProjectFieldPresetId;
   position: [number, number, number];
   rotation: [number, number, number];
   scale: number;
@@ -88,20 +78,19 @@ type ScenePresetOverrides = {
   cloud?: Partial<SceneCloudState>;
 };
 
-type ScenePresetId =
+type StaticScenePresetId =
   | "intro-face"
   | "about-transform"
   | "about-title"
   | "projects-transform"
   | "projects-hero"
   | "projects-reveal"
-  | "project-card-1"
-  | "project-card-2"
-  | "project-card-3"
   | "outro-face";
+type ProjectScenePresetId = `project-${ProjectFieldPresetId}`;
+type ScenePresetId = StaticScenePresetId | ProjectScenePresetId;
 
 type SceneBeatDefinition = {
-  key: SceneBeatKey;
+  key: string;
   presetId: ScenePresetId;
   durationWeight: number;
 };
@@ -109,23 +98,27 @@ type SceneBeatDefinition = {
 export type SectionDefinition = {
   id: SectionId;
   kind: SectionKind;
-  durationWeight: number;
   domVariant: SectionDomVariant;
   ariaLabel?: string;
   projectSlug?: ProjectSlug;
   contentId?: ContentSectionId;
+  snapLocalProgress?: number;
   sceneBeats: SceneBeatDefinition[];
 };
 
-type ScenePhase = {
-  key: SceneBeatKey;
+export type ScenePhase = {
+  key: string;
   range: [number, number];
   camera: SceneCameraState;
   cloud: SceneCloudState;
 };
 
-export const POINT_CLOUD_ASSET_PATH = "/models/face.ply";
-export const FACE_SCAN_GLB_PATH = "/models/face.glb";
+export type SceneTimeline = {
+  sectionRanges: Record<SectionId, [number, number]>;
+  phases: ScenePhase[];
+};
+
+export const POINT_CLOUD_ASSET_PATH = "/models/face-points.bin";
 
 export const POINT_CLOUD_TEXT_TARGETS: Record<
   PointCloudTextTargetId,
@@ -177,43 +170,17 @@ function extendScenePreset(
   overrides: ScenePresetOverrides,
 ): ScenePreset {
   return {
-    camera: {
-      ...base.camera,
-      ...overrides.camera,
-    },
-    cloud: {
-      ...base.cloud,
-      ...overrides.cloud,
-    },
+    camera: { ...base.camera, ...overrides.camera },
+    cloud: { ...base.cloud, ...overrides.cloud },
   };
 }
 
 function createSceneBeat(
-  key: SceneBeatKey,
+  key: string,
   presetId: ScenePresetId,
   durationWeight: number,
 ): SceneBeatDefinition {
-  return {
-    key,
-    presetId,
-    durationWeight,
-  };
-}
-
-function createCardSection(
-  id: ProjectSlug,
-  durationWeight: number,
-  beatKey: SceneBeatKey,
-  presetId: ScenePresetId,
-): SectionDefinition {
-  return {
-    id,
-    kind: "card",
-    domVariant: "project",
-    projectSlug: id,
-    durationWeight,
-    sceneBeats: [createSceneBeat(beatKey, presetId, 1)],
-  };
+  return { key, presetId, durationWeight };
 }
 
 const INTRO_FACE_PRESET = createScenePreset(
@@ -243,7 +210,7 @@ const ABOUT_TITLE_PRESET = createScenePreset(
   {
     shape: "text",
     textTargetId: "about-me",
-    position: [0, 1.08, 0],
+    position: [0, 0.72, 0],
     rotation: [0, 0.03, 0],
     scale: 1,
     pointSize: 0.017,
@@ -272,31 +239,55 @@ const PROJECTS_HERO_PRESET = createScenePreset(
   },
 );
 
-const PROJECT_CARD_3_PRESET = createScenePreset(
-  {
-    position: [0.02, 0.08, 4.52],
-    target: [0, 0.04, 0],
-    fov: 35,
-  },
-  {
-    shape: "project-field-3",
-    position: [0, 0.06, -0.08],
-    rotation: [-0.08, 0.26, -0.04],
-    scale: 1.74,
-    pointSize: 0.0154,
-    noise: 0.052,
-    intensity: 0.34,
-    opacity: 0.64,
-  },
-);
+const PROJECT_SCENE_PRESETS: Record<ProjectFieldPresetId, ScenePreset> = {
+  "contour-sheet": createScenePreset(
+    { position: [0.02, 0.02, 4.62], target: [0, 0.03, 0], fov: 36 },
+    {
+      shape: "project-field",
+      projectFieldPresetId: "contour-sheet",
+      position: [0, 0.03, -0.1],
+      rotation: [-0.08, -0.42, 0.12],
+      scale: 1.78,
+      pointSize: 0.0158,
+      noise: 0.06,
+      intensity: 0.38,
+      opacity: 0.72,
+    },
+  ),
+  "torsion-column": createScenePreset(
+    { position: [0.01, 0.04, 4.58], target: [0, 0.02, 0], fov: 36 },
+    {
+      shape: "project-field",
+      projectFieldPresetId: "torsion-column",
+      position: [0, 0.02, -0.1],
+      rotation: [0.16, 0.2, -0.14],
+      scale: 1.72,
+      pointSize: 0.0156,
+      noise: 0.054,
+      intensity: 0.34,
+      opacity: 0.68,
+    },
+  ),
+  "bloom-fan": createScenePreset(
+    { position: [0.02, 0.08, 4.52], target: [0, 0.04, 0], fov: 35 },
+    {
+      shape: "project-field",
+      projectFieldPresetId: "bloom-fan",
+      position: [0, 0.06, -0.08],
+      rotation: [-0.08, 0.26, -0.04],
+      scale: 1.74,
+      pointSize: 0.0154,
+      noise: 0.052,
+      intensity: 0.34,
+      opacity: 0.64,
+    },
+  ),
+};
 
-const SCENE_PRESETS: Record<ScenePresetId, ScenePreset> = {
+const staticPresets: Record<StaticScenePresetId, ScenePreset> = {
   "intro-face": INTRO_FACE_PRESET,
   "about-transform": extendScenePreset(ABOUT_TITLE_PRESET, {
-    camera: {
-      position: [0, 0.12, 4.5],
-      fov: 30,
-    },
+    camera: { position: [0, 0.12, 4.5], fov: 30 },
     cloud: {
       position: [0, 0.96, 0],
       rotation: [0.01, 0.04, 0],
@@ -309,10 +300,7 @@ const SCENE_PRESETS: Record<ScenePresetId, ScenePreset> = {
   }),
   "about-title": ABOUT_TITLE_PRESET,
   "projects-transform": extendScenePreset(PROJECTS_HERO_PRESET, {
-    camera: {
-      position: [0.01, 0.03, 4.26],
-      target: [0.01, 0.03, 0],
-    },
+    camera: { position: [0.01, 0.03, 4.26], target: [0.01, 0.03, 0] },
     cloud: {
       position: [0.02, 0.04, 0],
       rotation: [0.01, 0.02, 0],
@@ -325,59 +313,12 @@ const SCENE_PRESETS: Record<ScenePresetId, ScenePreset> = {
   }),
   "projects-hero": PROJECTS_HERO_PRESET,
   "projects-reveal": extendScenePreset(PROJECTS_HERO_PRESET, {
-    camera: {
-      position: [0.02, 0.04, 4.38],
-      fov: 31,
-    },
-    cloud: {
-      scale: 1.01,
-      pointSize: 0.0169,
-      noise: 0.024,
-      intensity: 0.24,
-    },
+    camera: { position: [0.02, 0.04, 4.38], fov: 31 },
+    cloud: { scale: 1.01, pointSize: 0.0169, noise: 0.024, intensity: 0.24 },
   }),
-  "project-card-1": {
-    camera: {
-      position: [0.02, 0.02, 4.62],
-      target: [0, 0.03, 0],
-      fov: 36,
-    },
-    cloud: {
-      shape: "project-field-1",
-      position: [0, 0.03, -0.1],
-      rotation: [-0.08, -0.42, 0.12],
-      scale: 1.78,
-      pointSize: 0.0158,
-      noise: 0.06,
-      intensity: 0.38,
-      opacity: 0.72,
-    },
-  },
-  "project-card-2": {
-    camera: {
-      position: [0.01, 0.04, 4.58],
-      target: [0, 0.02, 0],
-      fov: 36,
-    },
-    cloud: {
-      shape: "project-field-2",
-      position: [0, 0.02, -0.1],
-      rotation: [0.16, 0.2, -0.14],
-      scale: 1.72,
-      pointSize: 0.0156,
-      noise: 0.054,
-      intensity: 0.34,
-      opacity: 0.68,
-    },
-  },
-  "project-card-3": PROJECT_CARD_3_PRESET,
-  "outro-face": {
-    camera: {
-      position: [0, 0.02, 4.62],
-      target: [0, 0.02, 0],
-      fov: 29,
-    },
-    cloud: {
+  "outro-face": createScenePreset(
+    { position: [0, 0.02, 4.62], target: [0, 0.02, 0], fov: 29 },
+    {
       shape: "face",
       position: [0, 0.2, 0],
       rotation: [0.02, 0.02, 0],
@@ -387,8 +328,40 @@ const SCENE_PRESETS: Record<ScenePresetId, ScenePreset> = {
       intensity: 0.12,
       opacity: 0.98,
     },
-  },
+  ),
 };
+
+const projectPresets = Object.fromEntries(
+  Object.entries(PROJECT_SCENE_PRESETS).map(([id, preset]) => [`project-${id}`, preset]),
+) as Record<ProjectScenePresetId, ScenePreset>;
+
+const SCENE_PRESETS: Record<ScenePresetId, ScenePreset> = {
+  ...staticPresets,
+  ...projectPresets,
+};
+
+function createCardSection(project: ProjectEntry): SectionDefinition {
+  return {
+    id: project.slug as ProjectSlug,
+    kind: "card",
+    domVariant: "project",
+    projectSlug: project.slug as ProjectSlug,
+    snapLocalProgress: 0,
+    sceneBeats: [
+      createSceneBeat(
+        `project:${project.slug}`,
+        `project-${project.particlePreset}`,
+        1,
+      ),
+    ],
+  };
+}
+
+const finalProject = projects.at(-1);
+
+if (!finalProject) {
+  throw new Error("At least one project is required to build the scene timeline.");
+}
 
 export const PORTFOLIO_SECTIONS: SectionDefinition[] = [
   {
@@ -396,16 +369,15 @@ export const PORTFOLIO_SECTIONS: SectionDefinition[] = [
     kind: "intro",
     domVariant: "intro",
     ariaLabel: "Point cloud introduction",
-    durationWeight: 150,
     sceneBeats: [createSceneBeat("intro", "intro-face", 1)],
   },
   {
     id: "about-stage",
     kind: "content-stage",
     domVariant: "content",
-    ariaLabel: "About me",
+    ariaLabel: "About Me",
     contentId: "about-me",
-    durationWeight: 156,
+    snapLocalProgress: 0.3,
     sceneBeats: [
       createSceneBeat("about-transform", "about-transform", 44),
       createSceneBeat("about-title", "about-title", 112),
@@ -415,128 +387,92 @@ export const PORTFOLIO_SECTIONS: SectionDefinition[] = [
     id: "projects-stage",
     kind: "particle-text",
     domVariant: "transform",
-    durationWeight: 236,
+    ariaLabel: "Projects",
+    snapLocalProgress: 0.45,
     sceneBeats: [
-      createSceneBeat("transform", "projects-transform", 55),
-      createSceneBeat("hero", "projects-hero", 103),
-      createSceneBeat("reveal", "projects-reveal", 78),
+      createSceneBeat("projects-transform", "projects-transform", 50),
+      createSceneBeat("projects-hero", "projects-hero", 50),
+      createSceneBeat("projects-reveal", "projects-reveal", 100),
     ],
   },
-  createCardSection("project-01", 174, "project-1", "project-card-1"),
-  createCardSection("project-02", 145, "project-2", "project-card-2"),
-  createCardSection("project-03", 150, "project-3", "project-card-3"),
+  ...projects.map(createCardSection),
   {
     id: "outro",
     kind: "outro",
     domVariant: "outro",
-    ariaLabel: "Outro links",
-    durationWeight: 145,
+    ariaLabel: "Contact links",
     sceneBeats: [
-      createSceneBeat("project-3-hold", "project-card-3", 82),
+      createSceneBeat(
+        `project:${finalProject.slug}:hold`,
+        `project-${finalProject.particlePreset}`,
+        82,
+      ),
       createSceneBeat("contact", "outro-face", 63),
     ],
   },
 ];
 
-const { sectionRanges, scenePhases } = buildSceneConfiguration(
-  PORTFOLIO_SECTIONS,
-  SCENE_PRESETS,
-);
+export function createSceneTimeline(
+  measuredRanges: Partial<Record<SectionId, [number, number]>> = {},
+): SceneTimeline {
+  const fallbackSize = 1 / PORTFOLIO_SECTIONS.length;
+  const sectionRanges = {} as Record<SectionId, [number, number]>;
+  const phases: ScenePhase[] = [];
 
-const SECTION_PROGRESS_RANGES = sectionRanges;
-export const SCENE_PHASES = scenePhases;
+  PORTFOLIO_SECTIONS.forEach((section, sectionIndex) => {
+    const fallbackRange: [number, number] = [
+      roundProgress(sectionIndex * fallbackSize),
+      sectionIndex === PORTFOLIO_SECTIONS.length - 1
+        ? 1
+        : roundProgress((sectionIndex + 1) * fallbackSize),
+    ];
+    const sectionRange = measuredRanges[section.id] ?? fallbackRange;
+    sectionRanges[section.id] = sectionRange;
 
-function getSectionProgressRange(sectionId: SectionId) {
-  return SECTION_PROGRESS_RANGES[sectionId];
-}
-
-export function getSectionProgressPoint(
-  sectionId: SectionId,
-  localProgress: number,
-) {
-  const [start, end] = getSectionProgressRange(sectionId);
-  return roundProgress(start + (end - start) * clamp(localProgress, 0, 1));
-}
-
-export const INTRO_COPY_PROGRESS_STOPS = [
-  getSectionProgressPoint("intro", 0),
-  getSectionProgressPoint("intro", 2 / 15),
-  getSectionProgressPoint("intro", 2 / 3),
-] as const;
-
-export const ABOUT_PROGRESS_MARKERS = {
-  magnetTarget: getSectionProgressPoint("about-stage", 0.08),
-  bodyExit: [
-    getSectionProgressPoint("about-stage", 0.44),
-    getSectionProgressPoint("about-stage", 0.66),
-  ] as const,
-  introBackdrop: [
-    getSectionProgressPoint("intro", 0),
-    getSectionProgressPoint("about-stage", 0.08),
-    getSectionProgressPoint("about-stage", 0.58),
-    getSectionProgressPoint("about-stage", 0.92),
-  ] as const,
-} as const;
-
-export const OUTRO_PROGRESS_MARKERS = {
-  contactReveal: [
-    getSectionProgressPoint("outro", 0.62),
-    getSectionProgressPoint("outro", 0.8),
-  ] as const,
-} as const;
-
-function buildSceneConfiguration(
-  sections: SectionDefinition[],
-  presets: Record<ScenePresetId, ScenePreset>,
-) {
-  const totalDuration = sections.reduce(
-    (sum, section) => sum + section.durationWeight,
-    0,
-  );
-  const nextSectionRanges = {} as Record<SectionId, [number, number]>;
-  const nextScenePhases: ScenePhase[] = [];
-  let accumulatedWeight = 0;
-
-  for (const section of sections) {
-    const sectionStart = roundProgress(accumulatedWeight / totalDuration);
-    const sectionEnd = roundProgress(
-      (accumulatedWeight + section.durationWeight) / totalDuration,
-    );
-    nextSectionRanges[section.id] = [sectionStart, sectionEnd];
-
-    const beatWeightTotal = section.sceneBeats.reduce(
-      (sum, beat) => sum + beat.durationWeight,
+    const totalBeatWeight = section.sceneBeats.reduce(
+      (total, beat) => total + beat.durationWeight,
       0,
     );
-    let accumulatedBeatWeight = accumulatedWeight;
+    let beatWeight = 0;
 
     section.sceneBeats.forEach((beat, beatIndex) => {
-      const beatStart = roundProgress(accumulatedBeatWeight / totalDuration);
-      accumulatedBeatWeight +=
-        section.durationWeight * (beat.durationWeight / beatWeightTotal);
-      const preset = presets[beat.presetId];
-      const isFinalBeat =
-        section === sections[sections.length - 1] &&
-        beatIndex === section.sceneBeats.length - 1;
-      const beatEnd = isFinalBeat
-        ? 1
-        : roundProgress(accumulatedBeatWeight / totalDuration);
+      const beatStart = getRangePoint(
+        sectionRange,
+        beatWeight / totalBeatWeight,
+      );
+      beatWeight += beat.durationWeight;
+      const beatEnd =
+        sectionIndex === PORTFOLIO_SECTIONS.length - 1 &&
+        beatIndex === section.sceneBeats.length - 1
+          ? 1
+          : getRangePoint(sectionRange, beatWeight / totalBeatWeight);
+      const preset = SCENE_PRESETS[beat.presetId];
 
-      nextScenePhases.push({
+      phases.push({
         key: beat.key,
         range: [beatStart, beatEnd],
         camera: preset.camera,
         cloud: preset.cloud,
       });
     });
+  });
 
-    accumulatedWeight += section.durationWeight;
-  }
+  return { sectionRanges, phases };
+}
 
-  return {
-    sectionRanges: nextSectionRanges,
-    scenePhases: nextScenePhases,
-  };
+export function getTimelineProgressPoint(
+  timeline: SceneTimeline,
+  sectionId: SectionId,
+  localProgress: number,
+) {
+  return getRangePoint(
+    timeline.sectionRanges[sectionId],
+    clamp(localProgress, 0, 1),
+  );
+}
+
+function getRangePoint(range: [number, number], localProgress: number) {
+  return roundProgress(range[0] + (range[1] - range[0]) * localProgress);
 }
 
 function roundProgress(value: number) {

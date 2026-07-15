@@ -22,6 +22,10 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# browser tests
+playwright-report/
+test-results/
+
 # editor / os
 .DS_Store
 .vercel/

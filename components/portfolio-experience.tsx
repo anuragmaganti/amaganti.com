@@ -5,6 +5,7 @@ import type { MotionValue } from "motion";
 import Image from "next/image";
 import {
   AnimatePresence,
+  MotionConfig,
   motion,
   useMotionTemplate,
   useMotionValue,
@@ -18,6 +19,7 @@ import {
   type Ref,
   type RefObject,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -25,16 +27,18 @@ import {
 import {
   contentSectionsById,
   projectsBySlug,
+  type ContentParagraph,
   type ContentSectionEntry,
   type ProjectEntry,
 } from "@/lib/content";
 import {
-  ABOUT_PROGRESS_MARKERS,
-  INTRO_COPY_PROGRESS_STOPS,
-  OUTRO_PROGRESS_MARKERS,
+  createSceneTimeline,
+  getTimelineProgressPoint,
   PORTFOLIO_SECTIONS,
+  type SceneTimeline,
   type SectionDefinition,
   type SectionDomVariant,
+  type SectionId,
 } from "@/lib/scene-config";
 import {
   removeProjectCardExclusion,
@@ -56,54 +60,10 @@ const INTRO_TEXT_FADE_DURATION = 0.92;
 const INTRO_TEXT_MOVE_DELAY = 1.28;
 const INTRO_SCENE_DELAY = 2.08;
 const INTRO_CHROME_DELAY = 2.22;
-const INTRO_COPY_SCROLL_STOPS: [number, number, number] = [...INTRO_COPY_PROGRESS_STOPS];
-const INTRO_BACKDROP_SCROLL_STOPS: [number, number, number, number] = [
-  ...ABOUT_PROGRESS_MARKERS.introBackdrop,
-];
-const ABOUT_MAGNET_TARGET_PROGRESS = ABOUT_PROGRESS_MARKERS.magnetTarget;
-const ABOUT_BODY_EXIT_SCROLL_STOPS: [number, number] = [...ABOUT_PROGRESS_MARKERS.bodyExit];
-const OUTRO_CONTACT_REVEAL_STOPS: [number, number] = [
-  ...OUTRO_PROGRESS_MARKERS.contactReveal,
-];
-const ABOUT_PARAGRAPH_ENTER_SPAN =
-  ABOUT_MAGNET_TARGET_PROGRESS - INTRO_COPY_SCROLL_STOPS[0];
-const ABOUT_PARAGRAPH_REVEALS = [
-  {
-    enterStart: INTRO_COPY_SCROLL_STOPS[0] + ABOUT_PARAGRAPH_ENTER_SPAN * 0.22,
-    enterEnd: INTRO_COPY_SCROLL_STOPS[0] + ABOUT_PARAGRAPH_ENTER_SPAN * 0.5,
-    fromX: -160,
-    fromY: 0,
-    exitX: 60,
-  },
-  {
-    enterStart: INTRO_COPY_SCROLL_STOPS[0] + ABOUT_PARAGRAPH_ENTER_SPAN * 0.38,
-    enterEnd: INTRO_COPY_SCROLL_STOPS[0] + ABOUT_PARAGRAPH_ENTER_SPAN * 0.66,
-    fromX: 160,
-    fromY: 0,
-    exitX: -60,
-  },
-  {
-    enterStart: INTRO_COPY_SCROLL_STOPS[0] + ABOUT_PARAGRAPH_ENTER_SPAN * 0.54,
-    enterEnd: INTRO_COPY_SCROLL_STOPS[0] + ABOUT_PARAGRAPH_ENTER_SPAN * 0.82,
-    fromX: -160,
-    fromY: 0,
-    exitX: 60,
-  },
-] as const;
-const CONTENT_STAGE_MAGNET_RADIUS = 140;
-const CONTENT_STAGE_RELEASE_RADIUS = 260;
-const CONTENT_STAGE_STRONG_WHEEL_DELTA = 52;
-const CONTENT_STAGE_STRONG_TOUCH_DELTA = 42;
-const CONTENT_STAGE_SNAP_SUPPRESS_MS = 420;
-const CONTENT_STAGE_SNAP_LOCK_MS = 520;
-const CONTENT_STAGE_SNAP_VELOCITY = 0.72;
 const INTRO_TITLE_LINES = ["Hi, I'm", "Anurag"] as const;
 const INTRO_SUBTITLE_TEXT =
   "a software engineer obsessed with building products that feel a little bit magical";
 const INTRO_NOTE_TEXT = "(yep, that's a real LIDAR scan of my head)";
-const ABOUT_PACT_LINK_TEXT =
-  "building a startup in the digital asset space by creating software for evolving markets.";
-const ABOUT_PACT_LINK_HREF = "https://www.nuopact.com/";
 type OutroContactItem = {
   label: string;
   href?: string;
@@ -112,7 +72,7 @@ type OutroContactItem = {
 
 const OUTRO_CONTACT_ITEMS: readonly OutroContactItem[] = [
   {
-    label: "Github",
+    label: "GitHub",
     href: "https://github.com/anuragmaganti",
     external: true,
   },
@@ -181,22 +141,6 @@ const PROJECT_TAG_ITEM_VARIANTS = {
   },
 } as const;
 
-type ContentStageOverlayLayout = ContentSectionEntry["layout"];
-
-type ContentStageParagraphReveal = {
-  enterStart: number;
-  enterEnd: number;
-  fromX: number;
-  fromY: number;
-  exitX: number;
-};
-
-type ContentStageOverlayConfig = {
-  layout: ContentStageOverlayLayout;
-  exitStops: readonly [number, number];
-  paragraphs: readonly ContentStageParagraphReveal[];
-};
-
 type ClickBurstParticle = {
   dx: number;
   dy: number;
@@ -213,37 +157,23 @@ type ClickBurst = {
   particles: ClickBurstParticle[];
 };
 
-const CONTENT_STAGE_OVERLAY_CONFIG: Record<
-  ContentSectionEntry["id"],
-  ContentStageOverlayConfig
-> = {
-  "about-me": {
-    layout: "top-overlay",
-    exitStops: ABOUT_BODY_EXIT_SCROLL_STOPS,
-    paragraphs: ABOUT_PARAGRAPH_REVEALS,
-  },
-} as const;
-
 type IntroCopyContentProps = {
   titleClassName: string;
   subtitleClassName: string;
   noteClassName: string;
-  titleRef?: Ref<HTMLParagraphElement>;
+  titleRef?: Ref<HTMLHeadingElement>;
   subtitleRef?: Ref<HTMLParagraphElement>;
   noteRef?: Ref<HTMLDivElement>;
   renderTitle?: (props: {
     className: string;
-    ref?: Ref<HTMLParagraphElement>;
     children: ReactNode;
   }) => ReactNode;
   renderSubtitle?: (props: {
     className: string;
-    ref?: Ref<HTMLParagraphElement>;
     children: ReactNode;
   }) => ReactNode;
   renderNote?: (props: {
     className: string;
-    ref?: Ref<HTMLDivElement>;
     children: ReactNode;
   }) => ReactNode;
 };
@@ -252,38 +182,35 @@ type ProjectTagListProps = {
   compact: boolean;
   showStack: boolean;
   stackId: string;
-  tags: string[];
-  onToggle: () => void;
+  tags: readonly string[];
 };
 
 function clamp01(value: number) {
   return Math.max(0, Math.min(1, value));
 }
 
-function renderContentStageParagraph(paragraph: string) {
-  const linkStart = paragraph.indexOf(ABOUT_PACT_LINK_TEXT);
+function renderContentSegments(
+  paragraph: ContentParagraph,
+  pointerEvents: MotionValue<"auto" | "none">,
+) {
+  return paragraph.segments.map((segment, index) => {
+    if (segment.type === "text") {
+      return <span key={`${paragraph.id}-text-${index}`}>{segment.text}</span>;
+    }
 
-  if (linkStart === -1) {
-    return paragraph;
-  }
-
-  const before = paragraph.slice(0, linkStart);
-  const after = paragraph.slice(linkStart + ABOUT_PACT_LINK_TEXT.length);
-
-  return (
-    <>
-      {before}
-      <a
+    return (
+      <motion.a
+        key={`${paragraph.id}-link-${index}`}
         className="content-stage-overlay__link"
-        href={ABOUT_PACT_LINK_HREF}
-        target="_blank"
-        rel="noreferrer"
+        href={segment.href}
+        target={segment.external ? "_blank" : undefined}
+        rel={segment.external ? "noreferrer" : undefined}
+        style={{ pointerEvents }}
       >
-        {ABOUT_PACT_LINK_TEXT}
-      </a>
-      {after}
-    </>
-  );
+        {segment.text}
+      </motion.a>
+    );
+  });
 }
 
 function createClickBurst(id: number, x: number, y: number): ClickBurst {
@@ -309,12 +236,6 @@ function getShellScrollProgress(rect: DOMRect, viewportHeight: number) {
   const scrollableHeight = Math.max(rect.height - viewportHeight, 1);
 
   return clamp01(-rect.top / scrollableHeight);
-}
-
-function getViewportCrossProgress(rect: DOMRect, viewportHeight: number) {
-  const travel = Math.max(rect.height + viewportHeight, 1);
-
-  return clamp01((viewportHeight - rect.top) / travel);
 }
 
 function useElementScrollProgress<T extends HTMLElement>(
@@ -374,6 +295,97 @@ function useElementScrollProgress<T extends HTMLElement>(
   return progress;
 }
 
+function useMeasuredSceneTimeline(shellRef: RefObject<HTMLDivElement | null>) {
+  const [timeline, setTimeline] = useState<SceneTimeline>(() => createSceneTimeline());
+
+  useEffect(() => {
+    const shell = shellRef.current;
+
+    if (!shell) {
+      return;
+    }
+
+    let frameId = 0;
+    const observer = new ResizeObserver(() => {
+      scheduleMeasure();
+    });
+
+    const measure = () => {
+      frameId = 0;
+      const shellRect = shell.getBoundingClientRect();
+      const scrollableHeight = Math.max(shell.scrollHeight - window.innerHeight, 1);
+      const starts = PORTFOLIO_SECTIONS.map((section) => {
+        const element = shell.querySelector<HTMLElement>(
+          `[data-portfolio-section-id="${section.id}"]`,
+        );
+
+        if (!element) {
+          return null;
+        }
+
+        return clamp01(
+          (element.getBoundingClientRect().top - shellRect.top) / scrollableHeight,
+        );
+      });
+      const measuredRanges: Partial<Record<SectionId, [number, number]>> = {};
+
+      PORTFOLIO_SECTIONS.forEach((section, index) => {
+        const start = starts[index];
+
+        if (start === null) {
+          return;
+        }
+
+        const nextStart = starts[index + 1];
+        const end = nextStart === null || nextStart === undefined ? 1 : nextStart;
+        measuredRanges[section.id] = [start, Math.max(start + 0.0001, end)];
+      });
+
+      const nextTimeline = createSceneTimeline(measuredRanges);
+      setTimeline((current) =>
+        haveSameSectionRanges(current, nextTimeline) ? current : nextTimeline,
+      );
+    };
+
+    const scheduleMeasure = () => {
+      if (frameId) {
+        return;
+      }
+
+      frameId = window.requestAnimationFrame(measure);
+    };
+
+    observer.observe(shell);
+    shell
+      .querySelectorAll<HTMLElement>("[data-portfolio-section-id]")
+      .forEach((element) => observer.observe(element));
+    window.addEventListener("resize", scheduleMeasure, { passive: true });
+    window.addEventListener("load", scheduleMeasure);
+    scheduleMeasure();
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener("resize", scheduleMeasure);
+      window.removeEventListener("load", scheduleMeasure);
+      observer.disconnect();
+    };
+  }, [shellRef]);
+
+  return timeline;
+}
+
+function haveSameSectionRanges(current: SceneTimeline, next: SceneTimeline) {
+  return PORTFOLIO_SECTIONS.every((section) => {
+    const currentRange = current.sectionRanges[section.id];
+    const nextRange = next.sectionRanges[section.id];
+
+    return (
+      Math.abs(currentRange[0] - nextRange[0]) < 0.00001 &&
+      Math.abs(currentRange[1] - nextRange[1]) < 0.00001
+    );
+  });
+}
+
 function readProjectCardExclusionRect(element: HTMLElement): ProjectCardExclusionRect {
   const rect = element.getBoundingClientRect();
 
@@ -399,18 +411,42 @@ function syncProjectCardExclusion(
   upsertProjectCardExclusion(id, readProjectCardExclusionRect(element), strength);
 }
 
+function syncActiveProjectCardExclusion(
+  id: string,
+  element: HTMLElement | null,
+  strength: number,
+  isActive: { current: boolean },
+) {
+  if (strength <= 0.002) {
+    if (isActive.current) {
+      isActive.current = false;
+      removeProjectCardExclusion(id);
+    }
+    return;
+  }
+
+  isActive.current = true;
+  syncProjectCardExclusion(id, element, strength);
+}
+
 function useProjectCardExclusion(
   id: string,
   cardRef: RefObject<HTMLElement | null>,
   exclusionStrength: MotionValue<number>,
-  scrollYProgress: MotionValue<number>,
 ) {
+  const isActive = useRef(false);
+
   useEffect(() => {
     let frameId = 0;
     let observer: ResizeObserver | null = null;
 
     const syncCurrentRect = () => {
-      syncProjectCardExclusion(id, cardRef.current, exclusionStrength.get());
+      syncActiveProjectCardExclusion(
+        id,
+        cardRef.current,
+        exclusionStrength.get(),
+        isActive,
+      );
     };
 
     const scheduleSync = () => {
@@ -434,12 +470,8 @@ function useProjectCardExclusion(
     };
   }, [cardRef, exclusionStrength, id]);
 
-  useMotionValueEvent(scrollYProgress, "change", () => {
-    syncProjectCardExclusion(id, cardRef.current, exclusionStrength.get());
-  });
-
   useMotionValueEvent(exclusionStrength, "change", (latest) => {
-    syncProjectCardExclusion(id, cardRef.current, latest);
+    syncActiveProjectCardExclusion(id, cardRef.current, latest, isActive);
   });
 }
 
@@ -460,17 +492,16 @@ function IntroCopyContent({
   return (
     <div className="intro-copy">
       {renderTitle ? (
-        renderTitle({ className: titleClassName, ref: titleRef, children: titleChildren })
+        renderTitle({ className: titleClassName, children: titleChildren })
       ) : (
-        <p ref={titleRef} className={titleClassName}>
+        <h1 ref={titleRef} className={titleClassName}>
           {titleChildren}
-        </p>
+        </h1>
       )}
 
       {renderSubtitle ? (
         renderSubtitle({
           className: subtitleClassName,
-          ref: subtitleRef,
           children: INTRO_SUBTITLE_TEXT,
         })
       ) : (
@@ -480,7 +511,7 @@ function IntroCopyContent({
       )}
 
       {renderNote ? (
-        renderNote({ className: noteClassName, ref: noteRef, children: noteChildren })
+        renderNote({ className: noteClassName, children: noteChildren })
       ) : (
         <div ref={noteRef} className={noteClassName}>
           {noteChildren}
@@ -495,7 +526,6 @@ function ProjectTagList({
   showStack,
   stackId,
   tags,
-  onToggle,
 }: ProjectTagListProps) {
   if (!compact) {
     return (
@@ -510,99 +540,112 @@ function ProjectTagList({
   }
 
   return (
-    <>
-      <button
-        type="button"
-        className="cta-link project-stack-toggle"
-        aria-controls={stackId}
-        aria-expanded={showStack}
-        onClick={onToggle}
-      >
-        {showStack ? "Hide Stack" : "Show Stack"}
-      </button>
-
-      <AnimatePresence initial={false}>
-        {showStack ? (
-          <motion.ul
-            id={stackId}
-            className="project-tags project-tags--collapsible"
-            role="list"
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            variants={PROJECT_TAG_LIST_VARIANTS}
-          >
-            {tags.map((tag) => (
-              <motion.li
-                key={tag}
-                className="tag"
-                variants={PROJECT_TAG_ITEM_VARIANTS}
-              >
-                {tag}
-              </motion.li>
-            ))}
-          </motion.ul>
-        ) : null}
-      </AnimatePresence>
-    </>
+    <AnimatePresence initial={false}>
+      {showStack ? (
+        <motion.ul
+          id={stackId}
+          className="project-tags project-tags--collapsible"
+          role="list"
+          initial="hidden"
+          animate="visible"
+          exit="exit"
+          variants={PROJECT_TAG_LIST_VARIANTS}
+        >
+          {tags.map((tag) => (
+            <motion.li
+              key={tag}
+              className="tag"
+              variants={PROJECT_TAG_ITEM_VARIANTS}
+            >
+              {tag}
+            </motion.li>
+          ))}
+        </motion.ul>
+      ) : null}
+    </AnimatePresence>
   );
 }
 
 export function PortfolioExperience() {
   const shellRef = useRef<HTMLDivElement>(null);
   const scrollYProgress = useElementScrollProgress(shellRef, getShellScrollProgress);
+  const timeline = useMeasuredSceneTimeline(shellRef);
   const sceneProgress = useSpring(scrollYProgress, {
     stiffness: 120,
     damping: 24,
     mass: 0.24,
   });
-  useMagneticSectionSnap(shellRef, ABOUT_MAGNET_TARGET_PROGRESS);
+  const introBackdropStops = useMemo(
+    () =>
+      [
+        getTimelineProgressPoint(timeline, "intro", 0),
+        getTimelineProgressPoint(timeline, "about-stage", 0.3),
+        getTimelineProgressPoint(timeline, "about-stage", 0.58),
+        getTimelineProgressPoint(timeline, "about-stage", 0.92),
+      ] as [number, number, number, number],
+    [timeline],
+  );
   const meterScale = useTransform(sceneProgress, [0, 1], [0.08, 1]);
-  const introBackdropOpacity = useTransform(sceneProgress, INTRO_BACKDROP_SCROLL_STOPS, [
+  const introBackdropOpacity = useTransform(sceneProgress, introBackdropStops, [
     1, 1, 0.18, 0,
   ]);
 
   return (
-    <div className="portfolio-shell" ref={shellRef}>
-      <motion.div
-        className="intro-backdrop"
-        aria-hidden
-        style={{ opacity: introBackdropOpacity }}
-      />
+    <MotionConfig reducedMotion="user">
+      <div className="portfolio-shell" ref={shellRef}>
+        <a className="skip-link" href="#main-content">
+          Skip to content
+        </a>
 
-      <motion.div
-        className="scene-frame"
-        aria-hidden
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: INTRO_SCENE_DELAY, duration: 1.08, ease: INTRO_LOAD_EASE }}
-      >
-        <SceneCanvas progress={sceneProgress} />
-      </motion.div>
+        <motion.div
+          className="intro-backdrop"
+          aria-hidden
+          style={{ opacity: introBackdropOpacity }}
+        />
 
-      <motion.div
-        className="site-chrome"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: INTRO_CHROME_DELAY, duration: 0.72, ease: INTRO_LOAD_EASE }}
-      >
-        <div className="scroll-meter-shell" aria-hidden>
-          <motion.span className="scroll-meter" style={{ scaleX: meterScale }} />
-        </div>
-      </motion.div>
+        <motion.div
+          className="scene-frame"
+          aria-hidden
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{
+            delay: INTRO_SCENE_DELAY,
+            duration: 1.08,
+            ease: INTRO_LOAD_EASE,
+          }}
+        >
+          <SceneCanvas progress={sceneProgress} timeline={timeline} />
+        </motion.div>
 
-      <ClickBurstOverlay />
+        <motion.div
+          className="site-chrome"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{
+            delay: INTRO_CHROME_DELAY,
+            duration: 0.72,
+            ease: INTRO_LOAD_EASE,
+          }}
+        >
+          <div className="scroll-meter-shell" aria-hidden>
+            <motion.span className="scroll-meter" style={{ scaleX: meterScale }} />
+          </div>
+        </motion.div>
 
-      <main className="page-stage" id="top">
-        {PORTFOLIO_SECTIONS.map((section) => (
-          <PortfolioSectionRenderer
-            key={section.id}
-            section={section}
-            progress={sceneProgress}
-          />
-        ))}
-      </main>
-    </div>
+        <ClickBurstOverlay />
+
+        <main className="page-stage" id="main-content">
+          {PORTFOLIO_SECTIONS.map((section) => (
+            <PortfolioSectionRenderer
+              key={section.id}
+              section={section}
+              progress={sceneProgress}
+              timeline={timeline}
+            />
+          ))}
+        </main>
+      </div>
+    </MotionConfig>
   );
 }
 
@@ -616,7 +659,10 @@ function ClickBurstOverlay() {
       return;
     }
 
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
+      !window.matchMedia("(pointer: fine)").matches
+    ) {
       return;
     }
 
@@ -682,177 +728,33 @@ function ClickBurstOverlay() {
   );
 }
 
-function useMagneticSectionSnap(
-  shellRef: RefObject<HTMLDivElement | null>,
-  targetProgress: number,
-) {
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      return;
-    }
-
-    const shell = shellRef.current;
-
-    if (!shell) {
-      return;
-    }
-
-    let frameId = 0;
-    let touchStartY = 0;
-    let isTouching = false;
-    const suppressUntil = { current: 0 };
-    const lockUntil = { current: 0 };
-    const scrollMetrics = {
-      y: window.scrollY,
-      time: performance.now(),
-    };
-
-    const getTargetScrollTop = () => {
-      const shellRect = shell.getBoundingClientRect();
-      const shellTop = window.scrollY + shellRect.top;
-      const scrollableHeight = Math.max(shell.scrollHeight - window.innerHeight, 1);
-
-      return shellTop + scrollableHeight * targetProgress;
-    };
-
-    const evaluateSnap = () => {
-      frameId = 0;
-
-      const now = performance.now();
-      const currentY = window.scrollY;
-      const targetY = getTargetScrollTop();
-      const distance = targetY - currentY;
-      const absoluteDistance = Math.abs(distance);
-      const deltaTime = Math.max(now - scrollMetrics.time, 1);
-      const velocity = Math.abs(currentY - scrollMetrics.y) / deltaTime;
-
-      scrollMetrics.y = currentY;
-      scrollMetrics.time = now;
-
-      if (absoluteDistance < 2) {
-        return;
-      }
-
-      if (now < suppressUntil.current || now < lockUntil.current) {
-        return;
-      }
-
-      if (absoluteDistance > CONTENT_STAGE_RELEASE_RADIUS) {
-        return;
-      }
-
-      if (
-        absoluteDistance <= CONTENT_STAGE_MAGNET_RADIUS ||
-        velocity <= CONTENT_STAGE_SNAP_VELOCITY
-      ) {
-        lockUntil.current = now + CONTENT_STAGE_SNAP_LOCK_MS;
-        window.scrollTo({
-          top: targetY,
-          behavior: "smooth",
-        });
-      }
-    };
-
-    const scheduleEvaluate = () => {
-      if (frameId) {
-        return;
-      }
-
-      frameId = window.requestAnimationFrame(evaluateSnap);
-    };
-
-    const handleScroll = () => {
-      scheduleEvaluate();
-    };
-
-    const handleWheel = (event: WheelEvent) => {
-      if (Math.abs(event.deltaY) >= CONTENT_STAGE_STRONG_WHEEL_DELTA) {
-        suppressUntil.current = performance.now() + CONTENT_STAGE_SNAP_SUPPRESS_MS;
-      }
-
-      scheduleEvaluate();
-    };
-
-    const handleTouchStart = (event: TouchEvent) => {
-      touchStartY = event.touches[0]?.clientY ?? 0;
-      isTouching = true;
-    };
-
-    const handleTouchMove = (event: TouchEvent) => {
-      if (!isTouching) {
-        return;
-      }
-
-      const currentY = event.touches[0]?.clientY ?? touchStartY;
-
-      if (Math.abs(currentY - touchStartY) >= CONTENT_STAGE_STRONG_TOUCH_DELTA) {
-        suppressUntil.current = performance.now() + CONTENT_STAGE_SNAP_SUPPRESS_MS;
-      }
-    };
-
-    const handleTouchEnd = () => {
-      isTouching = false;
-      scheduleEvaluate();
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    window.addEventListener("wheel", handleWheel, { passive: true });
-    window.addEventListener("touchstart", handleTouchStart, { passive: true });
-    window.addEventListener("touchmove", handleTouchMove, { passive: true });
-    window.addEventListener("touchend", handleTouchEnd, { passive: true });
-    window.addEventListener("resize", scheduleEvaluate, { passive: true });
-
-    scheduleEvaluate();
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-      window.removeEventListener("scroll", handleScroll);
-      window.removeEventListener("wheel", handleWheel);
-      window.removeEventListener("touchstart", handleTouchStart);
-      window.removeEventListener("touchmove", handleTouchMove);
-      window.removeEventListener("touchend", handleTouchEnd);
-      window.removeEventListener("resize", scheduleEvaluate);
-    };
-  }, [shellRef, targetProgress]);
-}
-
 function ContentStageOverlay({
-  contentId,
-  layout,
-  body,
-  exitStops,
-  paragraphReveals,
+  content,
+  sectionRange,
   progress,
 }: {
-  contentId: ContentSectionEntry["id"];
-  layout: ContentStageOverlayLayout;
-  body: string[];
-  exitStops: readonly [number, number];
-  paragraphReveals: readonly ContentStageParagraphReveal[];
+  content: ContentSectionEntry;
+  sectionRange: [number, number];
   progress: MotionValue<number>;
 }) {
-  if (body.length === 0) {
+  if (content.paragraphs.length === 0) {
     return null;
   }
 
   return (
     <div
-      className={`content-stage-overlay content-stage-overlay--${layout}`}
-      data-content-stage={contentId}
+      className={`content-stage-overlay content-stage-overlay--${content.layout}`}
+      data-content-stage={content.id}
     >
       <div className="content-stage-overlay__shell">
         <div className="content-stage-overlay__copy">
-          {body.map((paragraph, index) => (
+          {content.paragraphs.map((paragraph) => (
             <ContentStageParagraph
-              key={paragraph}
+              key={paragraph.id}
               paragraph={paragraph}
               progress={progress}
-              exitStops={exitStops}
-              reveal={paragraphReveals[Math.min(index, paragraphReveals.length - 1)]}
+              sectionRange={sectionRange}
+              exit={content.exit}
             />
           ))}
         </div>
@@ -864,72 +766,87 @@ function ContentStageOverlay({
 function ContentStageParagraph({
   paragraph,
   progress,
-  exitStops,
-  reveal,
+  sectionRange,
+  exit,
 }: {
-  paragraph: string;
+  paragraph: ContentParagraph;
   progress: MotionValue<number>;
-  exitStops: readonly [number, number];
-  reveal: {
-    enterStart: number;
-    enterEnd: number;
-    fromX: number;
-    fromY: number;
-    exitX: number;
-  };
+  sectionRange: [number, number];
+  exit: readonly [number, number];
 }) {
-  const timeline = [
-    reveal.enterStart,
-    reveal.enterEnd,
-    exitStops[0],
-    exitStops[1],
+  const toGlobalProgress = (localProgress: number) =>
+    sectionRange[0] + (sectionRange[1] - sectionRange[0]) * localProgress;
+  const motionTimeline = [
+    toGlobalProgress(paragraph.reveal.enter[0]),
+    toGlobalProgress(paragraph.reveal.enter[1]),
+    toGlobalProgress(exit[0]),
+    toGlobalProgress(exit[1]),
   ];
-  const opacity = useTransform(
-    progress,
-    timeline,
-    [0, 1, 1, 0],
+  const fromX =
+    paragraph.reveal.from === "left"
+      ? -160
+      : paragraph.reveal.from === "right"
+        ? 160
+        : 0;
+  const fromY = paragraph.reveal.from === "bottom" ? 80 : 0;
+  const exitX = paragraph.reveal.exitTo === "left" ? -60 : 60;
+  const opacity = useTransform(progress, motionTimeline, [0, 1, 1, 0]);
+  const pointerEvents = useTransform(opacity, (value) =>
+    value > 0.5 ? "auto" : "none",
   );
-  const x = useTransform(
-    progress,
-    timeline,
-    [reveal.fromX, 0, 0, reveal.exitX],
-  );
-  const y = useTransform(
-    progress,
-    timeline,
-    [reveal.fromY, 0, 0, -12],
-  );
-  const blur = useTransform(
-    progress,
-    timeline,
-    [8, 0, 0, 5],
-  );
+  const x = useTransform(progress, motionTimeline, [fromX, 0, 0, exitX]);
+  const y = useTransform(progress, motionTimeline, [fromY, 0, 0, -12]);
+  const blur = useTransform(progress, motionTimeline, [8, 0, 0, 5]);
   const filter = useMotionTemplate`blur(${blur}px)`;
 
   return (
     <motion.p
-      style={{
-        opacity,
-        x,
-        y,
-        filter,
-      }}
+      style={{ opacity, x, y, filter, pointerEvents }}
     >
-      {renderContentStageParagraph(paragraph)}
+      {renderContentSegments(paragraph, pointerEvents)}
     </motion.p>
+  );
+}
+
+function getSectionTimelineAttributes(
+  section: SectionDefinition,
+  timeline: SceneTimeline,
+) {
+  const [start, end] = timeline.sectionRanges[section.id];
+
+  return {
+    "data-portfolio-section-id": section.id,
+    "data-timeline-start": start,
+    "data-timeline-end": end,
+  };
+}
+
+function SectionSnapAnchor({ section }: { section: SectionDefinition }) {
+  if (section.snapLocalProgress === undefined) {
+    return null;
+  }
+
+  return (
+    <span
+      className="section-snap-anchor"
+      aria-hidden
+      style={{ top: `${section.snapLocalProgress * 100}%` }}
+    />
   );
 }
 
 function PortfolioSectionRenderer({
   section,
   progress,
+  timeline,
 }: {
   section: SectionDefinition;
   progress: MotionValue<number>;
+  timeline: SceneTimeline;
 }) {
   switch (section.kind) {
     case "intro":
-      return <IntroSection progress={progress} section={section} />;
+      return <IntroSection progress={progress} section={section} timeline={timeline} />;
     case "content-stage": {
       const content = section.contentId ? contentSectionsById[section.contentId] : null;
 
@@ -938,29 +855,51 @@ function PortfolioSectionRenderer({
           section={section}
           content={content ?? undefined}
           progress={progress}
+          timeline={timeline}
         />
       );
     }
     case "particle-text":
-      return <SceneStageSection section={section} />;
+      return <SceneStageSection section={section} timeline={timeline} />;
     case "outro":
-      return <OutroSection section={section} progress={progress} />;
+      return <OutroSection section={section} progress={progress} timeline={timeline} />;
     case "card": {
       const project = section.projectSlug ? projectsBySlug[section.projectSlug] : null;
 
-      return project ? <ProjectCardSection project={project} /> : null;
+      return project ? (
+        <ProjectCardSection
+          project={project}
+          section={section}
+          progress={progress}
+          timeline={timeline}
+        />
+      ) : null;
     }
     default:
       return null;
   }
 }
 
-function SceneStageSection({ section }: { section: SectionDefinition }) {
+function SceneStageSection({
+  section,
+  timeline,
+}: {
+  section: SectionDefinition;
+  timeline: SceneTimeline;
+}) {
+  const headingId = `${section.id}-heading`;
+
   return (
     <section
+      id={section.id}
       className={`scroll-section ${getScrollSectionClassName(section.domVariant)}`.trim()}
-      aria-hidden="true"
+      aria-labelledby={headingId}
+      {...getSectionTimelineAttributes(section, timeline)}
     >
+      <SectionSnapAnchor section={section} />
+      <h2 className="sr-only" id={headingId}>
+        {section.ariaLabel ?? section.id}
+      </h2>
       <div className="section-sticky section-sticky--center">
         <div className="transform-stage" />
       </div>
@@ -971,28 +910,47 @@ function SceneStageSection({ section }: { section: SectionDefinition }) {
 function OutroSection({
   section,
   progress,
+  timeline,
 }: {
   section: SectionDefinition;
   progress: MotionValue<number>;
+  timeline: SceneTimeline;
 }) {
+  const headingId = `${section.id}-heading`;
+  const revealStops = [
+    getTimelineProgressPoint(timeline, section.id, 0.62),
+    getTimelineProgressPoint(timeline, section.id, 0.8),
+  ];
+
   return (
     <section
+      id={section.id}
       className={`scroll-section ${getScrollSectionClassName(section.domVariant)}`.trim()}
-      aria-label={section.ariaLabel ?? "Outro"}
+      aria-labelledby={headingId}
+      {...getSectionTimelineAttributes(section, timeline)}
     >
+      <h2 className="sr-only" id={headingId}>
+        Contact
+      </h2>
       <div className="section-sticky section-sticky--center">
         <div className="transform-stage transform-stage--outro">
-          <OutroContactOverlay progress={progress} />
+          <OutroContactOverlay progress={progress} revealStops={revealStops} />
         </div>
       </div>
     </section>
   );
 }
 
-function OutroContactOverlay({ progress }: { progress: MotionValue<number> }) {
-  const opacity = useTransform(progress, OUTRO_CONTACT_REVEAL_STOPS, [0, 1]);
-  const blur = useTransform(progress, OUTRO_CONTACT_REVEAL_STOPS, [10, 0]);
-  const y = useTransform(progress, OUTRO_CONTACT_REVEAL_STOPS, [18, 0]);
+function OutroContactOverlay({
+  progress,
+  revealStops,
+}: {
+  progress: MotionValue<number>;
+  revealStops: number[];
+}) {
+  const opacity = useTransform(progress, revealStops, [0, 1]);
+  const blur = useTransform(progress, revealStops, [10, 0]);
+  const y = useTransform(progress, revealStops, [18, 0]);
   const filter = useMotionTemplate`blur(${blur}px)`;
 
   return (
@@ -1031,26 +989,30 @@ function ParticleContentSection({
   section,
   content,
   progress,
+  timeline,
 }: {
   section: SectionDefinition;
   content?: ContentSectionEntry;
   progress: MotionValue<number>;
+  timeline: SceneTimeline;
 }) {
-  const body = content?.body ?? [];
-  const overlayConfig = content ? CONTENT_STAGE_OVERLAY_CONFIG[content.id] : null;
+  const headingId = `${section.id}-heading`;
 
   return (
     <section
+      id={section.id}
       className={`scroll-section ${getScrollSectionClassName(section.domVariant)}`.trim()}
-      aria-label={section.ariaLabel ?? "Content section"}
+      aria-labelledby={headingId}
+      {...getSectionTimelineAttributes(section, timeline)}
     >
-      {body.length > 0 && content && overlayConfig ? (
+      <SectionSnapAnchor section={section} />
+      <h2 className="sr-only" id={headingId}>
+        {content?.title ?? section.ariaLabel ?? "Content section"}
+      </h2>
+      {content ? (
         <ContentStageOverlay
-          contentId={content.id}
-          layout={overlayConfig.layout}
-          body={body}
-          exitStops={overlayConfig.exitStops}
-          paragraphReveals={overlayConfig.paragraphs}
+          content={content}
+          sectionRange={timeline.sectionRanges[section.id]}
           progress={progress}
         />
       ) : null}
@@ -1062,13 +1024,15 @@ function ParticleContentSection({
 function IntroSection({
   progress,
   section,
+  timeline,
 }: {
   progress: MotionValue<number>;
   section: SectionDefinition;
+  timeline: SceneTimeline;
 }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
-  const measureTitleRef = useRef<HTMLParagraphElement>(null);
+  const measureTitleRef = useRef<HTMLHeadingElement>(null);
   const measureSubtitleRef = useRef<HTMLParagraphElement>(null);
   const measureNoteRef = useRef<HTMLDivElement>(null);
   const [isIntroLeadCentered, setIsIntroLeadCentered] = useState(true);
@@ -1080,14 +1044,18 @@ function IntroSection({
     subtitleX: 0,
     noteX: 0,
   });
-  const introCopyStyle = {
-    opacity: useTransform(progress, INTRO_COPY_SCROLL_STOPS, [1, 0.78, 0]),
-    x: useTransform(
-      progress,
-      [INTRO_COPY_SCROLL_STOPS[0], INTRO_COPY_SCROLL_STOPS[2]],
-      [0, -420],
-    ),
-  };
+  const introCopyStops = [
+    getTimelineProgressPoint(timeline, section.id, 0),
+    getTimelineProgressPoint(timeline, section.id, 2 / 15),
+    getTimelineProgressPoint(timeline, section.id, 2 / 3),
+  ];
+  const introCopyOpacity = useTransform(progress, introCopyStops, [1, 0.78, 0]);
+  const introCopyX = useTransform(
+    progress,
+    [introCopyStops[0], introCopyStops[2]],
+    [0, -420],
+  );
+  const introCopyStyle = { opacity: introCopyOpacity, x: introCopyX };
   const getCenteredOffset = (copyRect: DOMRect, childRect: DOMRect) => {
     const finalLeft = childRect.left - copyRect.left;
     const centeredLeft = (copyRect.width - childRect.width) * 0.5;
@@ -1147,8 +1115,9 @@ function IntroSection({
 
   return (
     <section
+      id={section.id}
       className="scroll-section scroll-section--intro"
-      aria-label={section.ariaLabel ?? "Point cloud introduction"}
+      {...getSectionTimelineAttributes(section, timeline)}
     >
       <div className="section-sticky section-sticky--intro">
         <div className="intro-stage" ref={stageRef}>
@@ -1217,7 +1186,7 @@ function IntroSection({
                     .join(" ")}
                   noteClassName="intro-note intro-copy-block"
                   renderTitle={({ className, children }) => (
-                    <motion.p
+                    <motion.h1
                       className={className}
                       initial={{ x: introLoadState.titleX }}
                       animate={{ x: 0 }}
@@ -1228,7 +1197,7 @@ function IntroSection({
                       }}
                     >
                       {children}
-                    </motion.p>
+                    </motion.h1>
                   )}
                   renderSubtitle={({ className, children }) => (
                     <motion.p
@@ -1270,19 +1239,27 @@ function IntroSection({
 
 function ProjectCardSection({
   project,
+  section,
+  progress,
+  timeline,
 }: {
   project: ProjectEntry;
+  section: SectionDefinition;
+  progress: MotionValue<number>;
+  timeline: SceneTimeline;
 }) {
   const [showStack, setShowStack] = useState(false);
   const [compactStack, setCompactStack] = useState(false);
-  const sectionRef = useRef<HTMLElement>(null);
   const cardRef = useRef<HTMLElement>(null);
-  const scrollYProgress = useElementScrollProgress(
-    sectionRef,
-    getViewportCrossProgress,
+  const [sectionStart, sectionEnd] = timeline.sectionRanges[section.id];
+  const sectionProgress = useTransform(
+    progress,
+    [sectionStart, sectionEnd],
+    [0, 1],
+    { clamp: true },
   );
   const focus = useSpring(
-    useTransform(scrollYProgress, [0.04, 0.28, 0.72, 0.96], [0, 1, 1, 0]),
+    useTransform(sectionProgress, [0.04, 0.24, 0.78, 0.98], [0, 1, 1, 0]),
     {
       stiffness: 180,
       damping: 26,
@@ -1291,8 +1268,8 @@ function ProjectCardSection({
   );
   const exclusionStrength = useSpring(
     useTransform(
-      scrollYProgress,
-      project.slug === "project-03" ? [0.04, 0.28, 0.88, 1] : [0.04, 0.28, 0.76, 0.98],
+      sectionProgress,
+      [0.04, 0.24, 0.86, 1],
       [0, 1, 1, 0],
     ),
     {
@@ -1313,16 +1290,6 @@ function ProjectCardSection({
   const imageOverlay = useMotionTemplate`linear-gradient(180deg, rgba(4, 4, 4, 0.02) 0%, rgba(4, 4, 4, ${overlayAlpha}) 100%)`;
   const titleId = `${project.slug}-title`;
   const stackId = `${project.slug}-stack`;
-  const copyStyle = {
-    paddingLeft: "clamp(0.55rem, 0.9vw, 0.8rem)",
-    paddingRight: "clamp(0.9rem, 1.3vw, 1.1rem)",
-  };
-  const titleStyle = {
-    maxWidth: "100%",
-    fontSize: "clamp(1.78rem, 2.65vw, 2.9rem)",
-    lineHeight: 0.96,
-  };
-
   useEffect(() => {
     const media = window.matchMedia("(max-width: 640px)");
     const syncCompactStack = () => {
@@ -1340,14 +1307,16 @@ function ProjectCardSection({
       media.removeEventListener("change", syncCompactStack);
     };
   }, []);
-  useProjectCardExclusion(project.slug, cardRef, exclusionStrength, scrollYProgress);
+  useProjectCardExclusion(project.slug, cardRef, exclusionStrength);
 
   return (
     <section
-      ref={sectionRef}
+      id={section.id}
       className="scroll-section scroll-section--project"
       aria-labelledby={titleId}
+      {...getSectionTimelineAttributes(section, timeline)}
     >
+      <SectionSnapAnchor section={section} />
       <div className="section-sticky section-sticky--project">
         <motion.article
           ref={cardRef}
@@ -1362,7 +1331,8 @@ function ProjectCardSection({
                 width={project.imageWidth}
                 height={project.imageHeight}
                 className="project-card__image"
-                sizes="(max-width: 900px) 100vw, 52vw"
+                loading="eager"
+                sizes="(max-width: 640px) calc(100vw - 3rem), (max-width: 1280px) min(82vw, 40rem), 34rem"
               />
             </motion.div>
             <motion.span
@@ -1372,37 +1342,50 @@ function ProjectCardSection({
             />
           </div>
 
-          <div className="project-card__copy" style={copyStyle}>
-            <div className="project-headline">
-              <h2 id={titleId} style={titleStyle}>
-                {project.title}
-              </h2>
-              <p className="project-card__summary">{project.summary}</p>
+          <div
+            className={`project-card__copy${compactStack ? " project-card__copy--compact" : ""}`}
+          >
+            <div className="project-card__scroll">
+              <div className="project-headline">
+                <h2 id={titleId}>{project.title}</h2>
+                <p className="project-card__summary">{project.summary}</p>
+              </div>
+
+              <div className="project-body">
+                {project.description.map((paragraph) => (
+                  <p key={paragraph}>{paragraph}</p>
+                ))}
+              </div>
+
+              <ul className="project-highlights" role="list">
+                {project.highlights.map((highlight) => (
+                  <li key={highlight} className="project-highlight">
+                    {highlight}
+                  </li>
+                ))}
+              </ul>
+
+              <ProjectTagList
+                compact={compactStack}
+                showStack={showStack}
+                stackId={stackId}
+                tags={project.tags}
+              />
             </div>
 
-            <div className="project-body">
-              {project.description.map((paragraph) => (
-                <p key={paragraph}>{paragraph}</p>
-              ))}
-            </div>
-
-            <ul className="project-highlights" role="list">
-              {project.highlights.map((highlight) => (
-                <li key={highlight} className="project-highlight">
-                  {highlight}
-                </li>
-              ))}
-            </ul>
-
-            <ProjectTagList
-              compact={compactStack}
-              showStack={showStack}
-              stackId={stackId}
-              tags={project.tags}
-              onToggle={() => {
-                setShowStack((current) => !current);
-              }}
-            />
+            {compactStack ? (
+              <button
+                type="button"
+                className="cta-link project-stack-toggle"
+                aria-controls={stackId}
+                aria-expanded={showStack}
+                onClick={() => {
+                  setShowStack((current) => !current);
+                }}
+              >
+                {showStack ? "Hide Stack" : "Show Stack"}
+              </button>
+            ) : null}
 
             <div className="project-card__actions">
               <a
