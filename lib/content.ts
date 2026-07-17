@@ -4,9 +4,11 @@ export type ProjectEntry = {
   slug: string;
   title: string;
   summary: string;
-  description: readonly string[];
-  highlights: readonly string[];
-  tags: readonly string[];
+  proofs: readonly {
+    label: string;
+    body: string;
+  }[];
+  technologies: readonly string[];
   imageSrc: string;
   imageAlt: string;
   imageWidth: number;
@@ -22,27 +24,28 @@ export const projects = [
     slug: "project-01",
     title: "Text2Speech.dev",
     summary:
-      "A full-stack AI voice generator for creating realistic speech with custom voices and multilingual support.",
-    description: [
-      "Under the hood, the product pairs a Next.js app with authentication, credits and billing, persistent project history, file storage, and a Python speech pipeline.",
+      "A full-stack voice app that turns text and a custom voice sample into multilingual speech, with billing and saved projects built in.",
+    proofs: [
+      {
+        label: "Built the path from sign-in to generation",
+        body: "Built the generation screen, authenticated dashboard, Polar billing, credit system, and saved project history.",
+      },
+      {
+        label: "Deployed multilingual TTS with serverless GPU inference",
+        body: "Kept the customer app and account data in Next.js and PostgreSQL, then ran Chatterbox in a separate Python service on Modal’s L40S GPUs.",
+      },
+      {
+        label: "Built a persistent audio pipeline",
+        body: "Stored uploaded voice samples and generated audio in S3, with project metadata tied back to each user.",
+      },
     ],
-    highlights: [
-      "Natural TTS generation from typed prompts",
-      "Voice cloning from uploaded samples",
-      "23-language workflow with voice and style controls",
-      "Dashboard for saved audio projects and history",
-      "Auth, credits, and upgrade flow for productized use",
-    ],
-    tags: [
+    technologies: [
+      "Next.js 16",
       "TypeScript",
       "Python",
-      "Next.js",
-      "React",
-      "Tailwind",
-      "Prisma",
-      "Postgres",
-      "Better Auth",
-      "Polar",
+      "PostgreSQL",
+      "Modal",
+      "Chatterbox TTS",
       "AWS S3",
     ],
     imageSrc: "/projects/text2speech.jpg",
@@ -51,7 +54,7 @@ export const projects = [
     imageWidth: 1600,
     imageHeight: 1568,
     href: "https://text2speech.dev",
-    linkLabel: "View Website",
+    linkLabel: "Visit Website",
     githubHref: "https://github.com/anuragmaganti/text-to-speech",
     particlePreset: "contour-sheet",
   },
@@ -59,25 +62,36 @@ export const projects = [
     slug: "project-02",
     title: "ResumeLoomr.com",
     summary:
-      "A resume builder with structured editing, live preview, and print-ready output in one place.",
-    description: [
-      "ResumeLoomr lets users build a resume section by section while the final document updates live beside the editor.",
-      "It focuses on practical workflow details like autosave, section reordering, template switching, and a clean print flow.",
+      "A local-first resume builder where people edit the document directly, organize multiple resumes, and import existing files with AI.",
+    proofs: [
+      {
+        label: "Made the preview the editor",
+        body: "People can click text to open its field, drag sections and bullets in place, and see the printable page update immediately.",
+      },
+      {
+        label: "Protected every edit",
+        body: "Saved every change to IndexedDB before any network request, then synced through a versioned outbox so stale cloud responses cannot overwrite newer work.",
+      },
+      {
+        label: "Designed for messy input",
+        body: "Built a block-first model and source-first import pipeline that preserve custom sections and content from PDF, DOCX, and images.",
+      },
     ],
-    highlights: [
-      "Live resume preview that updates as you type",
-      "Autosave with visible save-state feedback",
-      "Reorderable sections and repeatable entries",
-      "Template switching and print-ready output",
+    technologies: [
+      "React 19",
+      "IndexedDB",
+      "dnd-kit",
+      "Firebase",
+      "Vercel API Routes",
+      "Gemini API",
     ],
-    tags: ["React", "JavaScript", "CSS", "Local storage"],
     imageSrc: "/projects/resumeloomr-v2.jpg",
     imageAlt:
       "ResumeLoomr interface showing a resume editor, section navigation, and live printable resume preview.",
     imageWidth: 1600,
     imageHeight: 1322,
     href: "https://resumeloomr.com/",
-    linkLabel: "View Website",
+    linkLabel: "Visit Website",
     githubHref: "https://github.com/anuragmaganti/ResumeLoomr",
     particlePreset: "torsion-column",
   },
@@ -85,23 +99,34 @@ export const projects = [
     slug: "project-03",
     title: "WebcamSign.com",
     summary:
-      "WebcamSign is a React web app that uses Google's MediaPipe hand tracking ML model and webcam input to turn pinch gestures into a real-time signature pad.",
-    description: [
-      "A thumb-to-index pinch acts as pen down and pen up, letting users draw signatures in the air without touching the screen. Built for smooth performance, it uses requestAnimationFrame, ref-based gesture state, flicker-reducing thresholds, and a canvas synced to the video feed for clean output.",
+      "A browser signature pad controlled with a pinch gesture, tuned so drawing in the air still feels stable and precise.",
+    proofs: [
+      {
+        label: "Turned motion into input",
+        body: "Mapped thumb and index landmarks from each webcam frame into pen-down, pen-up, and canvas coordinates.",
+      },
+      {
+        label: "Tamed hand jitter",
+        body: "Smoothed the pinch signal and used separate open and close thresholds so the pen stays stable while a hand moves.",
+      },
+      {
+        label: "Kept React off the hot path",
+        body: "Processed camera frames with requestAnimationFrame and ref-held state instead of rerendering the UI for every landmark update.",
+      },
     ],
-    highlights: [
-      "Real-time canvas signature rendering from normalized landmarks",
-      "Clear and export flow for finished signatures",
-      "Performance-aware React patterns for stable gesture input",
+    technologies: [
+      "React 19",
+      "MediaPipe Tasks Vision",
+      "WebRTC",
+      "Canvas API",
     ],
-    tags: ["React", "JavaScript", "MediaPipe", "HTML Canvas", "WebRTC"],
     imageSrc: "/projects/webcamsign.jpg",
     imageAlt:
       "WebcamSign interface showing a signature canvas, step-by-step signing instructions, live preview, camera controls, and SVG export actions.",
     imageWidth: 1600,
     imageHeight: 1322,
     href: "https://webcamsign.com",
-    linkLabel: "View Website",
+    linkLabel: "Visit Website",
     githubHref: "https://github.com/anuragmaganti/signature-webcam-draw",
     particlePreset: "bloom-fan",
   },

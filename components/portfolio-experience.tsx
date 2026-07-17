@@ -4,7 +4,6 @@ import dynamic from "next/dynamic";
 import type { MotionValue } from "motion";
 import Image from "next/image";
 import {
-  AnimatePresence,
   MotionConfig,
   motion,
   useMotionTemplate,
@@ -95,51 +94,6 @@ const OUTRO_CONTACT_ITEMS: readonly OutroContactItem[] = [
 const CLICK_BURST_MAX_ACTIVE = 6;
 const CLICK_BURST_PARTICLE_COUNT = 24;
 const CLICK_BURST_MAX_LIFETIME_MS = 880;
-const PROJECT_STACK_EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
-const PROJECT_TAG_LIST_VARIANTS = {
-  hidden: {
-    height: 0,
-    opacity: 0,
-    y: -6,
-  },
-  visible: {
-    height: "auto",
-    opacity: 1,
-    y: 0,
-    transition: {
-      height: { duration: 0.38, ease: PROJECT_STACK_EASE },
-      opacity: { duration: 0.22, ease: PROJECT_STACK_EASE },
-      y: { duration: 0.3, ease: PROJECT_STACK_EASE },
-      staggerChildren: 0.028,
-      delayChildren: 0.04,
-    },
-  },
-  exit: {
-    height: 0,
-    opacity: 0,
-    y: -4,
-    transition: {
-      height: { duration: 0.26, ease: PROJECT_STACK_EASE },
-      opacity: { duration: 0.16, ease: PROJECT_STACK_EASE },
-      y: { duration: 0.2, ease: PROJECT_STACK_EASE },
-      staggerChildren: 0.018,
-      staggerDirection: -1,
-    },
-  },
-} as const;
-const PROJECT_TAG_ITEM_VARIANTS = {
-  hidden: { opacity: 0, y: -4 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.22, ease: PROJECT_STACK_EASE },
-  },
-  exit: {
-    opacity: 0,
-    y: -3,
-    transition: { duration: 0.14, ease: PROJECT_STACK_EASE },
-  },
-} as const;
 
 type ClickBurstParticle = {
   dx: number;
@@ -176,13 +130,6 @@ type IntroCopyContentProps = {
     className: string;
     children: ReactNode;
   }) => ReactNode;
-};
-
-type ProjectTagListProps = {
-  compact: boolean;
-  showStack: boolean;
-  stackId: string;
-  tags: readonly string[];
 };
 
 function clamp01(value: number) {
@@ -518,51 +465,6 @@ function IntroCopyContent({
         </div>
       )}
     </div>
-  );
-}
-
-function ProjectTagList({
-  compact,
-  showStack,
-  stackId,
-  tags,
-}: ProjectTagListProps) {
-  if (!compact) {
-    return (
-      <ul id={stackId} className="project-tags" role="list">
-        {tags.map((tag) => (
-          <li key={tag} className="tag">
-            {tag}
-          </li>
-        ))}
-      </ul>
-    );
-  }
-
-  return (
-    <AnimatePresence initial={false}>
-      {showStack ? (
-        <motion.ul
-          id={stackId}
-          className="project-tags project-tags--collapsible"
-          role="list"
-          initial="hidden"
-          animate="visible"
-          exit="exit"
-          variants={PROJECT_TAG_LIST_VARIANTS}
-        >
-          {tags.map((tag) => (
-            <motion.li
-              key={tag}
-              className="tag"
-              variants={PROJECT_TAG_ITEM_VARIANTS}
-            >
-              {tag}
-            </motion.li>
-          ))}
-        </motion.ul>
-      ) : null}
-    </AnimatePresence>
   );
 }
 
@@ -1248,8 +1150,6 @@ function ProjectCardSection({
   progress: MotionValue<number>;
   timeline: SceneTimeline;
 }) {
-  const [showStack, setShowStack] = useState(false);
-  const [compactStack, setCompactStack] = useState(false);
   const cardRef = useRef<HTMLElement>(null);
   const [sectionStart, sectionEnd] = timeline.sectionRanges[section.id];
   const sectionProgress = useTransform(
@@ -1289,24 +1189,6 @@ function ProjectCardSection({
   const cardShadow = useMotionTemplate`0 30px 90px rgba(0, 0, 0, 0.52), 0 0 48px rgba(255, 255, 255, ${glowAlpha})`;
   const imageOverlay = useMotionTemplate`linear-gradient(180deg, rgba(4, 4, 4, 0.02) 0%, rgba(4, 4, 4, ${overlayAlpha}) 100%)`;
   const titleId = `${project.slug}-title`;
-  const stackId = `${project.slug}-stack`;
-  useEffect(() => {
-    const media = window.matchMedia("(max-width: 640px)");
-    const syncCompactStack = () => {
-      setCompactStack(media.matches);
-
-      if (!media.matches) {
-        setShowStack(false);
-      }
-    };
-
-    syncCompactStack();
-    media.addEventListener("change", syncCompactStack);
-
-    return () => {
-      media.removeEventListener("change", syncCompactStack);
-    };
-  }, []);
   useProjectCardExclusion(project.slug, cardRef, exclusionStrength);
 
   return (
@@ -1342,67 +1224,54 @@ function ProjectCardSection({
             />
           </div>
 
-          <div
-            className={`project-card__copy${compactStack ? " project-card__copy--compact" : ""}`}
-          >
+          <div className="project-card__copy">
             <div className="project-card__scroll">
               <div className="project-headline">
                 <h2 id={titleId}>{project.title}</h2>
                 <p className="project-card__summary">{project.summary}</p>
               </div>
 
-              <div className="project-body">
-                {project.description.map((paragraph) => (
-                  <p key={paragraph}>{paragraph}</p>
+              <dl className="project-proofs">
+                {project.proofs.map((proof) => (
+                  <div key={proof.label} className="project-proof">
+                    <dt>{proof.label}</dt>
+                    <dd>{proof.body}</dd>
+                  </div>
                 ))}
-              </div>
+              </dl>
 
-              <ul className="project-highlights" role="list">
-                {project.highlights.map((highlight) => (
-                  <li key={highlight} className="project-highlight">
-                    {highlight}
-                  </li>
+              <ul
+                className="project-technologies"
+                aria-label={`${project.title} technologies`}
+              >
+                {project.technologies.map((technology) => (
+                  <li key={technology}>{technology}</li>
                 ))}
               </ul>
-
-              <ProjectTagList
-                compact={compactStack}
-                showStack={showStack}
-                stackId={stackId}
-                tags={project.tags}
-              />
             </div>
-
-            {compactStack ? (
-              <button
-                type="button"
-                className="cta-link project-stack-toggle"
-                aria-controls={stackId}
-                aria-expanded={showStack}
-                onClick={() => {
-                  setShowStack((current) => !current);
-                }}
-              >
-                {showStack ? "Hide Stack" : "Show Stack"}
-              </button>
-            ) : null}
 
             <div className="project-card__actions">
               <a
-                className="cta-link"
+                className="cta-link project-action project-action--primary"
                 href={project.href}
                 target="_blank"
                 rel="noreferrer"
               >
-                {project.linkLabel}
+                <span>{project.linkLabel}</span>
+                <span className="project-action__arrow" aria-hidden>
+                  ↗
+                </span>
               </a>
               <a
-                className="cta-link"
+                className="cta-link project-action project-action--secondary"
                 href={project.githubHref}
                 target="_blank"
                 rel="noreferrer"
               >
-                View GitHub
+                <span>View Source</span>
+                <span className="project-action__arrow" aria-hidden>
+                  ↗
+                </span>
               </a>
             </div>
           </div>
