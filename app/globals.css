@@ -1056,6 +1056,20 @@ select {
   }
 }
 
+@media (min-width: 641px) and (max-width: 1280px) {
+  .panel.project-card {
+    height: auto;
+  }
+
+  .project-card {
+    grid-template-rows: auto auto;
+  }
+
+  .project-card__copy {
+    grid-template-rows: auto auto;
+  }
+}
+
 @media (max-width: 900px) {
   .site-chrome {
     inset-inline-end: var(--frame-padding);
