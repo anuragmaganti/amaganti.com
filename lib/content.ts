@@ -21,114 +21,40 @@ export type ProjectEntry = {
 
 export const projects = [
   {
-    slug: "project-01",
-    title: "Text2Speech.dev",
+    slug: "project-05",
+    title: "Ctrl-Say",
     summary:
-      "A full-stack voice app that turns text and a custom voice sample into multilingual speech, with billing and saved projects built in.",
+      "A native macOS clipboard that lets people save and paste text, images, and files by voice without leaving the app they are working in.",
     proofs: [
       {
-        label: "Built the path from sign-in to generation",
-        body: "Built the generation screen, authenticated dashboard, Polar billing, credit system, and saved project history.",
+        label: "Made voice commands feel immediate",
+        body: "Right Option starts listening, complete commands can run from partial on-device transcripts, and the floating HUD confirms each action without taking focus from the current app.",
       },
       {
-        label: "Deployed multilingual TTS with serverless GPU inference",
-        body: "Kept the customer app and account data in Next.js and PostgreSQL, then ran Chatterbox in a separate Python service on Modal’s L40S GPUs.",
+        label: "Kept everything the user copied",
+        body: "Preserved rich text, images, files, mixed content, and multiple pasteboard items instead of flattening every saved slot into plain text.",
       },
       {
-        label: "Built a persistent audio pipeline",
-        body: "Stored uploaded voice samples and generated audio in S3, with project metadata tied back to each user.",
+        label: "Designed quick recall and long-term storage",
+        body: "Numbered and named copies stay in memory for the session, while explicitly permanent copies persist locally with SwiftData and remain paste-ready after relaunch.",
       },
     ],
     technologies: [
-      "Next.js 16",
-      "TypeScript",
-      "Python",
-      "PostgreSQL",
-      "Modal",
-      "Chatterbox TTS",
-      "AWS S3",
+      "Swift 6",
+      "SwiftUI",
+      "AppKit",
+      "SpeechAnalyzer",
+      "AVFoundation",
+      "SwiftData",
+      "Core Animation",
     ],
-    imageSrc: "/projects/text2speech.jpg",
+    imageSrc: "/projects/ctrl-say.jpg",
     imageAlt:
-      "Text2Speech dashboard showing text input, language selection, voice upload, and speech generation settings.",
+      "Ctrl-Say floating clipboard HUD showing temporary voice-controlled slots for text, an image, and files on macOS.",
     imageWidth: 1600,
-    imageHeight: 1568,
-    href: "https://text2speech.dev",
-    linkLabel: "Visit Website",
-    githubHref: "https://github.com/anuragmaganti/text-to-speech",
-    particlePreset: "contour-sheet",
-  },
-  {
-    slug: "project-02",
-    title: "ResumeLoomr.com",
-    summary:
-      "A local-first resume builder where people edit the document directly, organize multiple resumes, and import existing files with AI.",
-    proofs: [
-      {
-        label: "Made the preview the editor",
-        body: "People can click text to open its field, drag sections and bullets in place, and see the printable page update immediately.",
-      },
-      {
-        label: "Protected every edit",
-        body: "Saved every change to IndexedDB before any network request, then synced through a versioned outbox so stale cloud responses cannot overwrite newer work.",
-      },
-      {
-        label: "Designed for messy input",
-        body: "Built a block-first model and source-first import pipeline that preserve custom sections and content from PDF, DOCX, and images.",
-      },
-    ],
-    technologies: [
-      "React 19",
-      "IndexedDB",
-      "dnd-kit",
-      "Firebase",
-      "Vercel API Routes",
-      "Gemini API",
-    ],
-    imageSrc: "/projects/resumeloomr-v2.jpg",
-    imageAlt:
-      "ResumeLoomr interface showing a resume editor, section navigation, and live printable resume preview.",
-    imageWidth: 1600,
-    imageHeight: 1322,
-    href: "https://resumeloomr.com/",
-    linkLabel: "Visit Website",
-    githubHref: "https://github.com/anuragmaganti/ResumeLoomr",
+    imageHeight: 1574,
+    githubHref: "https://github.com/anuragmaganti/Ctrl-Say",
     particlePreset: "torsion-column",
-  },
-  {
-    slug: "project-03",
-    title: "WebcamSign.com",
-    summary:
-      "A browser signature pad controlled with a pinch gesture, tuned so drawing in the air still feels stable and precise.",
-    proofs: [
-      {
-        label: "Turned motion into input",
-        body: "Mapped thumb and index landmarks from each webcam frame into pen-down, pen-up, and canvas coordinates.",
-      },
-      {
-        label: "Tamed hand jitter",
-        body: "Smoothed the pinch signal and used separate open and close thresholds so the pen stays stable while a hand moves.",
-      },
-      {
-        label: "Kept React off the hot path",
-        body: "Processed camera frames with requestAnimationFrame and ref-held state instead of rerendering the UI for every landmark update.",
-      },
-    ],
-    technologies: [
-      "React 19",
-      "MediaPipe Tasks Vision",
-      "WebRTC",
-      "Canvas API",
-    ],
-    imageSrc: "/projects/webcamsign.jpg",
-    imageAlt:
-      "WebcamSign interface showing a signature canvas, step-by-step signing instructions, live preview, camera controls, and SVG export actions.",
-    imageWidth: 1600,
-    imageHeight: 1322,
-    href: "https://webcamsign.com",
-    linkLabel: "Visit Website",
-    githubHref: "https://github.com/anuragmaganti/signature-webcam-draw",
-    particlePreset: "bloom-fan",
   },
   {
     slug: "project-04",
@@ -169,40 +95,114 @@ export const projects = [
     particlePreset: "contour-sheet",
   },
   {
-    slug: "project-05",
-    title: "Ctrl-Say",
+    slug: "project-03",
+    title: "WebcamSign.com",
     summary:
-      "A native macOS clipboard that lets people save and paste text, images, and files by voice without leaving the app they are working in.",
+      "A browser signature pad controlled with a pinch gesture, tuned so drawing in the air still feels stable and precise.",
     proofs: [
       {
-        label: "Made voice commands feel immediate",
-        body: "Right Option starts listening, complete commands can run from partial on-device transcripts, and the floating HUD confirms each action without taking focus from the current app.",
+        label: "Turned motion into input",
+        body: "Mapped thumb and index landmarks from each webcam frame into pen-down, pen-up, and canvas coordinates.",
       },
       {
-        label: "Kept everything the user copied",
-        body: "Preserved rich text, images, files, mixed content, and multiple pasteboard items instead of flattening every saved slot into plain text.",
+        label: "Tamed hand jitter",
+        body: "Smoothed the pinch signal and used separate open and close thresholds so the pen stays stable while a hand moves.",
       },
       {
-        label: "Designed quick recall and long-term storage",
-        body: "Numbered and named copies stay in memory for the session, while explicitly permanent copies persist locally with SwiftData and remain paste-ready after relaunch.",
+        label: "Kept React off the hot path",
+        body: "Processed camera frames with requestAnimationFrame and ref-held state instead of rerendering the UI for every landmark update.",
       },
     ],
     technologies: [
-      "Swift 6",
-      "SwiftUI",
-      "AppKit",
-      "SpeechAnalyzer",
-      "AVFoundation",
-      "SwiftData",
-      "Core Animation",
+      "React 19",
+      "MediaPipe Tasks Vision",
+      "WebRTC",
+      "Canvas API",
     ],
-    imageSrc: "/projects/ctrl-say.jpg",
+    imageSrc: "/projects/webcamsign.jpg",
     imageAlt:
-      "Ctrl-Say floating clipboard HUD showing temporary voice-controlled slots for text, an image, and files on macOS.",
+      "WebcamSign interface showing a signature canvas, step-by-step signing instructions, live preview, camera controls, and SVG export actions.",
     imageWidth: 1600,
-    imageHeight: 1574,
-    githubHref: "https://github.com/anuragmaganti/Ctrl-Say",
+    imageHeight: 1322,
+    href: "https://webcamsign.com",
+    linkLabel: "Visit Website",
+    githubHref: "https://github.com/anuragmaganti/signature-webcam-draw",
+    particlePreset: "bloom-fan",
+  },
+  {
+    slug: "project-02",
+    title: "ResumeLoomr.com",
+    summary:
+      "A local-first resume builder where people edit the document directly, organize multiple resumes, and import existing files with AI.",
+    proofs: [
+      {
+        label: "Made the preview the editor",
+        body: "People can click text to open its field, drag sections and bullets in place, and see the printable page update immediately.",
+      },
+      {
+        label: "Protected every edit",
+        body: "Saved every change to IndexedDB before any network request, then synced through a versioned outbox so stale cloud responses cannot overwrite newer work.",
+      },
+      {
+        label: "Designed for messy input",
+        body: "Built a block-first model and source-first import pipeline that preserve custom sections and content from PDF, DOCX, and images.",
+      },
+    ],
+    technologies: [
+      "React 19",
+      "IndexedDB",
+      "dnd-kit",
+      "Firebase",
+      "Vercel API Routes",
+      "Gemini API",
+    ],
+    imageSrc: "/projects/resumeloomr-v2.jpg",
+    imageAlt:
+      "ResumeLoomr interface showing a resume editor, section navigation, and live printable resume preview.",
+    imageWidth: 1600,
+    imageHeight: 1322,
+    href: "https://resumeloomr.com/",
+    linkLabel: "Visit Website",
+    githubHref: "https://github.com/anuragmaganti/ResumeLoomr",
     particlePreset: "torsion-column",
+  },
+  {
+    slug: "project-01",
+    title: "Text2Speech.dev",
+    summary:
+      "A full-stack voice app that turns text and a custom voice sample into multilingual speech, with billing and saved projects built in.",
+    proofs: [
+      {
+        label: "Built the path from sign-in to generation",
+        body: "Built the generation screen, authenticated dashboard, Polar billing, credit system, and saved project history.",
+      },
+      {
+        label: "Deployed multilingual TTS with serverless GPU inference",
+        body: "Kept the customer app and account data in Next.js and PostgreSQL, then ran Chatterbox in a separate Python service on Modal’s L40S GPUs.",
+      },
+      {
+        label: "Built a persistent audio pipeline",
+        body: "Stored uploaded voice samples and generated audio in S3, with project metadata tied back to each user.",
+      },
+    ],
+    technologies: [
+      "Next.js 16",
+      "TypeScript",
+      "Python",
+      "PostgreSQL",
+      "Modal",
+      "Chatterbox TTS",
+      "AWS S3",
+    ],
+    imageSrc: "/projects/text2speech.jpg",
+    imageAlt:
+      "Text2Speech dashboard showing text input, language selection, voice upload, and speech generation settings.",
+    imageWidth: 1600,
+    imageHeight: 1568,
+    href: "https://text2speech.dev",
+    linkLabel: "Visit Website",
+    githubHref: "https://github.com/anuragmaganti/text-to-speech",
+    particlePreset: "contour-sheet",
   },
 ] as const satisfies readonly ProjectEntry[];
 
