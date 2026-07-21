@@ -1251,28 +1251,36 @@ function ProjectCardSection({
             </div>
 
             <div className="project-card__actions">
-              <a
-                className="cta-link project-action project-action--primary"
-                href={project.href}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <span>{project.linkLabel}</span>
-                <span className="project-action__arrow" aria-hidden>
-                  ↗
-                </span>
-              </a>
-              <a
-                className="cta-link project-action project-action--secondary"
-                href={project.githubHref}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <span>View Source</span>
-                <span className="project-action__arrow" aria-hidden>
-                  ↗
-                </span>
-              </a>
+              {project.href && project.linkLabel ? (
+                <a
+                  className="cta-link project-action project-action--primary"
+                  href={project.href}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span>{project.linkLabel}</span>
+                  <span className="project-action__arrow" aria-hidden>
+                    ↗
+                  </span>
+                </a>
+              ) : null}
+              {project.githubHref ? (
+                <a
+                  className={`cta-link project-action ${
+                    project.href
+                      ? "project-action--secondary"
+                      : "project-action--primary"
+                  }`}
+                  href={project.githubHref}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span>View Source</span>
+                  <span className="project-action__arrow" aria-hidden>
+                    ↗
+                  </span>
+                </a>
+              ) : null}
             </div>
           </div>
         </motion.article>

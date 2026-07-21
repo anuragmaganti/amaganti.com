@@ -13,9 +13,9 @@ export type ProjectEntry = {
   imageAlt: string;
   imageWidth: number;
   imageHeight: number;
-  href: string;
-  linkLabel: string;
-  githubHref: string;
+  href?: string;
+  linkLabel?: string;
+  githubHref?: string;
   particlePreset: ProjectFieldPresetId;
 };
 
@@ -129,6 +129,80 @@ export const projects = [
     linkLabel: "Visit Website",
     githubHref: "https://github.com/anuragmaganti/signature-webcam-draw",
     particlePreset: "bloom-fan",
+  },
+  {
+    slug: "project-04",
+    title: "ThesisTrace",
+    summary:
+      "An AI-assisted investment research workspace that finds experts and companies, preserves the evidence behind every result, and carries a market thesis into diligence.",
+    proofs: [
+      {
+        label: "Built a two-stage research pipeline",
+        body: "Used Exa to retrieve people, companies, affiliations, and sources, then OpenAI to turn that evidence into Zod-validated candidate records.",
+      },
+      {
+        label: "Added review before database writes",
+        body: "Kept generated candidates separate from approved records, with duplicate detection, merge logic, confidence scores, missing fields, and source links preserved through approval.",
+      },
+      {
+        label: "Modeled the full diligence trail",
+        body: "Designed the Prisma and PostgreSQL schema for research runs, evidence, expert-company relationships, shortlists, saved developments, call prep, and generated diligence artifacts.",
+      },
+    ],
+    technologies: [
+      "Next.js 15",
+      "TypeScript",
+      "PostgreSQL",
+      "Prisma",
+      "Exa",
+      "OpenAI",
+      "Zod",
+    ],
+    imageSrc: "/projects/thesistrace.jpg",
+    imageAlt:
+      "ThesisTrace dashboard showing investment themes, expert and company coverage, priority experts, and suggested diligence actions.",
+    imageWidth: 1600,
+    imageHeight: 1141,
+    href: "https://thesistrace.vercel.app/",
+    linkLabel: "Visit Website",
+    githubHref: "https://github.com/anuragmaganti/thesistrace",
+    particlePreset: "contour-sheet",
+  },
+  {
+    slug: "project-05",
+    title: "Ctrl-Say",
+    summary:
+      "A native macOS clipboard that lets people save and paste text, images, and files by voice without leaving the app they are working in.",
+    proofs: [
+      {
+        label: "Made voice commands feel immediate",
+        body: "Right Option starts listening, complete commands can run from partial on-device transcripts, and the floating HUD confirms each action without taking focus from the current app.",
+      },
+      {
+        label: "Kept everything the user copied",
+        body: "Preserved rich text, images, files, mixed content, and multiple pasteboard items instead of flattening every saved slot into plain text.",
+      },
+      {
+        label: "Designed quick recall and long-term storage",
+        body: "Numbered and named copies stay in memory for the session, while explicitly permanent copies persist locally with SwiftData and remain paste-ready after relaunch.",
+      },
+    ],
+    technologies: [
+      "Swift 6",
+      "SwiftUI",
+      "AppKit",
+      "SpeechAnalyzer",
+      "AVFoundation",
+      "SwiftData",
+      "Core Animation",
+    ],
+    imageSrc: "/projects/ctrl-say.jpg",
+    imageAlt:
+      "Ctrl-Say floating clipboard HUD showing temporary voice-controlled slots for text, an image, and files on macOS.",
+    imageWidth: 1600,
+    imageHeight: 1574,
+    githubHref: "https://github.com/anuragmaganti/Ctrl-Say",
+    particlePreset: "torsion-column",
   },
 ] as const satisfies readonly ProjectEntry[];
 
