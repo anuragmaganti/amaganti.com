@@ -51,8 +51,8 @@ export const projects = [
     imageSrc: "/projects/ctrl-say.jpg",
     imageAlt:
       "Ctrl-Say floating clipboard HUD showing temporary voice-controlled slots for text, an image, and files on macOS.",
-    imageWidth: 1600,
-    imageHeight: 1574,
+    imageWidth: 1116,
+    imageHeight: 1094,
     githubHref: "https://github.com/anuragmaganti/Ctrl-Say",
     particlePreset: "torsion-column",
   },
