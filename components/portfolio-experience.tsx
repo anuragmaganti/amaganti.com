@@ -14,6 +14,7 @@ import {
 } from "motion/react";
 import {
   type CSSProperties,
+  Fragment,
   type ReactNode,
   type Ref,
   type RefObject,
@@ -115,6 +116,7 @@ type IntroCopyContentProps = {
   titleClassName: string;
   subtitleClassName: string;
   noteClassName: string;
+  alignmentOffsets?: IntroCopyAlignmentOffsets;
   titleRef?: Ref<HTMLHeadingElement>;
   subtitleRef?: Ref<HTMLParagraphElement>;
   noteRef?: Ref<HTMLDivElement>;
@@ -131,6 +133,94 @@ type IntroCopyContentProps = {
     children: ReactNode;
   }) => ReactNode;
 };
+
+type IntroCopyAlignmentOffsets = {
+  title: readonly number[];
+  subtitle: readonly number[];
+  note: readonly number[];
+};
+
+function IntroCopyToken({
+  children,
+  initialX,
+}: {
+  children: string;
+  initialX?: number;
+}) {
+  if (initialX === undefined) {
+    return (
+      <span className="intro-copy-token" data-intro-token>
+        {children}
+      </span>
+    );
+  }
+
+  return (
+    <motion.span
+      className="intro-copy-token"
+      data-intro-token
+      initial={{ x: initialX }}
+      animate={{ x: 0 }}
+      transition={{
+        duration: INTRO_TEXT_REVEAL_DURATION,
+        delay: INTRO_TEXT_MOVE_DELAY,
+        ease: INTRO_LOAD_EASE,
+      }}
+    >
+      {children}
+    </motion.span>
+  );
+}
+
+function renderIntroWordTokens(text: string, offsets?: readonly number[]) {
+  return text.split(" ").map((word, index) => (
+    <Fragment key={`${word}-${index}`}>
+      {index > 0 ? " " : null}
+      <IntroCopyToken initialX={offsets?.[index]}>{word}</IntroCopyToken>
+    </Fragment>
+  ));
+}
+
+function getIntroLineOffsets(block: HTMLElement) {
+  const blockRect = block.getBoundingClientRect();
+  const tokens = Array.from(
+    block.querySelectorAll<HTMLElement>("[data-intro-token]"),
+  );
+  const offsets = Array<number>(tokens.length).fill(0);
+  const lines: { top: number; tokens: { index: number; rect: DOMRect }[] }[] = [];
+
+  tokens.forEach((token, index) => {
+    const rect = token.getBoundingClientRect();
+    const currentLine = lines.at(-1);
+
+    if (!currentLine || Math.abs(rect.top - currentLine.top) > 1) {
+      lines.push({ top: rect.top, tokens: [{ index, rect }] });
+      return;
+    }
+
+    currentLine.tokens.push({ index, rect });
+  });
+
+  lines.forEach((line) => {
+    const firstToken = line.tokens[0];
+    const lastToken = line.tokens.at(-1);
+
+    if (!firstToken || !lastToken) {
+      return;
+    }
+
+    const lineLeft = firstToken.rect.left - blockRect.left;
+    const lineWidth = lastToken.rect.right - firstToken.rect.left;
+    const centeredLeft = (blockRect.width - lineWidth) * 0.5;
+    const offset = centeredLeft - lineLeft;
+
+    line.tokens.forEach(({ index }) => {
+      offsets[index] = offset;
+    });
+  });
+
+  return offsets;
+}
 
 function clamp01(value: number) {
   return Math.max(0, Math.min(1, value));
@@ -426,6 +516,7 @@ function IntroCopyContent({
   titleClassName,
   subtitleClassName,
   noteClassName,
+  alignmentOffsets,
   titleRef,
   subtitleRef,
   noteRef,
@@ -433,8 +524,20 @@ function IntroCopyContent({
   renderSubtitle,
   renderNote,
 }: IntroCopyContentProps) {
-  const titleChildren = INTRO_TITLE_LINES.map((line) => <span key={line}>{line}</span>);
-  const noteChildren = <p className="intro-note__text">{INTRO_NOTE_TEXT}</p>;
+  const titleChildren = INTRO_TITLE_LINES.map((line, index) => (
+    <IntroCopyToken key={line} initialX={alignmentOffsets?.title[index]}>
+      {line}
+    </IntroCopyToken>
+  ));
+  const subtitleChildren = renderIntroWordTokens(
+    INTRO_SUBTITLE_TEXT,
+    alignmentOffsets?.subtitle,
+  );
+  const noteChildren = (
+    <p className="intro-note__text">
+      {renderIntroWordTokens(INTRO_NOTE_TEXT, alignmentOffsets?.note)}
+    </p>
+  );
 
   return (
     <div className="intro-copy">
@@ -449,11 +552,11 @@ function IntroCopyContent({
       {renderSubtitle ? (
         renderSubtitle({
           className: subtitleClassName,
-          children: INTRO_SUBTITLE_TEXT,
+          children: subtitleChildren,
         })
       ) : (
         <p ref={subtitleRef} className={subtitleClassName}>
-          {INTRO_SUBTITLE_TEXT}
+          {subtitleChildren}
         </p>
       )}
 
@@ -937,7 +1040,6 @@ function IntroSection({
   const measureTitleRef = useRef<HTMLHeadingElement>(null);
   const measureSubtitleRef = useRef<HTMLParagraphElement>(null);
   const measureNoteRef = useRef<HTMLDivElement>(null);
-  const [isIntroLeadCentered, setIsIntroLeadCentered] = useState(true);
   const [introLoadState, setIntroLoadState] = useState({
     ready: false,
     x: 0,
@@ -945,6 +1047,9 @@ function IntroSection({
     titleX: 0,
     subtitleX: 0,
     noteX: 0,
+    titleLineOffsets: [] as number[],
+    subtitleLineOffsets: [] as number[],
+    noteLineOffsets: [] as number[],
   });
   const introCopyStops = [
     getTimelineProgressPoint(timeline, section.id, 0),
@@ -972,11 +1077,23 @@ function IntroSection({
     const measureIntroCopy = () => {
       const stageRect = stageRef.current?.getBoundingClientRect();
       const copyRect = measureRef.current?.getBoundingClientRect();
-      const titleRect = measureTitleRef.current?.getBoundingClientRect();
-      const subtitleRect = measureSubtitleRef.current?.getBoundingClientRect();
-      const noteRect = measureNoteRef.current?.getBoundingClientRect();
+      const titleElement = measureTitleRef.current;
+      const subtitleElement = measureSubtitleRef.current;
+      const noteElement = measureNoteRef.current;
+      const titleRect = titleElement?.getBoundingClientRect();
+      const subtitleRect = subtitleElement?.getBoundingClientRect();
+      const noteRect = noteElement?.getBoundingClientRect();
 
-      if (!stageRect || !copyRect || !titleRect || !subtitleRect || !noteRect) {
+      if (
+        !stageRect ||
+        !copyRect ||
+        !titleElement ||
+        !subtitleElement ||
+        !noteElement ||
+        !titleRect ||
+        !subtitleRect ||
+        !noteRect
+      ) {
         return;
       }
 
@@ -992,6 +1109,9 @@ function IntroSection({
         titleX: getCenteredOffset(copyRect, titleRect),
         subtitleX: getCenteredOffset(copyRect, subtitleRect),
         noteX: getCenteredOffset(copyRect, noteRect),
+        titleLineOffsets: getIntroLineOffsets(titleElement),
+        subtitleLineOffsets: getIntroLineOffsets(subtitleElement),
+        noteLineOffsets: getIntroLineOffsets(noteElement),
       });
     };
 
@@ -1002,16 +1122,6 @@ function IntroSection({
     return () => {
       window.cancelAnimationFrame(frameA);
       window.cancelAnimationFrame(frameB);
-    };
-  }, []);
-
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      setIsIntroLeadCentered(false);
-    }, INTRO_TEXT_MOVE_DELAY * 1000);
-
-    return () => {
-      window.clearTimeout(timeoutId);
     };
   }, []);
 
@@ -1072,21 +1182,14 @@ function IntroSection({
             >
               <motion.div style={introCopyStyle}>
                 <IntroCopyContent
-                  titleClassName={[
-                    "intro-title",
-                    "intro-copy-block",
-                    isIntroLeadCentered ? "intro-title--centered" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                  subtitleClassName={[
-                    "intro-subtitle",
-                    "intro-copy-block",
-                    isIntroLeadCentered ? "intro-subtitle--centered" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
+                  titleClassName="intro-title intro-copy-block"
+                  subtitleClassName="intro-subtitle intro-copy-block"
                   noteClassName="intro-note intro-copy-block"
+                  alignmentOffsets={{
+                    title: introLoadState.titleLineOffsets,
+                    subtitle: introLoadState.subtitleLineOffsets,
+                    note: introLoadState.noteLineOffsets,
+                  }}
                   renderTitle={({ className, children }) => (
                     <motion.h1
                       className={className}

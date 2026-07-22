@@ -421,6 +421,10 @@ select {
   max-width: 100%;
 }
 
+.intro-copy-token {
+  display: inline-block;
+}
+
 .intro-title,
 .intro-subtitle {
   margin: 0;
@@ -436,11 +440,6 @@ select {
   line-height: 0.82;
 }
 
-.intro-title--centered {
-  justify-items: center;
-  text-align: center;
-}
-
 .intro-subtitle {
   max-width: 16ch;
   color: var(--fg-muted);
@@ -449,10 +448,6 @@ select {
   font-weight: 600;
   letter-spacing: -0.05em;
   line-height: 0.95;
-}
-
-.intro-subtitle--centered {
-  text-align: center;
 }
 
 .intro-note {
