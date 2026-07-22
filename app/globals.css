@@ -1030,12 +1030,10 @@ select {
   }
 
   .outro-contact-overlay {
-    width: min(calc(100vw - (var(--frame-padding) * 2)), 34rem);
+    width: min(calc(100vw - (var(--frame-padding) * 2)), 48rem);
     padding-inline: clamp(0.75rem, 2vw, 1.5rem);
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    display: grid;
-    column-gap: clamp(1rem, 3vw, 2rem);
-    row-gap: clamp(1.25rem, 3.4vh, 2rem);
+    display: flex;
+    gap: clamp(0.65rem, 2.2vw, 1.4rem);
   }
 
   .outro-contact-overlay-shell {
@@ -1043,14 +1041,14 @@ select {
   }
 
   .outro-contact-overlay__item {
-    width: 100%;
+    width: auto;
   }
 
   .outro-contact-label {
     max-width: 100%;
-    font-size: clamp(1.34rem, 3.2vw, 1.95rem);
+    font-size: clamp(1.15rem, 2.6vw, 1.5rem);
     line-height: 1;
-    white-space: normal;
+    white-space: nowrap;
   }
 
   .content-stage-overlay--top-overlay .content-stage-overlay__shell {
@@ -1214,6 +1212,7 @@ select {
   }
 
   .outro-contact-overlay {
+    display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     width: min(calc(100vw - (var(--frame-padding) * 2)), 22rem);
     padding-inline: clamp(0.4rem, 1.6vw, 0.9rem);
