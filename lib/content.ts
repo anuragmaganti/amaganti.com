@@ -218,6 +218,20 @@ export const projectsBySlug = projects.reduce<Record<ProjectSlug, ProjectEntry>>
   {} as Record<ProjectSlug, ProjectEntry>,
 );
 
+export type SkillEntry = {
+  id: string;
+  label: string;
+};
+
+export const skills = [
+  { id: "product-design", label: "Product Design" },
+  { id: "full-stack", label: "Full-Stack" },
+  { id: "ai-systems", label: "AI Systems" },
+  { id: "macos", label: "macOS" },
+  { id: "computer-vision", label: "Computer Vision" },
+  { id: "data-systems", label: "Data Systems" },
+] as const satisfies readonly SkillEntry[];
+
 export type ContentTextSegment = {
   type: "text";
   text: string;

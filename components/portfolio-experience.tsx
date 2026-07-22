@@ -14,6 +14,7 @@ import {
   useMotionTemplate,
   useMotionValue,
   useMotionValueEvent,
+  useScroll,
   useSpring,
   useTransform,
 } from "motion/react";
@@ -32,9 +33,11 @@ import {
 import {
   contentSectionsById,
   projectsBySlug,
+  skills,
   type ContentParagraph,
   type ContentSectionEntry,
   type ProjectEntry,
+  type SkillEntry,
 } from "@/lib/content";
 import {
   createSceneTimeline,
@@ -871,6 +874,8 @@ function PortfolioSectionRenderer({
     }
     case "particle-text":
       return <SceneStageSection section={section} timeline={timeline} />;
+    case "skills":
+      return <SkillsSection section={section} timeline={timeline} />;
     case "outro":
       return <OutroSection section={section} progress={progress} timeline={timeline} />;
     case "card": {
@@ -914,6 +919,64 @@ function SceneStageSection({
         <div className="transform-stage" />
       </div>
     </section>
+  );
+}
+
+function SkillsSection({
+  section,
+  timeline,
+}: {
+  section: SectionDefinition;
+  timeline: SceneTimeline;
+}) {
+  const headingId = `${section.id}-heading`;
+
+  return (
+    <section
+      id={section.id}
+      className={`scroll-section ${getScrollSectionClassName(section.domVariant)}`.trim()}
+      aria-labelledby={headingId}
+      {...getSectionTimelineAttributes(section, timeline)}
+    >
+      <div className="skills-stage">
+        <h2 className="skills-stage__title" id={headingId}>
+          Skills
+        </h2>
+        <ul className="skills-stage__list">
+          {skills.map((skill) => (
+            <SkillHighlightItem key={skill.id} skill={skill} />
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+function SkillHighlightItem({ skill }: { skill: SkillEntry }) {
+  const itemRef = useRef<HTMLLIElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: itemRef,
+    offset: ["start 78%", "end 18%"],
+  });
+  const opacity = useTransform(
+    scrollYProgress,
+    [0, 0.59, 0.63, 0.68, 0.72, 1],
+    [0.3, 0.3, 1, 1, 0.3, 0.3],
+  );
+  const scale = useTransform(
+    scrollYProgress,
+    [0, 0.59, 0.63, 0.68, 0.72, 1],
+    [1, 1, 1.02, 1.02, 1, 1],
+  );
+
+  return (
+    <motion.li
+      ref={itemRef}
+      className="skills-stage__item"
+      style={{ opacity, scale }}
+    >
+      {skill.label}
+    </motion.li>
   );
 }
 
@@ -1565,6 +1628,8 @@ function getScrollSectionClassName(domVariant: SectionDomVariant) {
       return "scroll-section--content";
     case "project":
       return "scroll-section--project";
+    case "skills":
+      return "scroll-section--skills";
     case "outro":
       return "scroll-section--outro";
     default:

@@ -10,6 +10,7 @@ export type SectionId =
   | "intro"
   | "about-stage"
   | "projects-stage"
+  | "skills-stage"
   | ProjectSlug
   | "outro";
 
@@ -18,6 +19,7 @@ type SectionKind =
   | "particle-text"
   | "content-stage"
   | "card"
+  | "skills"
   | "outro";
 
 export type SectionDomVariant =
@@ -25,6 +27,7 @@ export type SectionDomVariant =
   | "transform"
   | "content"
   | "project"
+  | "skills"
   | "outro";
 
 export type PointCloudShape = "face" | "text" | "project-field" | "settle";
@@ -85,6 +88,7 @@ type StaticScenePresetId =
   | "projects-transform"
   | "projects-hero"
   | "projects-reveal"
+  | "skills-ambient"
   | "outro-face";
 type ProjectScenePresetId = `project-${ProjectFieldPresetId}`;
 type ScenePresetId = StaticScenePresetId | ProjectScenePresetId;
@@ -284,6 +288,27 @@ const PROJECT_SCENE_PRESETS: Record<ProjectFieldPresetId, ScenePreset> = {
   ),
 };
 
+const finalProject = projects.at(-1);
+
+if (!finalProject) {
+  throw new Error("At least one project is required to build the scene timeline.");
+}
+
+const SKILLS_AMBIENT_PRESET = extendScenePreset(
+  PROJECT_SCENE_PRESETS[finalProject.particlePreset],
+  {
+    camera: { position: [0.01, 0.04, 4.84], target: [0, 0.03, 0], fov: 37 },
+    cloud: {
+      position: [0, 0.03, -0.32],
+      scale: 2.08,
+      pointSize: 0.013,
+      noise: 0.028,
+      intensity: 0.12,
+      opacity: 0.16,
+    },
+  },
+);
+
 const staticPresets: Record<StaticScenePresetId, ScenePreset> = {
   "intro-face": INTRO_FACE_PRESET,
   "about-transform": extendScenePreset(ABOUT_TITLE_PRESET, {
@@ -316,6 +341,7 @@ const staticPresets: Record<StaticScenePresetId, ScenePreset> = {
     camera: { position: [0.02, 0.04, 4.38], fov: 31 },
     cloud: { scale: 1.01, pointSize: 0.0169, noise: 0.024, intensity: 0.24 },
   }),
+  "skills-ambient": SKILLS_AMBIENT_PRESET,
   "outro-face": createScenePreset(
     { position: [0, 0.02, 4.62], target: [0, 0.02, 0], fov: 29 },
     {
@@ -357,12 +383,6 @@ function createCardSection(project: ProjectEntry): SectionDefinition {
   };
 }
 
-const finalProject = projects.at(-1);
-
-if (!finalProject) {
-  throw new Error("At least one project is required to build the scene timeline.");
-}
-
 export const PORTFOLIO_SECTIONS: SectionDefinition[] = [
   {
     id: "intro",
@@ -397,16 +417,26 @@ export const PORTFOLIO_SECTIONS: SectionDefinition[] = [
   },
   ...projects.map(createCardSection),
   {
+    id: "skills-stage",
+    kind: "skills",
+    domVariant: "skills",
+    ariaLabel: "Skills",
+    sceneBeats: [
+      createSceneBeat(
+        `project:${finalProject.slug}:skills-handoff`,
+        `project-${finalProject.particlePreset}`,
+        8,
+      ),
+      createSceneBeat("skills-ambient", "skills-ambient", 92),
+    ],
+  },
+  {
     id: "outro",
     kind: "outro",
     domVariant: "outro",
     ariaLabel: "Contact links",
     sceneBeats: [
-      createSceneBeat(
-        `project:${finalProject.slug}:hold`,
-        `project-${finalProject.particlePreset}`,
-        82,
-      ),
+      createSceneBeat("skills-ambient:hold", "skills-ambient", 42),
       createSceneBeat("contact", "outro-face", 63),
     ],
   },
