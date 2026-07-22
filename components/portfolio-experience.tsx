@@ -1243,6 +1243,53 @@ function IntroSection({
   );
 }
 
+const PROJECT_ACTION_ORB_STYLE = {
+  width: "var(--project-action-orb-size)",
+  height: "var(--project-action-orb-size)",
+} satisfies CSSProperties;
+
+function ProjectActionLink({
+  href,
+  label,
+  variant,
+  state,
+  theme,
+}: {
+  href: string;
+  label: string;
+  variant: "primary" | "secondary";
+  state: "composing" | "working";
+  theme: "light" | "dark";
+}) {
+  const [isHovered, setIsHovered] = useState(false);
+
+  return (
+    <a
+      className={`project-action project-action--${variant}`}
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      aria-label={label}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <ThinkingOrb
+        className="project-action__orb"
+        state={state}
+        size={64}
+        theme={theme}
+        speed={isHovered ? 3 : 1}
+        data-orb-speed={isHovered ? 3 : 1}
+        style={PROJECT_ACTION_ORB_STYLE}
+        aria-hidden
+      />
+      <span className="project-action__label" data-text={label} aria-hidden>
+        {label}
+      </span>
+    </a>
+  );
+}
+
 function ProjectCardSection({
   project,
   section,
@@ -1349,52 +1396,22 @@ function ProjectCardSection({
 
             <div className="project-card__actions">
               {project.href && project.linkLabel ? (
-                <a
-                  className="project-action project-action--primary"
+                <ProjectActionLink
                   href={project.href}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label={project.linkLabel}
-                >
-                  <ThinkingOrb
-                    className="project-action__orb"
-                    state="composing"
-                    size={64}
-                    theme="light"
-                    aria-hidden
-                  />
-                  <span
-                    className="project-action__label"
-                    data-text={project.linkLabel}
-                    aria-hidden
-                  >
-                    {project.linkLabel}
-                  </span>
-                </a>
+                  label={project.linkLabel}
+                  variant="primary"
+                  state="composing"
+                  theme="light"
+                />
               ) : null}
               {project.githubHref ? (
-                <a
-                  className="project-action project-action--secondary"
+                <ProjectActionLink
                   href={project.githubHref}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="View Source"
-                >
-                  <ThinkingOrb
-                    className="project-action__orb"
-                    state="working"
-                    size={64}
-                    theme="dark"
-                    aria-hidden
-                  />
-                  <span
-                    className="project-action__label"
-                    data-text="View Source"
-                    aria-hidden
-                  >
-                    View Source
-                  </span>
-                </a>
+                  label="View Source"
+                  variant="secondary"
+                  state="working"
+                  theme="dark"
+                />
               ) : null}
             </div>
           </motion.div>
