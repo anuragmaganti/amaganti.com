@@ -3,7 +3,11 @@
 import dynamic from "next/dynamic";
 import type { MotionValue } from "motion";
 import Image from "next/image";
-import { ThinkingOrb } from "thinking-orbs";
+import {
+  MODE_DRAWS,
+  resolvePreset,
+  type OrbState,
+} from "thinking-orbs";
 import {
   MotionConfig,
   motion,
@@ -1243,10 +1247,153 @@ function IntroSection({
   );
 }
 
-const PROJECT_ACTION_ORB_STYLE = {
-  width: "var(--project-action-orb-size)",
-  height: "var(--project-action-orb-size)",
-} satisfies CSSProperties;
+const PROJECT_ACTION_ORB_SIZE = 64;
+
+function ProjectActionOrb({
+  state,
+  theme,
+}: {
+  state: OrbState;
+  theme: "light" | "dark";
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(PROJECT_ACTION_ORB_SIZE * pixelRatio);
+    canvas.height = Math.round(PROJECT_ACTION_ORB_SIZE * pixelRatio);
+
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    const preset = resolvePreset(state, PROJECT_ACTION_ORB_SIZE);
+    const draw = MODE_DRAWS[preset.mode];
+    const reducedMotionQuery = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    );
+    const action = canvas.closest<HTMLElement>(".project-action");
+    let reducedMotion = reducedMotionQuery.matches;
+    let speedMultiplier = 1;
+    let isIntersecting = true;
+    let isDocumentVisible = document.visibilityState !== "hidden";
+    let frameId = 0;
+    let running = false;
+    let lastTimestamp = performance.now();
+    let phase = (lastTimestamp / 1000) * preset.speed;
+
+    const paint = (time: number) => {
+      context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      context.clearRect(
+        0,
+        0,
+        PROJECT_ACTION_ORB_SIZE,
+        PROJECT_ACTION_ORB_SIZE,
+      );
+      draw(
+        context,
+        PROJECT_ACTION_ORB_SIZE,
+        time,
+        theme === "dark",
+        preset.opts,
+      );
+    };
+
+    const advancePhase = (timestamp: number) => {
+      phase +=
+        ((timestamp - lastTimestamp) / 1000) *
+        preset.speed *
+        speedMultiplier;
+      lastTimestamp = timestamp;
+    };
+
+    const frame = (timestamp: number) => {
+      advancePhase(timestamp);
+      paint(phase);
+      if (running) frameId = requestAnimationFrame(frame);
+    };
+
+    const stop = () => {
+      running = false;
+      cancelAnimationFrame(frameId);
+    };
+
+    const start = () => {
+      if (running || reducedMotion || !isIntersecting || !isDocumentVisible) {
+        return;
+      }
+
+      advancePhase(performance.now());
+      running = true;
+      frameId = requestAnimationFrame(frame);
+    };
+
+    const syncPlayback = () => {
+      if (reducedMotion) {
+        stop();
+        paint(0.6);
+        return;
+      }
+
+      if (isIntersecting && isDocumentVisible) start();
+      else stop();
+    };
+
+    const observer = new IntersectionObserver(([entry]) => {
+      isIntersecting = entry.isIntersecting;
+      syncPlayback();
+    });
+    const handleVisibilityChange = () => {
+      isDocumentVisible = document.visibilityState !== "hidden";
+      syncPlayback();
+    };
+    const handleReducedMotionChange = (event: MediaQueryListEvent) => {
+      reducedMotion = event.matches;
+      lastTimestamp = performance.now();
+      syncPlayback();
+    };
+    const handlePointerEnter = (event: PointerEvent) => {
+      if (event.pointerType === "touch") return;
+      speedMultiplier = 2;
+      canvas.dataset.orbSpeed = "2";
+    };
+    const handlePointerLeave = () => {
+      speedMultiplier = 1;
+      canvas.dataset.orbSpeed = "1";
+    };
+
+    paint(reducedMotion ? 0.6 : phase);
+    observer.observe(canvas);
+    action?.addEventListener("pointerenter", handlePointerEnter);
+    action?.addEventListener("pointerleave", handlePointerLeave);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    reducedMotionQuery.addEventListener("change", handleReducedMotionChange);
+    syncPlayback();
+
+    return () => {
+      stop();
+      observer.disconnect();
+      action?.removeEventListener("pointerenter", handlePointerEnter);
+      action?.removeEventListener("pointerleave", handlePointerLeave);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      reducedMotionQuery.removeEventListener(
+        "change",
+        handleReducedMotionChange,
+      );
+    };
+  }, [state, theme]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="project-action__orb"
+      data-orb-speed="1"
+      aria-hidden
+    />
+  );
+}
 
 function ProjectActionLink({
   href,
@@ -1261,8 +1408,6 @@ function ProjectActionLink({
   state: "composing" | "working";
   theme: "light" | "dark";
 }) {
-  const [isHovered, setIsHovered] = useState(false);
-
   return (
     <a
       className={`project-action project-action--${variant}`}
@@ -1270,19 +1415,8 @@ function ProjectActionLink({
       target="_blank"
       rel="noreferrer"
       aria-label={label}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
     >
-      <ThinkingOrb
-        className="project-action__orb"
-        state={state}
-        size={64}
-        theme={theme}
-        speed={isHovered ? 3 : 1}
-        data-orb-speed={isHovered ? 3 : 1}
-        style={PROJECT_ACTION_ORB_STYLE}
-        aria-hidden
-      />
+      <ProjectActionOrb state={state} theme={theme} />
       <span className="project-action__label" data-text={label} aria-hidden>
         {label}
       </span>
