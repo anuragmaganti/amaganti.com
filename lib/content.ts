@@ -98,7 +98,7 @@ export const projects = [
     slug: "project-03",
     title: "Air Ink",
     summary:
-      "A browser-based signature studio that turns a pinch gesture into smooth, downloadable ink without sending camera footage to a server.",
+      "A web app that uses your webcam to track your fingers, letting you draw a signature in the air and export it as an SVG.",
     proofs: [
       {
         label: "Made a pinch behave like a pen",
