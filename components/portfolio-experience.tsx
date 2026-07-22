@@ -1180,14 +1180,12 @@ function ProjectCardSection({
   );
   const scale = useTransform(focus, [0, 1], [0.986, 1]);
   const y = useTransform(focus, [0, 1], [26, 0]);
-  const opacity = useTransform(focus, [0, 1], [0.84, 1]);
+  const copyOpacity = useTransform(focus, [0, 1], [0.84, 1]);
   const mediaScale = useTransform(focus, [0, 1], [1.01, 1.05]);
   const borderAlpha = useTransform(focus, [0, 1], [0.06, 0.15]);
   const glowAlpha = useTransform(focus, [0, 1], [0.012, 0.04]);
-  const overlayAlpha = useTransform(focus, [0, 1], [0.22, 0.4]);
   const borderColor = useMotionTemplate`rgba(255, 255, 255, ${borderAlpha})`;
   const cardShadow = useMotionTemplate`0 30px 90px rgba(0, 0, 0, 0.52), 0 0 48px rgba(255, 255, 255, ${glowAlpha})`;
-  const imageOverlay = useMotionTemplate`linear-gradient(180deg, rgba(4, 4, 4, 0.02) 0%, rgba(4, 4, 4, ${overlayAlpha}) 100%)`;
   const titleId = `${project.slug}-title`;
   useProjectCardExclusion(project.slug, cardRef, exclusionStrength);
 
@@ -1203,7 +1201,7 @@ function ProjectCardSection({
         <motion.article
           ref={cardRef}
           className="panel project-card"
-          style={{ scale, y, opacity, borderColor, boxShadow: cardShadow }}
+          style={{ scale, y, borderColor, boxShadow: cardShadow }}
         >
           <div className="project-card__media">
             <motion.div className="project-card__media-inner" style={{ scale: mediaScale }}>
@@ -1217,14 +1215,9 @@ function ProjectCardSection({
                 sizes="(max-width: 640px) calc(100vw - 3rem), (max-width: 1280px) min(82vw, 40rem), 34rem"
               />
             </motion.div>
-            <motion.span
-              className="project-card__image-overlay"
-              aria-hidden
-              style={{ backgroundImage: imageOverlay }}
-            />
           </div>
 
-          <div className="project-card__copy">
+          <motion.div className="project-card__copy" style={{ opacity: copyOpacity }}>
             <div className="project-card__scroll">
               <div className="project-headline">
                 <h2 id={titleId}>{project.title}</h2>
@@ -1282,7 +1275,7 @@ function ProjectCardSection({
                 </a>
               ) : null}
             </div>
-          </div>
+          </motion.div>
         </motion.article>
       </div>
     </section>
