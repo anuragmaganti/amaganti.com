@@ -96,37 +96,39 @@ export const projects = [
   },
   {
     slug: "project-03",
-    title: "WebcamSign.com",
+    title: "Air Ink",
     summary:
-      "A browser signature pad controlled with a pinch gesture, tuned so drawing in the air still feels stable and precise.",
+      "A browser-based signature studio that turns a pinch gesture into smooth, downloadable ink without sending camera footage to a server.",
     proofs: [
       {
-        label: "Turned motion into input",
-        body: "Mapped thumb and index landmarks from each webcam frame into pen-down, pen-up, and canvas coordinates.",
+        label: "Made a pinch behave like a pen",
+        body: "Normalized thumb-to-index distance against palm size, then used separate start and release thresholds, time-based confirmation, and tracking-loss recovery to prevent jitter and accidental lines.",
       },
       {
-        label: "Tamed hand jitter",
-        body: "Smoothed the pinch signal and used separate open and close thresholds so the pen stays stable while a hand moves.",
+        label: "Kept hand tracking off the main thread",
+        body: "Transferred inference-sized video frames to a Web Worker, allowed only one MediaPipe request at a time, and skipped stale frames instead of building input lag.",
       },
       {
-        label: "Kept React off the hot path",
-        body: "Processed camera frames with requestAnimationFrame and ref-held state instead of rerendering the UI for every landmark update.",
+        label: "Matched the download to the preview",
+        body: "Stored normalized stroke points and shared the same smoothing geometry between incremental Canvas rendering and SVG export, so the saved signature matches what the user drew.",
       },
     ],
     technologies: [
       "React 19",
+      "Vite 8",
       "MediaPipe Tasks Vision",
       "WebRTC",
+      "Web Workers",
       "Canvas API",
     ],
-    imageSrc: "/projects/webcamsign.jpg",
+    imageSrc: "/projects/air-ink.jpg",
     imageAlt:
-      "WebcamSign interface showing a signature canvas, step-by-step signing instructions, live preview, camera controls, and SVG export actions.",
+      "Air Ink signature studio showing its camera preview, gesture guidance, drawing stage, and download controls.",
     imageWidth: 1600,
-    imageHeight: 1322,
+    imageHeight: 927,
     href: "https://webcamsign.com",
     linkLabel: "Visit Website",
-    githubHref: "https://github.com/anuragmaganti/signature-webcam-draw",
+    githubHref: "https://github.com/anuragmaganti/air-ink",
     particlePreset: "bloom-fan",
   },
   {
