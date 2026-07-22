@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import type { MotionValue } from "motion";
 import Image from "next/image";
+import { ThinkingOrb } from "thinking-orbs";
 import {
   MotionConfig,
   motion,
@@ -1349,31 +1350,49 @@ function ProjectCardSection({
             <div className="project-card__actions">
               {project.href && project.linkLabel ? (
                 <a
-                  className="cta-link project-action project-action--primary"
+                  className="project-action project-action--primary"
                   href={project.href}
                   target="_blank"
                   rel="noreferrer"
+                  aria-label={project.linkLabel}
                 >
-                  <span>{project.linkLabel}</span>
-                  <span className="project-action__arrow" aria-hidden>
-                    ↗
+                  <ThinkingOrb
+                    className="project-action__orb"
+                    state="composing"
+                    size={64}
+                    theme="light"
+                    aria-hidden
+                  />
+                  <span
+                    className="project-action__label"
+                    data-text={project.linkLabel}
+                    aria-hidden
+                  >
+                    {project.linkLabel}
                   </span>
                 </a>
               ) : null}
               {project.githubHref ? (
                 <a
-                  className={`cta-link project-action ${
-                    project.href
-                      ? "project-action--secondary"
-                      : "project-action--primary"
-                  }`}
+                  className="project-action project-action--secondary"
                   href={project.githubHref}
                   target="_blank"
                   rel="noreferrer"
+                  aria-label="View Source"
                 >
-                  <span>View Source</span>
-                  <span className="project-action__arrow" aria-hidden>
-                    ↗
+                  <ThinkingOrb
+                    className="project-action__orb"
+                    state="working"
+                    size={64}
+                    theme="dark"
+                    aria-hidden
+                  />
+                  <span
+                    className="project-action__label"
+                    data-text="View Source"
+                    aria-hidden
+                  >
+                    View Source
                   </span>
                 </a>
               ) : null}
