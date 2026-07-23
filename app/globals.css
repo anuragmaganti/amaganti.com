@@ -12,6 +12,83 @@
   --line-strong: rgba(255, 255, 255, 0.14);
   --accent: rgba(255, 255, 255, 0.9);
   --glow: rgba(255, 255, 255, 0.18);
+  --body-background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.1), transparent 34%),
+    radial-gradient(
+      circle at 80% 20%,
+      rgba(255, 255, 255, 0.08),
+      transparent 28%
+    ),
+    linear-gradient(180deg, #040404 0%, #020202 32%, #010101 100%);
+  --grid-line: rgba(255, 255, 255, 0.075);
+  --atmosphere-background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.02) 0%,
+    rgba(255, 255, 255, 0.045) 50%,
+    rgba(0, 0, 0, 0.02) 100%
+  );
+  --atmosphere-blend-mode: screen;
+  --skip-link-bg: #0a0a0a;
+  --intro-backdrop-bg: #000;
+  --scene-placeholder-strong: rgba(255, 255, 255, 0.12);
+  --scene-placeholder-soft: rgba(255, 255, 255, 0.06);
+  --scene-filter: none;
+  --link-strong: rgba(245, 247, 251, 0.94);
+  --link-decoration: rgba(245, 247, 251, 0.3);
+  --link-hover: rgba(255, 255, 255, 1);
+  --link-decoration-hover: rgba(255, 255, 255, 0.72);
+  --click-particle-rgb: 255, 255, 255;
+  --click-particle-glow: rgba(255, 255, 255, 0.18);
+  --click-particle-blend-mode: screen;
+  --meter-track: rgba(255, 255, 255, 0.08);
+  --meter-start: rgba(255, 255, 255, 0.1);
+  --meter-end: rgba(255, 255, 255, 0.94);
+  --intro-note: rgba(245, 247, 251, 0.92);
+  --outro-label: rgba(245, 247, 251, 0.92);
+  --outro-label-hover: rgba(236, 244, 255, 1);
+  --tap-highlight: rgba(255, 255, 255, 0.08);
+  --project-media-background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent 44%),
+    rgba(255, 255, 255, 0.02);
+  --project-media-border: rgba(255, 255, 255, 0.045);
+  --project-summary: rgba(245, 247, 251, 0.88);
+  --panel-background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.004), transparent 26%),
+    linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.002),
+      rgba(255, 255, 255, 0.0008)
+    ),
+    var(--bg-panel);
+  --project-panel-background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.0025), transparent 22%),
+    linear-gradient(155deg, rgba(0, 0, 0, 0.065), rgba(0, 0, 0, 0.016)),
+    rgba(2, 2, 2, 0.008);
+  --project-panel-shadow: 0 24px 72px rgba(0, 0, 0, 0.3);
+  --project-panel-sheen: linear-gradient(
+    120deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.005) 30%,
+    rgba(255, 255, 255, 0.026) 48%,
+    rgba(255, 255, 255, 0.006) 66%,
+    transparent 100%
+  );
+  --panel-sheen: linear-gradient(
+    120deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.03) 48%,
+    transparent 100%
+  );
+  --proof-label: rgba(245, 247, 251, 0.5);
+  --proof-body: rgba(245, 247, 251, 0.82);
+  --proof-divider: rgba(245, 247, 251, 0.3);
+  --control-bg: rgba(255, 255, 255, 0.06);
+  --control-bg-hover: rgba(255, 255, 255, 0.11);
+  --control-border-hover: rgba(255, 255, 255, 0.36);
+  --focus-ring: rgba(255, 255, 255, 0.72);
+  --project-card-border-rgb: 255, 255, 255;
+  --project-card-shadow-rgb: 0, 0, 0;
+  --project-card-glow-rgb: 255, 255, 255;
   --frame-padding: clamp(1rem, 2vw, 1.8rem);
   --project-frame-gap: clamp(0.8rem, 1.5vw, 1.25rem);
   --project-meter-clearance: 2.75rem;
@@ -25,6 +102,98 @@
   --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+[data-theme="light"] {
+  --bg: #f2f2ef;
+  --bg-soft: rgba(247, 247, 244, 0.78);
+  --bg-panel: rgba(255, 255, 255, 0.12);
+  --fg: #111318;
+  --fg-muted: rgba(17, 19, 24, 0.7);
+  --fg-soft: rgba(17, 19, 24, 0.48);
+  --line: rgba(17, 19, 24, 0.085);
+  --line-strong: rgba(17, 19, 24, 0.16);
+  --accent: rgba(17, 19, 24, 0.9);
+  --glow: rgba(17, 19, 24, 0.12);
+  --body-background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.9), transparent 38%),
+    radial-gradient(
+      circle at 80% 20%,
+      rgba(178, 181, 187, 0.2),
+      transparent 30%
+    ),
+    linear-gradient(180deg, #fafaf8 0%, #f2f2ef 38%, #eaeae6 100%);
+  --grid-line: rgba(17, 19, 24, 0.085);
+  --atmosphere-background: linear-gradient(
+    180deg,
+    rgba(17, 19, 24, 0.025) 0%,
+    rgba(255, 255, 255, 0.28) 50%,
+    rgba(17, 19, 24, 0.025) 100%
+  );
+  --atmosphere-blend-mode: multiply;
+  --skip-link-bg: #f8f8f5;
+  --intro-backdrop-bg: #f4f4f1;
+  --scene-placeholder-strong: rgba(17, 19, 24, 0.11);
+  --scene-placeholder-soft: rgba(17, 19, 24, 0.055);
+  --scene-filter: invert(1);
+  --link-strong: rgba(17, 19, 24, 0.94);
+  --link-decoration: rgba(17, 19, 24, 0.32);
+  --link-hover: rgba(0, 0, 0, 1);
+  --link-decoration-hover: rgba(0, 0, 0, 0.7);
+  --click-particle-rgb: 17, 19, 24;
+  --click-particle-glow: rgba(17, 19, 24, 0.2);
+  --click-particle-blend-mode: multiply;
+  --meter-track: rgba(17, 19, 24, 0.1);
+  --meter-start: rgba(17, 19, 24, 0.12);
+  --meter-end: rgba(17, 19, 24, 0.88);
+  --intro-note: rgba(17, 19, 24, 0.9);
+  --outro-label: rgba(17, 19, 24, 0.9);
+  --outro-label-hover: rgba(0, 0, 0, 1);
+  --tap-highlight: rgba(17, 19, 24, 0.08);
+  --project-media-background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.48), transparent 44%),
+    rgba(255, 255, 255, 0.16);
+  --project-media-border: rgba(17, 19, 24, 0.055);
+  --project-summary: rgba(17, 19, 24, 0.84);
+  --panel-background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent 26%),
+    linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.11),
+      rgba(255, 255, 255, 0.025)
+    ),
+    var(--bg-panel);
+  --project-panel-background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 22%),
+    linear-gradient(155deg, rgba(255, 255, 255, 0.1), rgba(17, 19, 24, 0.018)),
+    rgba(255, 255, 255, 0.035);
+  --project-panel-shadow: 0 24px 72px rgba(25, 28, 34, 0.14);
+  --project-panel-sheen: linear-gradient(
+    120deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.04) 30%,
+    rgba(255, 255, 255, 0.19) 48%,
+    rgba(255, 255, 255, 0.045) 66%,
+    transparent 100%
+  );
+  --panel-sheen: linear-gradient(
+    120deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.28) 48%,
+    transparent 100%
+  );
+  --proof-label: rgba(17, 19, 24, 0.54);
+  --proof-body: rgba(17, 19, 24, 0.78);
+  --proof-divider: rgba(17, 19, 24, 0.3);
+  --control-bg: rgba(255, 255, 255, 0.2);
+  --control-bg-hover: rgba(255, 255, 255, 0.42);
+  --control-border-hover: rgba(17, 19, 24, 0.3);
+  --focus-ring: rgba(17, 19, 24, 0.62);
+  --project-card-border-rgb: 17, 19, 24;
+  --project-card-shadow-rgb: 35, 38, 44;
+  --project-card-glow-rgb: 255, 255, 255;
+  --shadow-soft: 0 32px 80px rgba(25, 28, 34, 0.15);
+  --shadow-panel: 0 24px 72px rgba(25, 28, 34, 0.13);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -33,9 +202,33 @@ html {
   position: relative;
   background: var(--bg);
   color: var(--fg);
+  color-scheme: dark;
   scroll-behavior: smooth;
   scroll-padding-block-start: 0;
   scroll-snap-type: y proximity;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+}
+
+::view-transition-image-pair(root) {
+  isolation: auto;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  display: block;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  z-index: 9999;
 }
 
 body {
@@ -43,14 +236,7 @@ body {
   position: relative;
   min-height: 100vh;
   overflow-x: hidden;
-  background:
-    radial-gradient(circle at top, rgba(255, 255, 255, 0.1), transparent 34%),
-    radial-gradient(
-      circle at 80% 20%,
-      rgba(255, 255, 255, 0.08),
-      transparent 28%
-    ),
-    linear-gradient(180deg, #040404 0%, #020202 32%, #010101 100%);
+  background: var(--body-background);
   color: var(--fg);
   font-family: var(--font-body), sans-serif;
   text-rendering: optimizeLegibility;
@@ -69,22 +255,17 @@ body::after {
 
 body::before {
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.075) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.075) 1px, transparent 1px);
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
   background-size: 7.5rem 7.5rem;
   mask-image: radial-gradient(circle at center, black 42%, transparent 90%);
   opacity: 0.22;
 }
 
 body::after {
-  background: linear-gradient(
-    180deg,
-    rgba(0, 0, 0, 0.02) 0%,
-    rgba(255, 255, 255, 0.045) 50%,
-    rgba(0, 0, 0, 0.02) 100%
-  );
+  background: var(--atmosphere-background);
   opacity: 0.14;
-  mix-blend-mode: screen;
+  mix-blend-mode: var(--atmosphere-blend-mode);
 }
 
 a {
@@ -112,7 +293,7 @@ a {
   padding: 0.7rem 1rem;
   border: 1px solid var(--line-strong);
   border-radius: 999px;
-  background: #0a0a0a;
+  background: var(--skip-link-bg);
   color: var(--fg);
   transform: translateY(-180%);
   transition: transform 180ms var(--ease-standard);
@@ -120,6 +301,73 @@ a {
 
 .skip-link:focus {
   transform: translateY(0);
+}
+
+.theme-toggle {
+  position: fixed;
+  right: max(var(--frame-padding), env(safe-area-inset-right));
+  bottom: calc(
+    var(--frame-padding) + 1.35rem + env(safe-area-inset-bottom)
+  );
+  z-index: 12;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+  opacity: 0.62;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    color 220ms var(--ease-standard),
+    opacity 220ms var(--ease-standard),
+    transform 220ms var(--ease-standard);
+}
+
+.theme-toggle:hover {
+  opacity: 1;
+  transform: translateY(-1px);
+}
+
+.theme-toggle:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.theme-toggle__icon {
+  position: absolute;
+  width: 1.08rem;
+  height: 1.08rem;
+  transition:
+    opacity 280ms var(--ease-standard),
+    transform 380ms var(--ease-standard);
+}
+
+.theme-toggle__icon--sun {
+  opacity: 1;
+  transform: rotate(0deg) scale(1);
+}
+
+.theme-toggle__icon--moon {
+  opacity: 0;
+  transform: rotate(-18deg) scale(0.72);
+}
+
+[data-theme="light"] .theme-toggle__icon--sun {
+  opacity: 0;
+  transform: rotate(24deg) scale(0.72);
+}
+
+[data-theme="light"] .theme-toggle__icon--moon {
+  opacity: 1;
+  transform: rotate(0deg) scale(1);
 }
 
 button,
@@ -139,7 +387,7 @@ select {
   inset: 0;
   z-index: 2;
   pointer-events: none;
-  background: #000;
+  background: var(--intro-backdrop-bg);
 }
 
 .scene-frame,
@@ -150,16 +398,20 @@ select {
   pointer-events: none;
 }
 
+.scene-frame canvas {
+  filter: var(--scene-filter);
+}
+
 .scene-placeholder {
   background:
     radial-gradient(
       circle at 50% 32%,
-      rgba(255, 255, 255, 0.12),
+      var(--scene-placeholder-strong),
       transparent 25%
     ),
     radial-gradient(
       circle at 50% 48%,
-      rgba(255, 255, 255, 0.06),
+      var(--scene-placeholder-soft),
       transparent 30%
     );
 }
@@ -198,9 +450,9 @@ select {
 }
 
 .content-stage-overlay__link {
-  color: rgba(245, 247, 251, 0.94);
+  color: var(--link-strong);
   text-decoration-line: underline;
-  text-decoration-color: rgba(245, 247, 251, 0.3);
+  text-decoration-color: var(--link-decoration);
   text-decoration-thickness: 0.08em;
   text-underline-offset: 0.12em;
   transition:
@@ -210,8 +462,8 @@ select {
 
 .content-stage-overlay__link:hover,
 .content-stage-overlay__link:focus-visible {
-  color: rgba(255, 255, 255, 1);
-  text-decoration-color: rgba(255, 255, 255, 0.72);
+  color: var(--link-hover);
+  text-decoration-color: var(--link-decoration-hover);
 }
 
 .content-stage-overlay--top-overlay .content-stage-overlay__shell {
@@ -247,9 +499,9 @@ select {
   transform: translate(-50%, -50%);
   width: var(--click-burst-size);
   height: var(--click-burst-size);
-  background: rgba(255, 255, 255, var(--click-burst-opacity));
-  box-shadow: 0 0 0.32rem rgba(255, 255, 255, 0.18);
-  mix-blend-mode: screen;
+  background: rgba(var(--click-particle-rgb), var(--click-burst-opacity));
+  box-shadow: 0 0 0.32rem var(--click-particle-glow);
+  mix-blend-mode: var(--click-particle-blend-mode);
   opacity: 0;
   animation: click-burst-particle var(--click-burst-duration) var(--ease-standard)
     var(--click-burst-delay) forwards;
@@ -294,7 +546,7 @@ select {
   bottom: var(--frame-padding);
   height: 0.2rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--meter-track);
   overflow: hidden;
   pointer-events: none;
 }
@@ -306,8 +558,8 @@ select {
   transform-origin: left center;
   background: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0.1),
-    rgba(255, 255, 255, 0.94)
+    var(--meter-start),
+    var(--meter-end)
   );
 }
 
@@ -636,7 +888,7 @@ select {
 
 .intro-note__text {
   margin: 0;
-  color: rgba(245, 247, 251, 0.92);
+  color: var(--intro-note);
   font-family: var(--font-body), sans-serif;
   font-size: clamp(0.92rem, 1.2vw, 1.08rem);
   font-weight: 600;
@@ -691,7 +943,7 @@ select {
 .outro-contact-label {
   margin: 0;
   max-width: 100%;
-  color: rgba(245, 247, 251, 0.92);
+  color: var(--outro-label);
   font-family: var(--font-display), sans-serif;
   font-size: clamp(1.72rem, 2.3vw, 2.65rem);
   font-weight: 600;
@@ -724,13 +976,13 @@ select {
   width: 100%;
   padding-inline: 0.18em;
   pointer-events: auto;
-  -webkit-tap-highlight-color: rgba(255, 255, 255, 0.08);
+  -webkit-tap-highlight-color: var(--tap-highlight);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .outro-contact-overlay__item--interactive:hover .outro-contact-label,
   .outro-contact-overlay__item--interactive:focus-within .outro-contact-label {
-    color: rgba(236, 244, 255, 1);
+    color: var(--outro-label-hover);
     transform: scale(1.08);
   }
 }
@@ -781,10 +1033,8 @@ select {
   min-height: 0;
   overflow: hidden;
   border-radius: calc(var(--radius-lg) - 0.2rem);
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent 44%),
-    rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.045);
+  background: var(--project-media-background);
+  border: 1px solid var(--project-media-border);
 }
 
 .project-card__media-inner {
@@ -839,7 +1089,7 @@ select {
 
 .project-card__summary {
   max-width: 27.5rem;
-  color: rgba(245, 247, 251, 0.88);
+  color: var(--project-summary);
   font-size: clamp(0.98rem, 1.45vw, 1.14rem);
   line-height: 1.4;
   text-align: left;
@@ -910,14 +1160,7 @@ select {
   padding: clamp(1.2rem, 2vw, 1.75rem);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.004), transparent 26%),
-    linear-gradient(
-      160deg,
-      rgba(255, 255, 255, 0.002),
-      rgba(255, 255, 255, 0.0008)
-    ),
-    var(--bg-panel);
+  background: var(--panel-background);
   backdrop-filter: blur(12px);
   box-shadow: var(--shadow-panel);
   overflow: hidden;
@@ -935,36 +1178,21 @@ select {
   );
   padding: clamp(1rem, 1.8vw, 1.35rem);
   border-radius: var(--radius-lg);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.0025), transparent 22%),
-    linear-gradient(155deg, rgba(0, 0, 0, 0.065), rgba(0, 0, 0, 0.016)),
-    rgba(2, 2, 2, 0.008);
+  background: var(--project-panel-background);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  box-shadow: 0 24px 72px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--project-panel-shadow);
 }
 
 .panel.project-card::before {
-  background: linear-gradient(
-    120deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.005) 30%,
-    rgba(255, 255, 255, 0.026) 48%,
-    rgba(255, 255, 255, 0.006) 66%,
-    transparent 100%
-  );
+  background: var(--project-panel-sheen);
 }
 
 .panel::before {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    120deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.03) 48%,
-    transparent 100%
-  );
+  background: var(--panel-sheen);
   pointer-events: none;
 }
 
@@ -1022,7 +1250,7 @@ select {
 
 .project-proof dt {
   margin: 0;
-  color: rgba(245, 247, 251, 0.5);
+  color: var(--proof-label);
   font-family: var(--font-mono), monospace;
   font-size: 0.61rem;
   font-weight: 650;
@@ -1033,7 +1261,7 @@ select {
 
 .project-proof dd {
   margin: 0;
-  color: rgba(245, 247, 251, 0.82);
+  color: var(--proof-body);
   font-size: clamp(0.82rem, 0.95vw, 0.94rem);
   line-height: 1.42;
 }
@@ -1060,7 +1288,7 @@ select {
 
 .project-technologies li:not(:last-child)::after {
   content: "·";
-  color: rgba(245, 247, 251, 0.3);
+  color: var(--proof-divider);
 }
 
 .cta-link {
@@ -1071,7 +1299,7 @@ select {
   padding: 0.8rem 1.2rem;
   border: 1px solid var(--line-strong);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--control-bg);
   color: var(--fg);
   font-family: var(--font-mono), monospace;
   font-size: 0.71rem;
@@ -1086,8 +1314,8 @@ select {
 .cta-link:hover,
 .cta-link:focus-visible {
   transform: translateY(-1px);
-  background: rgba(255, 255, 255, 0.11);
-  border-color: rgba(255, 255, 255, 0.36);
+  background: var(--control-bg-hover);
+  border-color: var(--control-border-hover);
   outline: none;
 }
 
@@ -1192,7 +1420,7 @@ select {
 }
 
 .project-card__actions .project-action:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.72);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 3px;
   transform: none;
 }

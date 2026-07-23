@@ -35,6 +35,7 @@ import {
   SkillsTechnologyTrack,
 } from "@/components/skills-technology-track";
 import { SkillsPrimaryList } from "@/components/skills-primary-list";
+import { ThemeToggle } from "@/components/theme-toggle";
 import {
   contentSectionsById,
   projectsBySlug,
@@ -651,6 +652,7 @@ export function PortfolioExperience() {
         </motion.div>
 
         <ClickBurstOverlay />
+        <ThemeToggle />
 
         <main className="page-stage" id="main-content">
           {PORTFOLIO_SECTIONS.map((section) => (
@@ -1529,8 +1531,8 @@ function ProjectCardSection({
   const mediaScale = useTransform(focus, [0, 1], [1.01, 1.05]);
   const borderAlpha = useTransform(focus, [0, 1], [0.06, 0.15]);
   const glowAlpha = useTransform(focus, [0, 1], [0.012, 0.04]);
-  const borderColor = useMotionTemplate`rgba(255, 255, 255, ${borderAlpha})`;
-  const cardShadow = useMotionTemplate`0 30px 90px rgba(0, 0, 0, 0.52), 0 0 48px rgba(255, 255, 255, ${glowAlpha})`;
+  const borderColor = useMotionTemplate`rgba(var(--project-card-border-rgb), ${borderAlpha})`;
+  const cardShadow = useMotionTemplate`0 30px 90px rgba(var(--project-card-shadow-rgb), 0.52), 0 0 48px rgba(var(--project-card-glow-rgb), ${glowAlpha})`;
   const titleId = `${project.slug}-title`;
   useProjectCardExclusion(project.slug, cardRef, exclusionStrength);
 

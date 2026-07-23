@@ -8,6 +8,20 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 
 import "./globals.css";
 
+const themeBootstrapScript = `
+  (() => {
+    try {
+      const savedTheme = window.localStorage.getItem("portfolio-theme");
+      const theme = savedTheme === "light" ? "light" : "dark";
+      document.documentElement.dataset.theme = theme;
+      document.documentElement.style.colorScheme = theme;
+    } catch {
+      document.documentElement.dataset.theme = "dark";
+      document.documentElement.style.colorScheme = "dark";
+    }
+  })();
+`;
+
 export const metadata: Metadata = {
   title: "amaganti.com",
   description: "Anurag Maganti's personal website",
@@ -53,7 +67,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" data-theme="dark" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
+      </head>
       <body>
         {children}
         <Analytics />
