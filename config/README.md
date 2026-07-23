@@ -30,8 +30,8 @@ high-level particle tuning here.
   controls the available edge dispersion, while `haloRadius` controls its
   distance.
 - The head asset is raw little-endian `Float32` XYZ triplets. Its orientation is
-  applied before normalization; replacing it is documented in the main template
-  guide added later in this refactor.
+  applied before normalization. The root template guide documents replacement
+  and the included PLY conversion command.
 
 Low-level projection, smoothing, and allocation-sensitive render-loop constants
 remain internal by design.
