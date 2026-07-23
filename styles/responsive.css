@@ -1,0 +1,461 @@
+@media (max-width: 1280px) {
+  .section-sticky--project {
+    padding-inline: clamp(1.15rem, 3vw, 1.8rem);
+  }
+
+  .panel.project-card {
+    width: min(calc(100vw - (var(--project-frame-gap) * 2)), 40.5rem);
+    max-width: none;
+    height: auto;
+  }
+
+  .project-card {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    gap: 0.7rem;
+  }
+
+  .project-card__media {
+    width: fit-content;
+    max-width: 100%;
+    max-height: min(22svh, 14rem);
+    justify-self: center;
+  }
+
+  .project-card__media-inner {
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  .project-card__image {
+    width: auto;
+    max-width: min(100%, 40rem);
+    max-height: min(22svh, 14rem);
+  }
+
+  .project-card__copy {
+    grid-template-rows: auto auto;
+    justify-self: center;
+    width: min(100%, 35.5rem);
+    max-width: min(100%, 35.5rem);
+    padding: 0.1rem;
+  }
+
+  .project-card__scroll {
+    align-content: start;
+    gap: 0.65rem;
+    padding: 0.1rem 0.35rem 0.55rem;
+  }
+
+  .project-proof {
+    grid-template-columns: minmax(7rem, 0.3fr) minmax(0, 1fr);
+    padding-block: 0.55rem;
+  }
+
+  .project-proof dd {
+    font-size: 0.86rem;
+  }
+
+  .project-card h2 {
+    max-width: 10ch;
+    justify-self: center;
+    text-align: center;
+  }
+}
+
+@media (max-width: 900px) {
+  .site-chrome {
+    inset-inline-end: var(--frame-padding);
+    inset-inline-start: var(--frame-padding);
+  }
+
+  .outro-contact-overlay {
+    width: min(calc(100vw - (var(--frame-padding) * 2)), 48rem);
+    padding-inline: clamp(0.75rem, 2vw, 1.5rem);
+    display: flex;
+    gap: clamp(0.65rem, 2.2vw, 1.4rem);
+  }
+
+  .outro-contact-overlay-shell {
+    padding-bottom: clamp(9rem, calc(9rem + (900px - 100vw) * 0.05), 20rem);
+  }
+
+  .outro-contact-overlay__item {
+    width: auto;
+  }
+
+  .outro-contact-label {
+    max-width: 100%;
+    font-size: clamp(1.15rem, 2.6vw, 1.5rem);
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .content-stage-overlay--top-overlay .content-stage-overlay__shell {
+    width: min(100%, 34rem);
+  }
+
+  .content-stage-overlay--top-overlay .content-stage-overlay__copy {
+    width: min(100%, 32rem);
+  }
+
+  .scroll-section,
+  .scroll-section--intro,
+  .scroll-section--transform,
+  .scroll-section--content,
+  .scroll-section--project {
+    min-height: 126svh;
+  }
+
+  .scroll-section--transform {
+    min-height: 200svh;
+  }
+
+  .scroll-section--content {
+    min-height: 136svh;
+  }
+
+  .scroll-section--project {
+    min-height: 100svh;
+  }
+
+  .scroll-section--skills {
+    min-height: var(--skills-scroll-height, 380svh);
+  }
+
+  .scroll-section--outro {
+    min-height: 180svh;
+  }
+
+  .section-sticky {
+    top: clamp(4.2rem, 10vh, 5.8rem);
+    min-height: calc(100svh - 4.5rem);
+    align-items: flex-end;
+  }
+
+  .section-sticky--intro {
+    align-items: center;
+  }
+
+  .section-sticky--content {
+    padding-top: clamp(0.85rem, 2vh, 1.2rem);
+    padding-bottom: clamp(1.35rem, 3vh, 2rem);
+  }
+
+  .section-sticky--project {
+    top: 0;
+    min-height: 100svh;
+    align-items: center;
+    padding-inline: clamp(0.9rem, 2.8vw, 1.35rem);
+  }
+
+  .panel {
+    width: 100%;
+  }
+
+  .panel.project-card {
+    width: min(100%, 40rem);
+    max-width: none;
+  }
+
+  .project-card {
+    gap: 0.72rem;
+    padding-block: clamp(1.15rem, 2.2vh, 1.6rem);
+  }
+
+  .project-card__image {
+    max-width: min(100%, 34rem);
+    max-height: min(24svh, 13rem);
+  }
+
+  .project-card__copy {
+    width: min(100%, 31rem);
+    max-width: min(100%, 31rem);
+  }
+
+  .project-card__summary {
+    max-width: none;
+  }
+
+  .intro-stage {
+    align-items: flex-end;
+    padding-bottom: clamp(5.5rem, 16vh, 8rem);
+  }
+
+  .intro-copy {
+    width: min(100%, 24rem);
+    max-width: calc(100% - 44vw);
+    padding-left: 0;
+    transform: translate(
+      clamp(0.8rem, 1.6vw, 1.25rem),
+      clamp(-5.2rem, -10vh, -3rem)
+    );
+  }
+
+  .intro-title {
+    font-size: clamp(3.5rem, 11vw, 5.6rem);
+  }
+
+  .intro-subtitle {
+    max-width: 15ch;
+    font-size: clamp(1.35rem, 5vw, 2rem);
+  }
+
+  .panel h2 {
+    font-size: clamp(2.1rem, 10vw, 3.3rem);
+  }
+
+  .panel p {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 900px) and (min-width: 641px) {
+  .intro-stage {
+    align-items: center;
+    padding-bottom: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --frame-padding: 0.9rem;
+    --radius-lg: 1.35rem;
+    --radius-md: 1rem;
+  }
+
+  .scroll-meter-shell {
+    bottom: 0.8rem;
+  }
+
+  .scroll-section--project {
+    min-height: 100svh;
+  }
+
+  .scroll-section--content {
+    min-height: 126svh;
+  }
+
+  .section-sticky--project {
+    padding-inline: var(--project-frame-gap);
+  }
+
+  .section-sticky--content {
+    padding-top: 0.8rem;
+    padding-bottom: 1.2rem;
+  }
+
+  .content-stage-overlay--top-overlay .content-stage-overlay__shell {
+    width: min(100%, 22rem);
+  }
+
+  .content-stage-overlay--top-overlay .content-stage-overlay__copy {
+    width: min(100%, 22rem);
+  }
+
+  .outro-contact-overlay {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: min(calc(100vw - (var(--frame-padding) * 2)), 22rem);
+    padding-inline: clamp(0.4rem, 1.6vw, 0.9rem);
+    column-gap: clamp(0.8rem, 4vw, 1.25rem);
+    row-gap: clamp(1.1rem, 3vh, 1.8rem);
+  }
+
+  .outro-contact-overlay-shell {
+    padding-bottom: clamp(9rem, calc(9rem + (900px - 100vw) * 0.05), 20rem);
+  }
+
+  .outro-contact-overlay__item {
+    width: 100%;
+  }
+
+  .outro-contact-label {
+    max-width: 100%;
+    font-size: clamp(1.12rem, 4.1vw, 1.34rem);
+    line-height: 1.02;
+    white-space: normal;
+  }
+
+  .panel {
+    padding: 1.15rem;
+  }
+
+  .panel.project-card {
+    width: min(100%, calc(100vw - (var(--project-frame-gap) * 2)));
+    max-width: none;
+  }
+
+  .project-card {
+    gap: 0.68rem;
+    padding: 0.85rem 0.8rem;
+  }
+
+  .project-card__image {
+    max-width: min(100%, 24rem);
+    max-height: min(20svh, 10rem);
+  }
+
+  .intro-stage {
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: clamp(0.1rem, 0.8vh, 0.35rem);
+    padding-bottom: clamp(10rem, 26vh, 13.5rem);
+  }
+
+  .intro-copy {
+    width: min(100%, 21.5rem);
+    max-width: min(100%, 21.5rem);
+    padding-left: 0;
+    transform: translate(0, -0.4rem);
+    text-align: center;
+  }
+
+  .intro-copy-block {
+    justify-self: center;
+  }
+
+  .intro-title,
+  .intro-subtitle {
+    text-align: center;
+  }
+
+  .intro-title {
+    justify-items: center;
+  }
+
+  .intro-note {
+    margin-inline: auto;
+  }
+
+  .intro-note__text {
+    font-size: 0.78rem;
+    line-height: 1.15;
+  }
+
+  .intro-title {
+    font-size: clamp(2.8rem, 12vw, 4.2rem);
+  }
+
+  .intro-subtitle {
+    font-size: clamp(1.1rem, 5vw, 1.45rem);
+  }
+
+  .project-card__summary {
+    font-size: 0.98rem;
+    line-height: 1.38;
+  }
+
+  .project-card__copy {
+    justify-self: center;
+    width: auto;
+    max-width: min(100%, 24rem);
+  }
+
+  .project-card__scroll {
+    gap: 0.6rem;
+    padding-inline: 0.2rem;
+  }
+
+  .project-card__actions {
+    gap: 0.5rem;
+    padding-top: 0.55rem;
+  }
+
+  .project-proof {
+    grid-template-columns: minmax(5.6rem, 0.34fr) minmax(0, 1fr);
+    gap: 0.5rem;
+    padding-block: 0.48rem;
+  }
+
+  .project-proof dt,
+  .project-technologies {
+    font-size: 0.54rem;
+  }
+
+  .project-proof dd {
+    font-size: 0.78rem;
+    line-height: 1.3;
+  }
+
+  .project-technologies {
+    gap: 0.18rem 0.38rem;
+  }
+
+  .cta-link {
+    width: 100%;
+    justify-content: center;
+  }
+
+}
+
+@media (max-width: 360px) {
+  .panel.project-card {
+    padding: 0.75rem;
+  }
+
+  .project-card {
+    grid-template-rows: auto auto;
+    gap: 0.5rem;
+  }
+
+  .project-card__image {
+    max-height: min(18svh, 7.5rem);
+  }
+
+  .project-card__copy {
+    gap: 0.55rem;
+  }
+
+  .project-card__scroll {
+    gap: 0.45rem;
+    padding: 0 0.05rem 0.3rem;
+  }
+
+  .project-headline {
+    gap: 0.45rem;
+  }
+
+  .panel.project-card h2 {
+    font-size: 1.6rem;
+  }
+
+  .project-card__summary {
+    font-size: 0.86rem;
+    line-height: 1.3;
+  }
+
+  .project-proof {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.18rem;
+    padding-block: 0.35rem;
+  }
+
+  .project-proof dt,
+  .project-technologies {
+    font-size: 0.5rem;
+  }
+
+  .project-proof dd {
+    font-size: 0.74rem;
+    line-height: 1.25;
+  }
+
+  .project-card__actions {
+    gap: 0.27rem;
+  }
+
+  .project-card__actions .project-action {
+    height: 2.5rem;
+    min-height: 2.5rem;
+    gap: 0.44rem;
+    padding: 0 1.17rem 0 0.33rem;
+    font-size: 0.675rem;
+    line-height: 0.88rem;
+  }
+
+  .project-action__orb {
+    --project-action-orb-size: 2.025rem;
+  }
+
+}

@@ -1,0 +1,42 @@
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+    scroll-snap-type: none;
+  }
+
+  .cta-link,
+  .content-stage-overlay__link,
+  .skip-link,
+  .outro-contact-label {
+    transition: none;
+  }
+
+  .project-action__label::before {
+    animation: none;
+  }
+
+  .scene-frame,
+  .site-chrome,
+  .intro-copy-shell {
+    opacity: 1 !important;
+  }
+
+  .intro-copy-shell,
+  .intro-copy-shell * {
+    transform: none !important;
+  }
+
+  .skills-technology-track__position {
+    will-change: auto;
+  }
+
+  .content-stage-overlay__copy p,
+  .outro-contact-overlay {
+    filter: none !important;
+    transform: none !important;
+  }
+
+  .outro-contact-overlay__item {
+    animation: none;
+  }
+}
