@@ -106,26 +106,6 @@ const OUTRO_CONTACT_ITEMS: readonly OutroContactItem[] = [
     external: true,
   },
 ];
-const CLICK_BURST_MAX_ACTIVE = 6;
-const CLICK_BURST_PARTICLE_COUNT = 24;
-const CLICK_BURST_MAX_LIFETIME_MS = 880;
-
-type ClickBurstParticle = {
-  dx: number;
-  dy: number;
-  size: number;
-  opacity: number;
-  delay: number;
-  duration: number;
-};
-
-type ClickBurst = {
-  id: number;
-  x: number;
-  y: number;
-  particles: ClickBurstParticle[];
-};
-
 type IntroCopyContentProps = {
   titleClassName: string;
   subtitleClassName: string;
@@ -262,25 +242,6 @@ function renderContentSegments(
       </motion.a>
     );
   });
-}
-
-function createClickBurst(id: number, x: number, y: number): ClickBurst {
-  const particles = Array.from({ length: CLICK_BURST_PARTICLE_COUNT }, (_, index) => {
-    const angle =
-      (Math.PI * 2 * index) / CLICK_BURST_PARTICLE_COUNT + (Math.random() - 0.5) * 0.22;
-    const distance = 18 + Math.pow(Math.random(), 0.78) * 42;
-
-    return {
-      dx: Math.cos(angle) * distance,
-      dy: Math.sin(angle) * distance,
-      size: 1.15 + Math.random() * 1.45,
-      opacity: 0.7 + Math.random() * 0.22,
-      delay: Math.random() * 36,
-      duration: 420 + Math.random() * 140,
-    };
-  });
-
-  return { id, x, y, particles };
 }
 
 function getShellScrollProgress(rect: DOMRect, viewportHeight: number) {
@@ -651,7 +612,6 @@ export function PortfolioExperience() {
           </div>
         </motion.div>
 
-        <ClickBurstOverlay />
         <ThemeToggle />
 
         <main className="page-stage" id="main-content">
@@ -666,85 +626,6 @@ export function PortfolioExperience() {
         </main>
       </div>
     </MotionConfig>
-  );
-}
-
-function ClickBurstOverlay() {
-  const [bursts, setBursts] = useState<ClickBurst[]>([]);
-  const nextBurstId = useRef(0);
-  const timeoutIds = useRef<number[]>([]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    if (
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
-      !window.matchMedia("(pointer: fine)").matches
-    ) {
-      return;
-    }
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (!event.isPrimary) {
-        return;
-      }
-
-      if (event.pointerType === "mouse" && event.button !== 0) {
-        return;
-      }
-
-      const burst = createClickBurst(nextBurstId.current++, event.clientX, event.clientY);
-
-      setBursts((current) => [...current.slice(-(CLICK_BURST_MAX_ACTIVE - 1)), burst]);
-
-      const timeoutId = window.setTimeout(() => {
-        setBursts((current) => current.filter((item) => item.id !== burst.id));
-        timeoutIds.current = timeoutIds.current.filter((value) => value !== timeoutId);
-      }, CLICK_BURST_MAX_LIFETIME_MS);
-
-      timeoutIds.current.push(timeoutId);
-    };
-
-    window.addEventListener("pointerdown", handlePointerDown, { passive: true });
-
-    return () => {
-      window.removeEventListener("pointerdown", handlePointerDown);
-      timeoutIds.current.forEach((timeoutId) => {
-        window.clearTimeout(timeoutId);
-      });
-      timeoutIds.current = [];
-    };
-  }, []);
-
-  return (
-    <div className="click-burst-overlay" aria-hidden>
-      {bursts.map((burst) => (
-        <div
-          key={burst.id}
-          className="click-burst"
-          style={{ left: burst.x, top: burst.y }}
-        >
-          {burst.particles.map((particle, index) => (
-            <span
-              key={`${burst.id}-${index}`}
-              className="click-burst__particle"
-              style={
-                {
-                  "--click-burst-x": `${particle.dx}px`,
-                  "--click-burst-y": `${particle.dy}px`,
-                  "--click-burst-size": `${particle.size}px`,
-                  "--click-burst-opacity": particle.opacity,
-                  "--click-burst-delay": `${particle.delay}ms`,
-                  "--click-burst-duration": `${particle.duration}ms`,
-                } as CSSProperties
-              }
-            />
-          ))}
-        </div>
-      ))}
-    </div>
   );
 }
 

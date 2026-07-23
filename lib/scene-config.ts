@@ -304,7 +304,7 @@ const SKILLS_AMBIENT_PRESET = extendScenePreset(
       pointSize: 0.013,
       noise: 0.028,
       intensity: 0.12,
-      opacity: 0.16,
+      opacity: 0.24,
     },
   },
 );

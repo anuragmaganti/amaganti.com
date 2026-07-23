@@ -37,9 +37,6 @@
   --link-decoration: rgba(245, 247, 251, 0.3);
   --link-hover: rgba(255, 255, 255, 1);
   --link-decoration-hover: rgba(255, 255, 255, 0.72);
-  --click-particle-rgb: 255, 255, 255;
-  --click-particle-glow: rgba(255, 255, 255, 0.18);
-  --click-particle-blend-mode: screen;
   --meter-track: rgba(255, 255, 255, 0.08);
   --meter-start: rgba(255, 255, 255, 0.1);
   --meter-end: rgba(255, 255, 255, 0.94);
@@ -138,9 +135,6 @@
   --link-decoration: rgba(17, 19, 24, 0.32);
   --link-hover: rgba(0, 0, 0, 1);
   --link-decoration-hover: rgba(0, 0, 0, 0.7);
-  --click-particle-rgb: 17, 19, 24;
-  --click-particle-glow: rgba(17, 19, 24, 0.2);
-  --click-particle-blend-mode: multiply;
   --meter-track: rgba(17, 19, 24, 0.1);
   --meter-start: rgba(17, 19, 24, 0.12);
   --meter-end: rgba(17, 19, 24, 0.88);
@@ -473,59 +467,6 @@ select {
 
 .content-stage-overlay--top-overlay .content-stage-overlay__copy {
   width: min(100%, 40rem);
-}
-
-.click-burst-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 6;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.click-burst {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 0;
-  height: 0;
-}
-
-.click-burst__particle {
-  position: absolute;
-  left: 0;
-  top: 0;
-  border-radius: 999px;
-  transform: translate(-50%, -50%);
-  width: var(--click-burst-size);
-  height: var(--click-burst-size);
-  background: rgba(var(--click-particle-rgb), var(--click-burst-opacity));
-  box-shadow: 0 0 0.32rem var(--click-particle-glow);
-  mix-blend-mode: var(--click-particle-blend-mode);
-  opacity: 0;
-  animation: click-burst-particle var(--click-burst-duration) var(--ease-standard)
-    var(--click-burst-delay) forwards;
-}
-
-@keyframes click-burst-particle {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(0.18);
-  }
-
-  12% {
-    opacity: var(--click-burst-opacity);
-    transform: translate(-50%, -50%) scale(0.92);
-  }
-
-  100% {
-    opacity: 0;
-    transform: translate(
-        calc(-50% + var(--click-burst-x)),
-        calc(-50% + var(--click-burst-y))
-      )
-      scale(0.34);
-  }
 }
 
 .site-chrome {
@@ -1937,10 +1878,6 @@ select {
   .intro-copy-shell,
   .intro-copy-shell * {
     transform: none !important;
-  }
-
-  .click-burst-overlay {
-    display: none;
   }
 
   .skills-technology-track__position {
