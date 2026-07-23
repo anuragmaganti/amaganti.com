@@ -91,7 +91,10 @@ export async function expectActiveParticleObstacle(page: Page, id: string) {
       () =>
         page.evaluate((obstacleId) => {
           const diagnostics = window.__portfolioSceneDiagnostics;
-          const obstacleIndex = diagnostics?.obstacleIds.indexOf(obstacleId) ?? -1;
+          const obstacleIndex =
+            diagnostics?.obstacleIds.findIndex(
+              (id) => id === obstacleId || id.startsWith(`${obstacleId}:`),
+            ) ?? -1;
 
           if (!diagnostics || obstacleIndex < 0) {
             return 0;

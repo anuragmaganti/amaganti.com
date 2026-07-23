@@ -29,10 +29,10 @@
   width: 100vw;
   max-width: none;
   min-height: 100svh;
-  padding: var(--project-frame-gap) clamp(2.5rem, 6vw, 6rem)
-    calc(var(--project-frame-gap) + var(--project-meter-clearance));
+  padding: 0;
   justify-content: center;
   align-items: center;
+  overflow: hidden;
 }
 
 .section-sticky--intro {

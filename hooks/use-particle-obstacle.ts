@@ -22,10 +22,14 @@ type MeasurementFrame = {
 };
 
 const measurementListeners = new Set<(frame: MeasurementFrame) => void>();
+const pendingMeasurementListeners = new Set<
+  (frame: MeasurementFrame) => void
+>();
 let measurementFrameId = 0;
 let lastMeasurementTimestamp = 0;
 let lastScrollY = 0;
 let smoothedScrollVelocityY = 0;
+let measureAllOnNextFrame = false;
 
 export function useParticleObstacle(
   id: string,
@@ -118,13 +122,15 @@ export function useParticleObstacle(
     };
     const resizeObserver = new ResizeObserver(() => {
       cornerRadius = readCornerRadius(element);
-      scheduleMeasurements();
+      scheduleListenerMeasurement(syncObstacle);
     });
-    const unsubscribeMotion = motionDriver?.on("change", scheduleMeasurements);
+    const unsubscribeMotion = motionDriver?.on("change", () => {
+      scheduleListenerMeasurement(syncObstacle);
+    });
     const unsubscribeMeasurements = subscribeMeasurements(syncObstacle);
 
     resizeObserver.observe(element);
-    scheduleMeasurements();
+    scheduleListenerMeasurement(syncObstacle);
 
     return () => {
       resizeObserver.disconnect();
@@ -159,6 +165,7 @@ function subscribeMeasurements(listener: (frame: MeasurementFrame) => void) {
 
   return () => {
     measurementListeners.delete(listener);
+    pendingMeasurementListeners.delete(listener);
 
     if (!measurementListeners.size) {
       window.removeEventListener("scroll", scheduleMeasurements);
@@ -174,11 +181,27 @@ function subscribeMeasurements(listener: (frame: MeasurementFrame) => void) {
       );
       window.cancelAnimationFrame(measurementFrameId);
       measurementFrameId = 0;
+      measureAllOnNextFrame = false;
+      pendingMeasurementListeners.clear();
     }
   };
 }
 
 function scheduleMeasurements() {
+  measureAllOnNextFrame = true;
+  scheduleMeasurementFrame();
+}
+
+function scheduleListenerMeasurement(
+  listener: (frame: MeasurementFrame) => void,
+) {
+  if (!measureAllOnNextFrame) {
+    pendingMeasurementListeners.add(listener);
+  }
+  scheduleMeasurementFrame();
+}
+
+function scheduleMeasurementFrame() {
   if (measurementFrameId) {
     return;
   }
@@ -188,6 +211,12 @@ function scheduleMeasurements() {
 
 function flushMeasurements(timestamp: number) {
   measurementFrameId = 0;
+  const listeners = measureAllOnNextFrame
+    ? Array.from(measurementListeners)
+    : Array.from(pendingMeasurementListeners);
+
+  measureAllOnNextFrame = false;
+  pendingMeasurementListeners.clear();
   const deltaSeconds = lastMeasurementTimestamp
     ? clamp((timestamp - lastMeasurementTimestamp) / 1000, 0.001, 0.08)
     : 0;
@@ -215,7 +244,7 @@ function flushMeasurements(timestamp: number) {
     timestamp,
     scrollVelocityY: smoothedScrollVelocityY,
   };
-  measurementListeners.forEach((listener) => listener(frame));
+  listeners.forEach((listener) => listener(frame));
 }
 
 function getViewportApproachStrength(rect: ParticleObstacleRect) {

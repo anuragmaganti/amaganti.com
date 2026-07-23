@@ -109,14 +109,14 @@ test.describe("portfolio behavior contract", () => {
     }
   });
 
-  test("fits every project card without a nested scroll trap", async ({ page }) => {
+  test("fits every floating project card without a nested scroll trap", async ({ page }) => {
     await openPortfolio(page);
 
     for (const project of projects) {
       await scrollToSection(page, project.slug);
-      const card = page.locator(`#${project.slug} .project-card`);
-      const copy = card.locator(".project-card__scroll");
-      const cardBox = await card.boundingBox();
+      const cards = page.locator(`#${project.slug} .project-float-card`);
+      const copy = page.locator(`#${project.slug} .project-card__scroll`);
+      const cardCount = await cards.count();
       const overflow = await copy.evaluate((element) => {
         const style = getComputedStyle(element);
         return {
@@ -125,11 +125,27 @@ test.describe("portfolio behavior contract", () => {
         };
       });
 
-      expect(cardBox).not.toBeNull();
-      expect(cardBox!.x).toBeGreaterThanOrEqual(-1);
-      expect(cardBox!.x + cardBox!.width).toBeLessThanOrEqual(
-        (page.viewportSize()?.width ?? 0) + 1,
+      expect(cardCount).toBe(3);
+      const cardBoxes = await cards.evaluateAll((elements) =>
+        elements.map((element) => {
+          const rect = element.getBoundingClientRect();
+          return {
+            left: rect.left,
+            top: rect.top,
+            right: rect.right,
+            bottom: rect.bottom,
+          };
+        }),
       );
+
+      for (const box of cardBoxes) {
+        expect(box.left).toBeGreaterThanOrEqual(-2);
+        expect(box.top).toBeGreaterThanOrEqual(-2);
+        expect(box.right).toBeLessThanOrEqual((page.viewportSize()?.width ?? 0) + 2);
+        expect(box.bottom).toBeLessThanOrEqual(
+          (page.viewportSize()?.height ?? 0) + 2,
+        );
+      }
       expect(overflow.overflowX).not.toMatch(/auto|scroll/);
       expect(overflow.overflowY).not.toMatch(/auto|scroll/);
       await expectNoHorizontalOverflow(page);
@@ -141,7 +157,7 @@ test.describe("portfolio behavior contract", () => {
 
     for (const project of projects) {
       await scrollToSection(page, project.slug);
-      await expect(page.locator(`#${project.slug} .project-card`)).toBeInViewport();
+      await expect(page.locator(`#${project.slug} .project-float-stage`)).toBeInViewport();
       await expectActiveParticleObstacle(page, project.slug);
     }
 
@@ -149,9 +165,57 @@ test.describe("portfolio behavior contract", () => {
 
     for (const project of [...projects].reverse()) {
       await scrollToSection(page, project.slug);
-      await expect(page.locator(`#${project.slug} .project-card`)).toBeInViewport();
+      await expect(page.locator(`#${project.slug} .project-float-stage`)).toBeInViewport();
       await expectActiveParticleObstacle(page, project.slug);
     }
+  });
+
+  test("registers all three floating cards as particle obstacles", async ({ page }) => {
+    await openPortfolio(page);
+    const project = projects[0];
+    await scrollToSection(page, project.slug);
+
+    await expect
+      .poll(
+        () =>
+          page.evaluate((projectSlug) => {
+            const ids = window.__portfolioSceneDiagnostics?.obstacleIds ?? [];
+            return ids.filter((id) => id.startsWith(`${projectSlug}:`)).sort();
+          }, project.slug),
+        { timeout: 2_500 },
+      )
+      .toEqual([
+        `${project.slug}:actions`,
+        `${project.slug}:copy`,
+        `${project.slug}:media`,
+      ]);
+  });
+
+  test("supports keyboard repositioning without persisting the layout", async ({
+    page,
+  }) => {
+    await openPortfolio(page);
+    const project = projects[0];
+    await scrollToSection(page, project.slug);
+
+    const mediaCard = page.locator(
+      `#${project.slug} [data-floating-card-role="media"]`,
+    );
+    const handle = mediaCard.getByRole("button", {
+      name: `Move ${project.title} media card`,
+    });
+    const initialX = Number(await mediaCard.getAttribute("data-physics-x"));
+
+    await handle.focus();
+    await page.keyboard.press("ArrowRight");
+    await expect
+      .poll(async () => Number(await mediaCard.getAttribute("data-physics-x")))
+      .toBeGreaterThan(initialX + 4);
+
+    await page.reload();
+    await scrollToSection(page, project.slug);
+    const resetX = Number(await mediaCard.getAttribute("data-physics-x"));
+    expect(resetX).toBeCloseTo(initialX, 0);
   });
 
   test("loads and traverses without unexplained browser errors", async ({

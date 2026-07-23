@@ -21,7 +21,9 @@ import {
 } from "@/components/portfolio-section-frame";
 import type { ProjectEntry } from "@/config/portfolio";
 import type { SectionDefinition } from "@/config/sections";
+import { useFloatingProjectPhysics } from "@/hooks/use-floating-project-physics";
 import { useParticleObstacle } from "@/hooks/use-particle-obstacle";
+import type { FloatingProjectCardRole } from "@/lib/floating-project-layout";
 import type { SceneTimeline } from "@/lib/scene-types";
 const PROJECT_ACTION_ORB_SIZE = 64;
 
@@ -239,6 +241,26 @@ function ProjectActionLink({
   );
 }
 
+function ProjectCardDragHandle({
+  role,
+  projectTitle,
+}: {
+  role: FloatingProjectCardRole;
+  projectTitle: string;
+}) {
+  return (
+    <button
+      type="button"
+      className="project-float-card__handle"
+      data-floating-card-handle={role}
+      aria-label={`Move ${projectTitle} ${role} card`}
+      title="Drag to move. Use arrow keys for precise movement."
+    >
+      <span aria-hidden />
+    </button>
+  );
+}
+
 export function ProjectCardSection({
   project,
   section,
@@ -250,7 +272,10 @@ export function ProjectCardSection({
   progress: MotionValue<number>;
   timeline: SceneTimeline;
 }) {
-  const cardRef = useRef<HTMLElement>(null);
+  const arenaRef = useRef<HTMLDivElement>(null);
+  const mediaCardRef = useRef<HTMLDivElement>(null);
+  const copyCardRef = useRef<HTMLDivElement>(null);
+  const actionsCardRef = useRef<HTMLDivElement>(null);
   const [sectionStart, sectionEnd] = timeline.sectionRanges[section.id];
   const sectionProgress = useTransform(
     progress,
@@ -266,8 +291,6 @@ export function ProjectCardSection({
       mass: 0.2,
     },
   );
-  const scale = useTransform(focus, [0, 1], [0.986, 1]);
-  const y = useTransform(focus, [0, 1], [26, 0]);
   const copyOpacity = useTransform(focus, [0, 1], [0.84, 1]);
   const mediaScale = useTransform(focus, [0, 1], [1.01, 1.05]);
   const borderAlpha = useTransform(focus, [0, 1], [0.06, 0.15]);
@@ -279,7 +302,28 @@ export function ProjectCardSection({
     project.imageSrc.width,
     project.imageSrc.height,
   );
-  useParticleObstacle(project.slug, cardRef, focus);
+  const physicsMeasurementDriver = useFloatingProjectPhysics({
+    arenaRef,
+    mediaCardRef,
+    copyCardRef,
+    actionsCardRef,
+  });
+
+  useParticleObstacle(
+    `${project.slug}:media`,
+    mediaCardRef,
+    physicsMeasurementDriver,
+  );
+  useParticleObstacle(
+    `${project.slug}:copy`,
+    copyCardRef,
+    physicsMeasurementDriver,
+  );
+  useParticleObstacle(
+    `${project.slug}:actions`,
+    actionsCardRef,
+    physicsMeasurementDriver,
+  );
 
   return (
     <section
@@ -290,74 +334,97 @@ export function ProjectCardSection({
     >
       <SectionSnapAnchor section={section} />
       <div className="section-sticky section-sticky--project">
-        <motion.article
-          ref={cardRef}
-          className="panel project-card"
-          style={{ scale, y, borderColor, boxShadow: cardShadow }}
-        >
-          <div className="project-card__media" style={imageSizingStyle}>
-            <motion.div className="project-card__media-inner" style={{ scale: mediaScale }}>
-              <Image
-                src={project.imageSrc}
-                alt={project.imageAlt}
-                className="project-card__image"
-                loading="eager"
-                sizes="(max-width: 640px) calc(100vw - 3rem), (max-width: 1280px) min(82vw, 40rem), 34rem"
-              />
-            </motion.div>
-          </div>
-
-          <div className="project-card__copy">
+        <article className="project-float-stage" aria-labelledby={titleId}>
+          <div className="project-float-arena" ref={arenaRef}>
             <motion.div
-              className="project-card__scroll"
-              style={{ opacity: copyOpacity }}
+              ref={mediaCardRef}
+              className="panel project-float-card project-float-card--media"
+              data-floating-card-role="media"
+              style={{ borderColor, boxShadow: cardShadow }}
             >
-              <div className="project-headline">
-                <h2 id={titleId}>{project.title}</h2>
-                <p className="project-card__summary">{project.summary}</p>
+              <ProjectCardDragHandle role="media" projectTitle={project.title} />
+              <div className="project-card__media" style={imageSizingStyle}>
+                <motion.div
+                  className="project-card__media-inner"
+                  style={{ scale: mediaScale }}
+                >
+                  <Image
+                    src={project.imageSrc}
+                    alt={project.imageAlt}
+                    className="project-card__image"
+                    loading="eager"
+                    sizes="(max-width: 640px) min(78vw, 22rem), (max-width: 1024px) min(54vw, 28rem), min(38vw, 34rem)"
+                  />
+                </motion.div>
               </div>
-
-              <dl className="project-proofs">
-                {project.proofs.map((proof) => (
-                  <div key={proof.label} className="project-proof">
-                    <dt>{proof.label}</dt>
-                    <dd>{proof.body}</dd>
-                  </div>
-                ))}
-              </dl>
-
-              <ul
-                className="project-technologies"
-                aria-label={`${project.title} technologies`}
-              >
-                {project.technologies.map((technology) => (
-                  <li key={technology}>{technology}</li>
-                ))}
-              </ul>
             </motion.div>
 
-            <div className="project-card__actions">
-              {project.href && project.linkLabel ? (
-                <ProjectActionLink
-                  href={project.href}
-                  label={project.linkLabel}
-                  variant="primary"
-                  state="composing"
-                  theme="light"
-                />
-              ) : null}
-              {project.githubHref ? (
-                <ProjectActionLink
-                  href={project.githubHref}
-                  label="View Source"
-                  variant="secondary"
-                  state="working"
-                  theme="dark"
-                />
-              ) : null}
-            </div>
+            <motion.div
+              ref={copyCardRef}
+              className="panel project-float-card project-float-card--copy"
+              data-floating-card-role="copy"
+              style={{ opacity: copyOpacity, borderColor, boxShadow: cardShadow }}
+            >
+              <ProjectCardDragHandle role="copy" projectTitle={project.title} />
+              <div className="project-card__scroll">
+                <div className="project-headline">
+                  <h2 id={titleId}>{project.title}</h2>
+                  <p className="project-card__summary">{project.summary}</p>
+                </div>
+
+                <dl className="project-proofs">
+                  {project.proofs.map((proof) => (
+                    <div key={proof.label} className="project-proof">
+                      <dt>{proof.label}</dt>
+                      <dd>{proof.body}</dd>
+                    </div>
+                  ))}
+                </dl>
+
+                <ul
+                  className="project-technologies"
+                  aria-label={`${project.title} technologies`}
+                >
+                  {project.technologies.map((technology) => (
+                    <li key={technology}>{technology}</li>
+                  ))}
+                </ul>
+              </div>
+            </motion.div>
+
+            <motion.div
+              ref={actionsCardRef}
+              className="panel project-float-card project-float-card--actions"
+              data-floating-card-role="actions"
+              style={{ opacity: copyOpacity, borderColor, boxShadow: cardShadow }}
+            >
+              <ProjectCardDragHandle
+                role="actions"
+                projectTitle={project.title}
+              />
+              <div className="project-card__actions">
+                {project.href && project.linkLabel ? (
+                  <ProjectActionLink
+                    href={project.href}
+                    label={project.linkLabel}
+                    variant="primary"
+                    state="composing"
+                    theme="light"
+                  />
+                ) : null}
+                {project.githubHref ? (
+                  <ProjectActionLink
+                    href={project.githubHref}
+                    label="View Source"
+                    variant="secondary"
+                    state="working"
+                    theme="dark"
+                  />
+                ) : null}
+              </div>
+            </motion.div>
           </div>
-        </motion.article>
+        </article>
       </div>
     </section>
   );
