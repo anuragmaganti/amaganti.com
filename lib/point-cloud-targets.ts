@@ -15,13 +15,15 @@ import type {
 const TWO_PI = Math.PI * 2;
 
 type CreateMorphTargetsOptions = {
-  textTargets?: (PointCloudTextTarget & { id: PointCloudTextTargetId })[];
+  textTargets: readonly (PointCloudTextTarget & {
+    id: PointCloudTextTargetId;
+  })[];
   haloDensityMultiplier?: number;
 };
 
 export function createMorphTargets(
   basePositions: Float32Array,
-  options: CreateMorphTargetsOptions = {},
+  options: CreateMorphTargetsOptions,
 ): Record<PointCloudTargetId, Float32Array> {
   const pointCount = Math.floor(basePositions.length / 3);
   const projectPresetIds = Object.keys(
@@ -34,7 +36,6 @@ export function createMorphTargets(
     ]),
   ) as Record<ProjectFieldPresetId, Float32Array>;
   const settle = new Float32Array(basePositions.length);
-  const textTargets = options.textTargets ?? [];
   const haloDensityMultiplier = options.haloDensityMultiplier ?? 1;
   const columns = Math.max(18, Math.round(Math.sqrt(pointCount * 1.45)));
   const rows = Math.ceil(pointCount / columns);
@@ -77,7 +78,7 @@ export function createMorphTargets(
     settle,
   };
 
-  for (const textTarget of textTargets) {
+  for (const textTarget of options.textTargets) {
     targets[textTarget.id] = createTextMorphTarget(
       pointCount,
       textTarget,

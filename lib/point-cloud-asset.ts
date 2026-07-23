@@ -1,6 +1,15 @@
 import { particleVisualConfig } from "@/config/visual";
 
 const IMPORT_SCAN_ORIENTATION = particleVisualConfig.headAsset.orientation;
+const BYTES_PER_POINT = Float32Array.BYTES_PER_ELEMENT * 3;
+
+export function parsePointCloudBuffer(buffer: ArrayBuffer) {
+  if (!buffer.byteLength || buffer.byteLength % BYTES_PER_POINT !== 0) {
+    throw new Error("Point cloud asset must contain Float32 XYZ triplets");
+  }
+
+  return new Float32Array(buffer);
+}
 
 export function samplePositions(
   source: Float32Array,

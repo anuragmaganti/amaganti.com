@@ -7,6 +7,7 @@ import {
   generateFallbackFacePoints,
   normalizePositions,
   orientImportedPositions,
+  parsePointCloudBuffer,
   samplePositions,
 } from "@/lib/point-cloud-asset";
 
@@ -39,11 +40,7 @@ export function usePointCloudSource(maxPoints: number) {
         return response.arrayBuffer();
       })
       .then((buffer) => {
-        if (buffer.byteLength % Float32Array.BYTES_PER_ELEMENT !== 0) {
-          throw new Error("Point cloud asset has an invalid byte length");
-        }
-
-        commitPositions(new Float32Array(buffer));
+        commitPositions(parsePointCloudBuffer(buffer));
       })
       .catch((error: unknown) => {
         if (!(error instanceof DOMException && error.name === "AbortError")) {

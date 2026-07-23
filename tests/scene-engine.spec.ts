@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { portfolioSections } from "../config/sections";
+import { parsePointCloudBuffer } from "../lib/point-cloud-asset";
 import {
   createSampledScene,
   createSceneTimeline,
@@ -10,6 +11,22 @@ import {
 } from "../lib/scene-timeline";
 
 test.describe("scene engine contract", () => {
+  test("accepts only complete point-cloud XYZ triplets", () => {
+    const validBuffer = new ArrayBuffer(Float32Array.BYTES_PER_ELEMENT * 6);
+    const source = new Float32Array(validBuffer);
+    source.set([1, 2, 3, 4, 5, 6]);
+
+    expect(Array.from(parsePointCloudBuffer(validBuffer))).toEqual([
+      1, 2, 3, 4, 5, 6,
+    ]);
+    expect(() => parsePointCloudBuffer(new ArrayBuffer(0))).toThrow(
+      "Float32 XYZ triplets",
+    );
+    expect(() =>
+      parsePointCloudBuffer(new ArrayBuffer(Float32Array.BYTES_PER_ELEMENT)),
+    ).toThrow("Float32 XYZ triplets");
+  });
+
   test("derives a continuous timeline from the section registry", () => {
     const timeline = createSceneTimeline();
 
