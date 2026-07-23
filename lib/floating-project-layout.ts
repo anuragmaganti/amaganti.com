@@ -30,51 +30,81 @@ export type FloatingProjectCardPlacements = Record<
   FloatingProjectCardPlacement
 >;
 
-const CARD_GAP = 18;
+const MIN_DESKTOP_SIDE_GAP = 18;
 
 type FloatingProjectLayoutVariant = {
+  columnGap: number;
+  mediaActionGap: number;
   horizontalBalance: number;
   copyCenterY: number;
   mediaCenterY: number;
-  stackShift: number;
-  angleOffsets: Record<FloatingProjectCardRole, number>;
+  actionsXShift: number;
+  stackGap: number;
+  stackVerticalBias: number;
+  stackXOffsets: Record<FloatingProjectCardRole, number>;
+  angles: Record<FloatingProjectCardRole, number>;
 };
 
 const FLOATING_PROJECT_LAYOUT_VARIANTS = [
   {
-    horizontalBalance: 0.44,
-    copyCenterY: 0.45,
-    mediaCenterY: 0.42,
-    stackShift: -0.018,
-    angleOffsets: { media: 0, copy: 0, actions: 0 },
-  },
-  {
-    horizontalBalance: 0.5,
-    copyCenterY: 0.49,
-    mediaCenterY: 0.4,
-    stackShift: 0.014,
-    angleOffsets: { media: 0.004, copy: -0.003, actions: 0.002 },
-  },
-  {
-    horizontalBalance: 0.56,
-    copyCenterY: 0.44,
-    mediaCenterY: 0.45,
-    stackShift: -0.008,
-    angleOffsets: { media: -0.003, copy: 0.004, actions: -0.002 },
-  },
-  {
-    horizontalBalance: 0.47,
-    copyCenterY: 0.51,
-    mediaCenterY: 0.41,
-    stackShift: 0.022,
-    angleOffsets: { media: 0.005, copy: 0.002, actions: -0.003 },
-  },
-  {
-    horizontalBalance: 0.53,
-    copyCenterY: 0.47,
+    columnGap: 58,
+    mediaActionGap: 36,
+    horizontalBalance: 0.35,
+    copyCenterY: 0.42,
     mediaCenterY: 0.44,
-    stackShift: -0.024,
-    angleOffsets: { media: -0.004, copy: -0.002, actions: 0.003 },
+    actionsXShift: -0.018,
+    stackGap: 14,
+    stackVerticalBias: -0.045,
+    stackXOffsets: { media: -0.04, copy: 0.03, actions: -0.01 },
+    angles: { media: -0.038, copy: 0.026, actions: -0.018 },
+  },
+  {
+    columnGap: 74,
+    mediaActionGap: 44,
+    horizontalBalance: 0.62,
+    copyCenterY: 0.52,
+    mediaCenterY: 0.49,
+    actionsXShift: 0.028,
+    stackGap: 20,
+    stackVerticalBias: 0.035,
+    stackXOffsets: { media: 0.03, copy: -0.04, actions: 0.05 },
+    angles: { media: 0.018, copy: -0.028, actions: 0.024 },
+  },
+  {
+    columnGap: 66,
+    mediaActionGap: 30,
+    horizontalBalance: 0.48,
+    copyCenterY: 0.46,
+    mediaCenterY: 0.47,
+    actionsXShift: -0.032,
+    stackGap: 11,
+    stackVerticalBias: -0.015,
+    stackXOffsets: { media: -0.01, copy: 0.05, actions: -0.04 },
+    angles: { media: -0.012, copy: 0.036, actions: 0.008 },
+  },
+  {
+    columnGap: 82,
+    mediaActionGap: 50,
+    horizontalBalance: 0.4,
+    copyCenterY: 0.54,
+    mediaCenterY: 0.5,
+    actionsXShift: 0.016,
+    stackGap: 22,
+    stackVerticalBias: 0.05,
+    stackXOffsets: { media: 0.05, copy: -0.02, actions: 0.01 },
+    angles: { media: 0.032, copy: -0.014, actions: -0.026 },
+  },
+  {
+    columnGap: 70,
+    mediaActionGap: 40,
+    horizontalBalance: 0.57,
+    copyCenterY: 0.39,
+    mediaCenterY: 0.41,
+    actionsXShift: 0.04,
+    stackGap: 16,
+    stackVerticalBias: -0.055,
+    stackXOffsets: { media: -0.05, copy: -0.01, actions: 0.04 },
+    angles: { media: -0.044, copy: -0.03, actions: 0.03 },
   },
 ] as const satisfies readonly FloatingProjectLayoutVariant[];
 
@@ -87,16 +117,11 @@ export function createFloatingProjectCardPlacements(
   layoutKey = "default",
 ): FloatingProjectCardPlacements {
   const variant = resolveLayoutVariant(layoutKey);
-  const baseAngles =
-    arena.width < 700
-      ? { media: -0.006, copy: 0.004, actions: -0.003 }
-      : { media: -0.026, copy: 0.018, actions: -0.012 };
-  const angleVariationScale = arena.width < 700 ? 0.35 : 1;
+  const angleScale = arena.width < 700 ? 0.35 : 1;
   const defaultAngles = Object.fromEntries(
     floatingProjectCardRoles.map((role) => [
       role,
-      baseAngles[role] +
-        variant.angleOffsets[role] * angleVariationScale,
+      variant.angles[role] * angleScale,
     ]),
   ) as Record<FloatingProjectCardRole, number>;
 
@@ -130,23 +155,31 @@ export function createFloatingProjectCardPlacements(
 
   const desktopLayout =
     arena.width >= 1040 &&
-    cardSizes.media.width + cardSizes.copy.width + CARD_GAP * 3 <= arena.width;
+    cardSizes.media.width +
+      cardSizes.copy.width +
+      variant.columnGap +
+      MIN_DESKTOP_SIDE_GAP * 2 <=
+      arena.width;
 
   if (desktopLayout) {
     const horizontalSlack =
       arena.width -
       cardSizes.copy.width -
       cardSizes.media.width -
-      CARD_GAP;
+      variant.columnGap;
     const leftInset = horizontalSlack * variant.horizontalBalance;
     const copyCenterX = leftInset + cardSizes.copy.width * 0.5;
     const mediaCenterX =
       leftInset +
       cardSizes.copy.width +
-      CARD_GAP +
+      variant.columnGap +
       cardSizes.media.width * 0.5;
+    const actionsCenterX =
+      mediaCenterX + arena.width * variant.actionsXShift;
     const mediaStackHeight =
-      cardSizes.media.height + CARD_GAP + cardSizes.actions.height;
+      cardSizes.media.height +
+      variant.mediaActionGap +
+      cardSizes.actions.height;
     const requestedMediaTop =
       arena.height * variant.mediaCenterY - cardSizes.media.height * 0.5;
     const mediaStackTop = clamp(
@@ -173,10 +206,10 @@ export function createFloatingProjectCardPlacements(
       actions: createBoundedPlacement(
         arena,
         cardSizes.actions,
-        mediaCenterX / arena.width,
+        actionsCenterX / arena.width,
         (mediaStackTop +
           cardSizes.media.height +
-          CARD_GAP +
+          variant.mediaActionGap +
           cardSizes.actions.height * 0.5) /
           arena.height,
         defaultAngles.actions,
@@ -189,9 +222,14 @@ export function createFloatingProjectCardPlacements(
     0,
   );
   const availableGap = Math.max((arena.height - cardHeight) / 2, 0);
-  const gap = Math.min(CARD_GAP, availableGap);
+  const gap = Math.min(variant.stackGap, availableGap);
   const totalHeight = cardHeight + gap * 2;
-  let cursorY = Math.max((arena.height - totalHeight) * 0.5, 0);
+  const availableVerticalSpace = Math.max(arena.height - totalHeight, 0);
+  let cursorY = clamp(
+    availableVerticalSpace * 0.5 + variant.stackVerticalBias * arena.height,
+    0,
+    availableVerticalSpace,
+  );
   const placementFor = (
     role: FloatingProjectCardRole,
     xRatio: number,
@@ -209,21 +247,23 @@ export function createFloatingProjectCardPlacements(
     return placement;
   };
 
-  const responsiveStackShift =
-    variant.stackShift * (arena.width < 540 ? 0.7 : 1);
+  const stackOffsetScale = arena.width < 540 ? 0.7 : 1;
 
   return {
     media: placementFor(
       "media",
-      (arena.width < 540 ? 0.47 : 0.42) + responsiveStackShift,
+      (arena.width < 540 ? 0.47 : 0.42) +
+        variant.stackXOffsets.media * stackOffsetScale,
     ),
     copy: placementFor(
       "copy",
-      (arena.width < 540 ? 0.52 : 0.56) - responsiveStackShift * 0.5,
+      (arena.width < 540 ? 0.52 : 0.56) +
+        variant.stackXOffsets.copy * stackOffsetScale,
     ),
     actions: placementFor(
       "actions",
-      (arena.width < 540 ? 0.48 : 0.45) + responsiveStackShift * 0.65,
+      (arena.width < 540 ? 0.48 : 0.45) +
+        variant.stackXOffsets.actions * stackOffsetScale,
     ),
   };
 }

@@ -28,9 +28,42 @@ test.describe("floating project layout", () => {
     expectSeparated(desktopCards, placements);
     expect(placements.copy.x).toBeLessThan(placements.media.x);
     expect(placements.actions.x).toBeGreaterThan(placements.copy.x);
-    expect(placements.actions.y - desktopCards.actions.height * 0.5).toBe(
-      placements.media.y + desktopCards.media.height * 0.5 + 18,
+    expect(
+      placements.media.x -
+        desktopCards.media.width * 0.5 -
+        (placements.copy.x + desktopCards.copy.width * 0.5),
+    ).toBeGreaterThanOrEqual(50);
+    expect(
+      placements.actions.y -
+        desktopCards.actions.height * 0.5 -
+        (placements.media.y + desktopCards.media.height * 0.5),
+    ).toBeGreaterThanOrEqual(30);
+  });
+
+  test("varies position and angle substantially across project defaults", () => {
+    const placements = Array.from({ length: 5 }, (_, index) =>
+      createFloatingProjectCardPlacements(
+        desktopArena,
+        desktopCards,
+        null,
+        `project-0${index + 1}`,
+      ),
     );
+    const copyXs = placements.map(({ copy }) => copy.x);
+    const actionsXs = placements.map(({ actions }) => actions.x);
+    const mediaAngles = placements.map(({ media }) => media.angle);
+
+    expect(Math.max(...copyXs) - Math.min(...copyXs)).toBeGreaterThan(75);
+    expect(Math.max(...actionsXs) - Math.min(...actionsXs)).toBeGreaterThan(
+      140,
+    );
+    expect(Math.max(...mediaAngles) - Math.min(...mediaAngles)).toBeGreaterThan(
+      0.07,
+    );
+
+    for (const { copy, media } of placements) {
+      expect(Math.abs(copy.y - media.y)).toBeLessThanOrEqual(35);
+    }
   });
 
   test("gives each project a distinct collision-safe default", () => {
