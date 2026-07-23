@@ -1,35 +1,10 @@
+import { projects } from "@/config/portfolio";
 import {
-  projects,
-  type ContentSectionId,
-  type ProjectEntry,
-  type ProjectSlug,
-} from "@/config/portfolio";
+  portfolioSections,
+  type SectionId,
+} from "@/config/sections";
 import type { PointCloudTextTargetId } from "@/config/visual";
 import type { ProjectFieldPresetId } from "@/lib/project-field-presets";
-
-export type SectionId =
-  | "intro"
-  | "about-stage"
-  | "projects-stage"
-  | "skills-stage"
-  | ProjectSlug
-  | "outro";
-
-type SectionKind =
-  | "intro"
-  | "particle-text"
-  | "content-stage"
-  | "card"
-  | "skills"
-  | "outro";
-
-export type SectionDomVariant =
-  | "intro"
-  | "transform"
-  | "content"
-  | "project"
-  | "skills"
-  | "outro";
 
 export type PointCloudShape = "face" | "text" | "project-field" | "settle";
 export type SceneViewportFrame = "preserve" | "authored";
@@ -88,25 +63,7 @@ type StaticScenePresetId =
   | "skills-ambient"
   | "outro-face";
 type ProjectScenePresetId = `project-${ProjectFieldPresetId}`;
-type ScenePresetId = StaticScenePresetId | ProjectScenePresetId;
-
-type SceneBeatDefinition = {
-  key: string;
-  presetId: ScenePresetId;
-  durationWeight: number;
-  transitionEasing: SceneTransitionEasing;
-};
-
-export type SectionDefinition = {
-  id: SectionId;
-  kind: SectionKind;
-  domVariant: SectionDomVariant;
-  ariaLabel?: string;
-  projectSlug?: ProjectSlug;
-  contentId?: ContentSectionId;
-  snapLocalProgress?: number;
-  sceneBeats: SceneBeatDefinition[];
-};
+export type ScenePresetId = StaticScenePresetId | ProjectScenePresetId;
 
 export type ScenePhase = {
   key: string;
@@ -117,7 +74,7 @@ export type ScenePhase = {
 };
 
 export type SceneTimeline = {
-  sectionRanges: Record<SectionId, [number, number]>;
+  sectionRanges: Record<string, [number, number]>;
   phases: ScenePhase[];
 };
 
@@ -150,15 +107,6 @@ function extendScenePreset(
     camera: { ...base.camera, ...overrides.camera },
     cloud: { ...base.cloud, ...overrides.cloud },
   };
-}
-
-function createSceneBeat(
-  key: string,
-  presetId: ScenePresetId,
-  durationWeight: number,
-  transitionEasing: SceneTransitionEasing = "smooth",
-): SceneBeatDefinition {
-  return { key, presetId, durationWeight, transitionEasing };
 }
 
 const INTRO_FACE_PRESET = createScenePreset(
@@ -345,104 +293,17 @@ const SCENE_PRESETS: Record<ScenePresetId, ScenePreset> = {
   ...projectPresets,
 };
 
-function getProjectScenePresetId(project: ProjectEntry): ProjectScenePresetId {
-  return `project-${project.particlePreset}`;
-}
-
-function createCardSection(
-  project: ProjectEntry,
-  projectIndex: number,
-): SectionDefinition {
-  const currentPresetId = getProjectScenePresetId(project);
-  const nextProject = projects[projectIndex + 1];
-  const nextPresetId = nextProject
-    ? getProjectScenePresetId(nextProject)
-    : currentPresetId;
-
-  return {
-    id: project.slug as ProjectSlug,
-    kind: "card",
-    domVariant: "project",
-    projectSlug: project.slug as ProjectSlug,
-    snapLocalProgress: 0,
-    sceneBeats: [
-      createSceneBeat(`project:${project.slug}:hold`, currentPresetId, 18),
-      createSceneBeat(`project:${project.slug}:handoff`, currentPresetId, 64),
-      createSceneBeat(`project:${project.slug}:settle`, nextPresetId, 18),
-    ],
-  };
-}
-
-export const PORTFOLIO_SECTIONS: SectionDefinition[] = [
-  {
-    id: "intro",
-    kind: "intro",
-    domVariant: "intro",
-    ariaLabel: "Point cloud introduction",
-    sceneBeats: [createSceneBeat("intro", "intro-face", 1)],
-  },
-  {
-    id: "about-stage",
-    kind: "content-stage",
-    domVariant: "content",
-    ariaLabel: "About Me",
-    contentId: "about-me",
-    snapLocalProgress: 0.3,
-    sceneBeats: [
-      createSceneBeat("about-transform", "about-transform", 44),
-      createSceneBeat("about-title", "about-title", 112),
-    ],
-  },
-  {
-    id: "projects-stage",
-    kind: "particle-text",
-    domVariant: "transform",
-    ariaLabel: "Projects",
-    snapLocalProgress: 0.45,
-    sceneBeats: [
-      createSceneBeat("projects-transform", "projects-transform", 50),
-      createSceneBeat("projects-hero", "projects-hero", 50),
-      createSceneBeat("projects-reveal", "projects-reveal", 100),
-    ],
-  },
-  ...projects.map(createCardSection),
-  {
-    id: "skills-stage",
-    kind: "skills",
-    domVariant: "skills",
-    ariaLabel: "Skills",
-    sceneBeats: [
-      createSceneBeat(
-        `project:${finalProject.slug}:skills-handoff`,
-        `project-${finalProject.particlePreset}`,
-        8,
-      ),
-      createSceneBeat("skills-ambient", "skills-ambient", 92),
-    ],
-  },
-  {
-    id: "outro",
-    kind: "outro",
-    domVariant: "outro",
-    ariaLabel: "Contact links",
-    sceneBeats: [
-      createSceneBeat("skills-to-contact", "skills-ambient", 68, "direct"),
-      createSceneBeat("contact", "outro-face", 32),
-    ],
-  },
-];
-
 export function createSceneTimeline(
   measuredRanges: Partial<Record<SectionId, [number, number]>> = {},
 ): SceneTimeline {
-  const fallbackSize = 1 / PORTFOLIO_SECTIONS.length;
-  const sectionRanges = {} as Record<SectionId, [number, number]>;
+  const fallbackSize = 1 / portfolioSections.length;
+  const sectionRanges: Record<string, [number, number]> = {};
   const phases: ScenePhase[] = [];
 
-  PORTFOLIO_SECTIONS.forEach((section, sectionIndex) => {
+  portfolioSections.forEach((section, sectionIndex) => {
     const fallbackRange: [number, number] = [
       roundProgress(sectionIndex * fallbackSize),
-      sectionIndex === PORTFOLIO_SECTIONS.length - 1
+      sectionIndex === portfolioSections.length - 1
         ? 1
         : roundProgress((sectionIndex + 1) * fallbackSize),
     ];
@@ -462,7 +323,7 @@ export function createSceneTimeline(
       );
       beatWeight += beat.durationWeight;
       const beatEnd =
-        sectionIndex === PORTFOLIO_SECTIONS.length - 1 &&
+        sectionIndex === portfolioSections.length - 1 &&
         beatIndex === section.sceneBeats.length - 1
           ? 1
           : getRangePoint(sectionRange, beatWeight / totalBeatWeight);
@@ -483,7 +344,7 @@ export function createSceneTimeline(
 
 export function getTimelineProgressPoint(
   timeline: SceneTimeline,
-  sectionId: SectionId,
+  sectionId: string,
   localProgress: number,
 ) {
   return getRangePoint(

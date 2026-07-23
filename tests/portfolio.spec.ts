@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 
 import { projects, type ProjectEntry } from "../config/portfolio";
+import { portfolioSections } from "../config/sections";
 import { themeConfig } from "../config/visual";
-import { PORTFOLIO_SECTIONS } from "../lib/scene-config";
 import {
   expectNoHorizontalOverflow,
   openPortfolio,
@@ -19,7 +19,7 @@ test.describe("portfolio behavior contract", () => {
         elements.map((element) => element.getAttribute("data-portfolio-section-id")),
       );
 
-    expect(renderedOrder).toEqual(PORTFOLIO_SECTIONS.map((section) => section.id));
+    expect(renderedOrder).toEqual(portfolioSections.map((section) => section.id));
     await expect(page.locator("main#main-content")).toBeVisible();
     await expect(page.getByRole("link", { name: "Skip to content" })).toHaveAttribute(
       "href",

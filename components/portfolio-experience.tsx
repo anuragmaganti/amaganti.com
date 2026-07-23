@@ -19,6 +19,7 @@ import {
 } from "motion/react";
 import {
   type CSSProperties,
+  type ComponentType,
   Fragment,
   type ReactNode,
   type Ref,
@@ -35,6 +36,10 @@ import {
 } from "@/components/skills-technology-track";
 import { SkillsPrimaryList } from "@/components/skills-primary-list";
 import { ThemeToggle } from "@/components/theme-toggle";
+import {
+  customSectionRenderers,
+  type CustomSectionRendererProps,
+} from "@/config/custom-sections";
 import { useParticleObstacle } from "@/hooks/use-particle-obstacle";
 import {
   contentSectionsById,
@@ -48,13 +53,15 @@ import {
   type ProjectEntry,
 } from "@/config/portfolio";
 import {
+  portfolioSections,
+  type BuiltInSectionRendererId,
+  type SectionDefinition,
+  type SectionId,
+} from "@/config/sections";
+import {
   createSceneTimeline,
   getTimelineProgressPoint,
-  PORTFOLIO_SECTIONS,
   type SceneTimeline,
-  type SectionDefinition,
-  type SectionDomVariant,
-  type SectionId,
 } from "@/lib/scene-config";
 
 const SceneCanvas = dynamic(
@@ -291,7 +298,7 @@ function useMeasuredSceneTimeline(shellRef: RefObject<HTMLDivElement | null>) {
       frameId = 0;
       const shellRect = shell.getBoundingClientRect();
       const scrollableHeight = Math.max(shell.scrollHeight - window.innerHeight, 1);
-      const starts = PORTFOLIO_SECTIONS.map((section) => {
+      const starts = portfolioSections.map((section) => {
         const element = shell.querySelector<HTMLElement>(
           `[data-portfolio-section-id="${section.id}"]`,
         );
@@ -306,7 +313,7 @@ function useMeasuredSceneTimeline(shellRef: RefObject<HTMLDivElement | null>) {
       });
       const measuredRanges: Partial<Record<SectionId, [number, number]>> = {};
 
-      PORTFOLIO_SECTIONS.forEach((section, index) => {
+      portfolioSections.forEach((section, index) => {
         const start = starts[index];
 
         if (start === null) {
@@ -352,7 +359,7 @@ function useMeasuredSceneTimeline(shellRef: RefObject<HTMLDivElement | null>) {
 }
 
 function haveSameSectionRanges(current: SceneTimeline, next: SceneTimeline) {
-  return PORTFOLIO_SECTIONS.every((section) => {
+  return portfolioSections.every((section) => {
     const currentRange = current.sectionRanges[section.id];
     const nextRange = next.sectionRanges[section.id];
 
@@ -491,7 +498,7 @@ export function PortfolioExperience() {
         <ThemeToggle />
 
         <main className="page-stage" id="main-content">
-          {PORTFOLIO_SECTIONS.map((section) => (
+          {portfolioSections.map((section) => (
             <PortfolioSectionRenderer
               key={section.id}
               section={section}
@@ -612,6 +619,57 @@ function SectionSnapAnchor({ section }: { section: SectionDefinition }) {
   );
 }
 
+type SectionRendererComponent = ComponentType<CustomSectionRendererProps>;
+
+function ContentSectionRenderer({
+  section,
+  progress,
+  timeline,
+}: CustomSectionRendererProps) {
+  if (section.render.type !== "content") {
+    return null;
+  }
+
+  return (
+    <ParticleContentSection
+      section={section}
+      content={contentSectionsById[section.render.contentId]}
+      progress={progress}
+      timeline={timeline}
+    />
+  );
+}
+
+function ProjectSectionRenderer({
+  section,
+  progress,
+  timeline,
+}: CustomSectionRendererProps) {
+  if (section.render.type !== "project-card") {
+    return null;
+  }
+
+  const project = projectsBySlug[section.render.projectSlug];
+
+  return (
+    <ProjectCardSection
+      project={project}
+      section={section}
+      progress={progress}
+      timeline={timeline}
+    />
+  );
+}
+
+const builtInSectionRenderers = {
+  intro: IntroSection,
+  content: ContentSectionRenderer,
+  "particle-text": SceneStageSection,
+  "project-card": ProjectSectionRenderer,
+  skills: SkillsSection,
+  outro: OutroSection,
+} satisfies Record<BuiltInSectionRendererId, SectionRendererComponent>;
+
 function PortfolioSectionRenderer({
   section,
   progress,
@@ -621,42 +679,19 @@ function PortfolioSectionRenderer({
   progress: MotionValue<number>;
   timeline: SceneTimeline;
 }) {
-  switch (section.kind) {
-    case "intro":
-      return <IntroSection progress={progress} section={section} timeline={timeline} />;
-    case "content-stage": {
-      const content = section.contentId ? contentSectionsById[section.contentId] : null;
+  const renderer =
+    section.render.type === "custom"
+      ? (customSectionRenderers as Record<string, SectionRendererComponent>)[
+          section.render.rendererId
+        ]
+      : builtInSectionRenderers[section.render.type];
 
-      return (
-        <ParticleContentSection
-          section={section}
-          content={content ?? undefined}
-          progress={progress}
-          timeline={timeline}
-        />
-      );
-    }
-    case "particle-text":
-      return <SceneStageSection section={section} timeline={timeline} />;
-    case "skills":
-      return <SkillsSection section={section} timeline={timeline} />;
-    case "outro":
-      return <OutroSection section={section} progress={progress} timeline={timeline} />;
-    case "card": {
-      const project = section.projectSlug ? projectsBySlug[section.projectSlug] : null;
-
-      return project ? (
-        <ProjectCardSection
-          project={project}
-          section={section}
-          progress={progress}
-          timeline={timeline}
-        />
-      ) : null;
-    }
-    default:
-      return null;
+  if (!renderer) {
+    return null;
   }
+
+  const Renderer = renderer;
+  return <Renderer section={section} progress={progress} timeline={timeline} />;
 }
 
 function SceneStageSection({
@@ -671,7 +706,7 @@ function SceneStageSection({
   return (
     <section
       id={section.id}
-      className={`scroll-section ${getScrollSectionClassName(section.domVariant)}`.trim()}
+      className={`scroll-section scroll-section--${section.layout}`}
       aria-labelledby={headingId}
       {...getSectionTimelineAttributes(section, timeline)}
     >
@@ -712,7 +747,7 @@ function SkillsSection({
     <section
       ref={sectionRef}
       id={section.id}
-      className={`scroll-section ${getScrollSectionClassName(section.domVariant)}`.trim()}
+      className={`scroll-section scroll-section--${section.layout}`}
       aria-labelledby={headingId}
       style={sectionStyle}
       {...getSectionTimelineAttributes(section, timeline)}
@@ -754,7 +789,7 @@ function OutroSection({
   return (
     <section
       id={section.id}
-      className={`scroll-section ${getScrollSectionClassName(section.domVariant)}`.trim()}
+      className={`scroll-section scroll-section--${section.layout}`}
       aria-labelledby={headingId}
       {...getSectionTimelineAttributes(section, timeline)}
     >
@@ -826,7 +861,7 @@ function ParticleContentSection({
   return (
     <section
       id={section.id}
-      className={`scroll-section ${getScrollSectionClassName(section.domVariant)}`.trim()}
+      className={`scroll-section scroll-section--${section.layout}`}
       aria-labelledby={headingId}
       {...getSectionTimelineAttributes(section, timeline)}
     >
@@ -1373,23 +1408,4 @@ function ProjectCardSection({
       </div>
     </section>
   );
-}
-
-function getScrollSectionClassName(domVariant: SectionDomVariant) {
-  switch (domVariant) {
-    case "intro":
-      return "scroll-section--intro";
-    case "transform":
-      return "scroll-section--transform";
-    case "content":
-      return "scroll-section--content";
-    case "project":
-      return "scroll-section--project";
-    case "skills":
-      return "scroll-section--skills";
-    case "outro":
-      return "scroll-section--outro";
-    default:
-      return "";
-  }
 }
