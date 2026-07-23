@@ -8,6 +8,10 @@ import type {
 
 const REFERENCE_VIEWPORT_ASPECT = 1440 / 900;
 const MIN_LAYOUT_SCALE = 0.2;
+const MOBILE_VIEWPORT_MAX_WIDTH = 640;
+const MOBILE_FACE_SCALE = 1.2;
+const MOBILE_INTRO_FACE_OFFSET_Y = 0.12;
+const MOBILE_OUTRO_FACE_OFFSET_Y = -0.105;
 
 type ScreenFrame = {
   minX: number;
@@ -169,6 +173,13 @@ export function applyViewportCloudLayout(
     phaseState.next.key === "intro" ? 1 : 0,
     blend,
   );
+  const outroPhaseWeight = lerp(
+    phaseState.current.key === "contact" ? 1 : 0,
+    phaseState.next.key === "contact" ? 1 : 0,
+    blend,
+  );
+  const mobileViewportWeight =
+    viewportWidth <= MOBILE_VIEWPORT_MAX_WIDTH ? 1 : 0;
   let targetCenterX = lerp(
     resources.currentFrame.centerX,
     resources.referenceFrame.centerX,
@@ -237,6 +248,28 @@ export function applyViewportCloudLayout(
       targetCenterX = lerp(targetCenterX, safeCenterX, introPhaseWeight);
       targetCenterY = lerp(targetCenterY, safeCenterY, introPhaseWeight);
     }
+  }
+
+  const mobileFaceWeight =
+    mobileViewportWeight * clamp(introPhaseWeight + outroPhaseWeight, 0, 1);
+
+  if (mobileFaceWeight > 0.001) {
+    const mobileFaceScale = lerp(1, MOBILE_FACE_SCALE, mobileFaceWeight);
+
+    cloud.scale.multiplyScalar(mobileFaceScale);
+    layoutScale *= mobileFaceScale;
+    cloud.updateMatrixWorld();
+    projectBoundsToScreenFrame(
+      resources.bounds,
+      cloud,
+      camera,
+      resources.corner,
+      resources.currentFrame,
+    );
+    targetCenterY +=
+      mobileViewportWeight *
+      (introPhaseWeight * MOBILE_INTRO_FACE_OFFSET_Y +
+        outroPhaseWeight * MOBILE_OUTRO_FACE_OFFSET_Y);
   }
 
   resources.bounds.getCenter(resources.boundsCenter);
