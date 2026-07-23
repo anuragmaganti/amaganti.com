@@ -2,7 +2,7 @@ import type { PointCloudTextTargetId } from "@/config/visual";
 import type { ProjectFieldPresetId } from "@/lib/project-field-presets";
 
 export type PointCloudShape = "face" | "text" | "project-field" | "settle";
-export type SceneViewportFrame = "preserve" | "authored";
+type SceneViewportFrame = "preserve" | "authored";
 export type SceneTransitionEasing = "smooth" | "direct";
 
 export type PointCloudTargetId =

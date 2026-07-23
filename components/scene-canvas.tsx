@@ -285,19 +285,18 @@ function PointCloudSystem({
   }, [cloudMaterial, geometry]);
 
   useFrame(({ camera, size }, delta) => {
+    const progressValue = progress.get();
     const perspectiveCamera = camera as THREE.PerspectiveCamera;
     const phaseState = sampleSceneProgress(
-      progress.get(),
+      progressValue,
       phases,
       phaseIndexRef,
       sceneSample,
     );
-    const shapeFrom =
-      morphTargets[resolveMorphTargetId(phaseState.current.cloud)] ??
-      morphTargets.face;
-    const shapeTo =
-      morphTargets[resolveMorphTargetId(phaseState.next.cloud)] ??
-      morphTargets.face;
+    const currentTargetId = resolveMorphTargetId(phaseState.current.cloud);
+    const nextTargetId = resolveMorphTargetId(phaseState.next.cloud);
+    const shapeFrom = morphTargets[currentTargetId] ?? morphTargets.face;
+    const shapeTo = morphTargets[nextTargetId] ?? morphTargets.face;
     const noise =
       phaseState.cloud.noise *
       profile.noiseMultiplier *
@@ -310,7 +309,7 @@ function PointCloudSystem({
       ? 0.24
       : 0.34 +
         0.26 *
-          Math.sin(progress.get() * Math.PI * 6 + elapsedTimeRef.current * 0.2);
+          Math.sin(progressValue * Math.PI * 6 + elapsedTimeRef.current * 0.2);
     updatePointerState(
       pointerCurrent,
       pointerTarget,
@@ -350,8 +349,8 @@ function PointCloudSystem({
       perspectiveCamera,
       phaseState,
       blend,
-      morphTargetBounds[resolveMorphTargetId(phaseState.current.cloud)],
-      morphTargetBounds[resolveMorphTargetId(phaseState.next.cloud)],
+      morphTargetBounds[currentTargetId],
+      morphTargetBounds[nextTargetId],
       size.width,
       size.height,
       introCopyFrameRef.current,
@@ -380,7 +379,6 @@ function PointCloudSystem({
     cloudMaterial.opacity =
       phaseState.cloud.opacity * themeOpacityMultiplier;
 
-    cloud.updateMatrixWorld();
     cloud.getWorldPosition(cloudWorldPosition);
     interactionPlaneNormal
       .copy(perspectiveCamera.position)

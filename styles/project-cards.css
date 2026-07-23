@@ -280,34 +280,6 @@
   color: var(--proof-divider);
 }
 
-.cta-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 3rem;
-  padding: 0.8rem 1.2rem;
-  border: 1px solid var(--line-strong);
-  border-radius: 999px;
-  background: var(--control-bg);
-  color: var(--fg);
-  font-family: var(--font-mono), monospace;
-  font-size: 0.71rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  transition:
-    transform 220ms var(--ease-standard),
-    background-color 220ms var(--ease-standard),
-    border-color 220ms var(--ease-standard);
-}
-
-.cta-link:hover,
-.cta-link:focus-visible {
-  transform: translateY(-1px);
-  background: var(--control-bg-hover);
-  border-color: var(--control-border-hover);
-  outline: none;
-}
-
 .project-card__actions .project-action {
   display: inline-flex;
   align-items: center;

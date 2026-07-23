@@ -4,7 +4,6 @@
     scroll-snap-type: none;
   }
 
-  .cta-link,
   .content-stage-overlay__link,
   .skip-link,
   .outro-contact-label {
@@ -24,10 +23,6 @@
   .intro-copy-shell,
   .intro-copy-shell * {
     transform: none !important;
-  }
-
-  .skills-technology-track__position {
-    will-change: auto;
   }
 
   .content-stage-overlay__copy p,

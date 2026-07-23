@@ -7,7 +7,7 @@ import {
 import type { ScenePresetId } from "@/config/scene-presets";
 import type { SceneTransitionEasing } from "@/lib/scene-types";
 
-export type SectionLayout =
+type SectionLayout =
   | "intro"
   | "transform"
   | "content"
@@ -23,7 +23,7 @@ export type BuiltInSectionRendererId =
   | "skills"
   | "outro";
 
-export type SectionRenderDefinition =
+type SectionRenderDefinition =
   | { type: "intro" }
   | { type: "content"; contentId: ContentSectionId }
   | { type: "particle-text" }

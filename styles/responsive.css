@@ -221,7 +221,6 @@
   :root {
     --frame-padding: 0.9rem;
     --radius-lg: 1.35rem;
-    --radius-md: 1rem;
   }
 
   .scroll-meter-shell {
@@ -380,11 +379,6 @@
 
   .project-technologies {
     gap: 0.18rem 0.38rem;
-  }
-
-  .cta-link {
-    width: 100%;
-    justify-content: center;
   }
 
 }

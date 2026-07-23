@@ -1,6 +1,6 @@
 import type { ProjectFieldPresetId } from "@/lib/project-field-presets";
 
-export type SiteConfig = {
+type SiteConfig = {
   name: string;
   shortName: string;
   title: string;
@@ -30,7 +30,7 @@ export const siteConfig = {
   },
 } as const satisfies SiteConfig;
 
-export type IntroContent = {
+type IntroContent = {
   greeting: string;
   name: string;
   summary: string;
@@ -45,7 +45,7 @@ export const introContent = {
   note: "(yep, that's a real LIDAR scan of my head)",
 } as const satisfies IntroContent;
 
-export type PortfolioLink = {
+type PortfolioLink = {
   id: string;
   label: string;
   href: string;
@@ -335,12 +335,12 @@ export const technologySkills = [
   { id: "llm-api-integration", label: "LLM API Integration" },
 ] as const satisfies readonly SkillEntry[];
 
-export type ContentTextSegment = {
+type ContentTextSegment = {
   type: "text";
   text: string;
 };
 
-export type ContentLinkSegment = {
+type ContentLinkSegment = {
   type: "link";
   text: string;
   href: string;

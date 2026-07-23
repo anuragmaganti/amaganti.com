@@ -36,7 +36,7 @@ export type ObstacleExclusionRuntime = {
   planeNormal: THREE.Vector3;
 };
 
-export type ObstacleExclusionFrame = {
+type ObstacleExclusionFrame = {
   fields: ObstacleExclusionRuntime[];
   unsettled: boolean;
 };
