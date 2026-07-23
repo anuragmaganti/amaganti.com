@@ -349,10 +349,52 @@ select {
 
 .scroll-section--skills {
   min-height: auto;
+  overflow: clip;
+}
+
+.skills-technology-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  user-select: none;
+}
+
+.skills-technology-track {
+  position: sticky;
+  top: 0;
+  width: 100%;
+  height: 100svh;
+  overflow: hidden;
+}
+
+.skills-technology-track__position {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  width: 0;
+  height: 0;
+  transform-origin: center;
+  will-change: transform, opacity;
+}
+
+.skills-technology-track__label {
+  display: block;
+  color: var(--fg);
+  font-family: var(--font-display), sans-serif;
+  font-size: clamp(0.88rem, 1.65vw, 1.45rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
 }
 
 .skills-stage {
   position: relative;
+  z-index: 1;
   width: min(80%, 76rem);
   margin: 0 auto;
   padding: 300px 20px 100svh;
@@ -382,7 +424,7 @@ select {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--skills-item-gap, 20px);
   list-style: none;
 }
 
@@ -391,7 +433,7 @@ select {
   padding: 0;
   color: var(--fg);
   font-family: var(--font-display), sans-serif;
-  font-size: clamp(2rem, 8vw, 6rem);
+  font-size: clamp(2rem, 6.1vw, 6rem);
   font-weight: 700;
   line-height: 0.9;
   text-transform: uppercase;
@@ -400,12 +442,21 @@ select {
 }
 
 @media (max-width: 768px) {
+  .skills-technology-track__label {
+    font-size: clamp(0.76rem, 2.8vw, 1.05rem);
+  }
+
   .skills-stage__title {
     font-size: 24px;
   }
 }
 
 @media (max-width: 480px) {
+  .skills-technology-track__label {
+    font-size: clamp(0.67rem, 3.25vw, 0.84rem);
+    letter-spacing: 0.025em;
+  }
+
   .skills-stage {
     width: 100%;
   }
@@ -415,7 +466,7 @@ select {
   }
 
   .skills-stage__item {
-    font-size: clamp(1.45rem, 7.8vw, 2rem);
+    font-size: clamp(1.35rem, 6.2vw, 1.75rem);
   }
 }
 
@@ -430,7 +481,7 @@ select {
   }
 
   .skills-stage__item {
-    font-size: clamp(1.35rem, 7.6vw, 1.75rem);
+    font-size: clamp(1.22rem, 6.1vw, 1.55rem);
   }
 }
 
@@ -1620,6 +1671,10 @@ select {
 
   .click-burst-overlay {
     display: none;
+  }
+
+  .skills-technology-track__position {
+    will-change: auto;
   }
 
   .content-stage-overlay__copy p,

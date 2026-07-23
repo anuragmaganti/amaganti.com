@@ -31,9 +31,14 @@ import {
 } from "react";
 
 import {
+  getTechnologyTrackGapExtraVh,
+  SkillsTechnologyTrack,
+} from "@/components/skills-technology-track";
+import {
   contentSectionsById,
   projectsBySlug,
   skills,
+  technologySkills,
   type ContentParagraph,
   type ContentSectionEntry,
   type ProjectEntry,
@@ -929,22 +934,44 @@ function SkillsSection({
   section: SectionDefinition;
   timeline: SceneTimeline;
 }) {
+  const listRef = useRef<HTMLUListElement>(null);
   const headingId = `${section.id}-heading`;
+  const { scrollYProgress } = useScroll({
+    target: listRef,
+    offset: ["start 50%", "end 50%"],
+  });
+  const itemGapExtraVh = getTechnologyTrackGapExtraVh(
+    technologySkills.length,
+    skills.length,
+  );
+  const sectionStyle = {
+    "--skills-item-gap": `calc(20px + ${itemGapExtraVh}svh)`,
+  } as CSSProperties;
 
   return (
     <section
       id={section.id}
       className={`scroll-section ${getScrollSectionClassName(section.domVariant)}`.trim()}
       aria-labelledby={headingId}
+      style={sectionStyle}
       {...getSectionTimelineAttributes(section, timeline)}
     >
+      <SkillsTechnologyTrack items={technologySkills} progress={scrollYProgress} />
       <div className="skills-stage">
         <h2 className="skills-stage__title" id={headingId}>
           Skills
         </h2>
-        <ul className="skills-stage__list">
+        <ul ref={listRef} className="skills-stage__list">
           {skills.map((skill) => (
             <SkillHighlightItem key={skill.id} skill={skill} />
+          ))}
+        </ul>
+      </div>
+      <div className="sr-only">
+        <h3>Technologies</h3>
+        <ul>
+          {technologySkills.map((technology) => (
+            <li key={technology.id}>{technology.label}</li>
           ))}
         </ul>
       </div>
@@ -956,16 +983,16 @@ function SkillHighlightItem({ skill }: { skill: SkillEntry }) {
   const itemRef = useRef<HTMLLIElement>(null);
   const { scrollYProgress } = useScroll({
     target: itemRef,
-    offset: ["start 78%", "end 18%"],
+    offset: ["start 88%", "end 12%"],
   });
   const opacity = useTransform(
     scrollYProgress,
-    [0, 0.59, 0.63, 0.68, 0.72, 1],
+    [0, 0.3, 0.42, 0.66, 0.78, 1],
     [0.3, 0.3, 1, 1, 0.3, 0.3],
   );
   const scale = useTransform(
     scrollYProgress,
-    [0, 0.59, 0.63, 0.68, 0.72, 1],
+    [0, 0.3, 0.42, 0.66, 0.78, 1],
     [1, 1, 1.02, 1.02, 1, 1],
   );
 
