@@ -48,6 +48,7 @@ const OBSTACLE_EXCLUSION_DEPTH_FACTOR = 0.16;
 const OBSTACLE_INTERIOR_ROUTE_EXPONENT = 6;
 const OBSTACLE_MAX_COMBINED_DISPLACEMENT = 0.9;
 const OBSTACLE_STRENGTH_EPSILON = 0.001;
+const DARK_PROJECT_PARTICLE_OPACITY_MULTIPLIER = 0.84;
 const REFERENCE_VIEWPORT_ASPECT = 1440 / 900;
 const MIN_LAYOUT_SCALE = 0.2;
 
@@ -65,6 +66,7 @@ type PointCloudSystemProps = {
   basePositions: Float32Array;
   progress: MotionValue<number>;
   reducedMotion: boolean;
+  isDarkTheme: boolean;
   profile: QualityProfile;
   phases: ScenePhase[];
 };
@@ -141,6 +143,7 @@ type CloudLayoutResources = {
 
 export function SceneCanvas({ progress, timeline }: SceneCanvasProps) {
   const reducedMotion = Boolean(useReducedMotion());
+  const isDarkTheme = useIsDarkTheme();
   const devicePixelRatio = useDevicePixelRatio();
   const profile = useQualityProfile(reducedMotion);
   const basePositions = usePointCloudSource(RENDER_DEFAULTS.maxPoints);
@@ -163,6 +166,7 @@ export function SceneCanvas({ progress, timeline }: SceneCanvasProps) {
         basePositions={basePositions}
         progress={progress}
         reducedMotion={reducedMotion}
+        isDarkTheme={isDarkTheme}
         profile={profile}
         phases={timeline.phases}
       />
@@ -174,6 +178,7 @@ function PointCloudSystem({
   basePositions,
   progress,
   reducedMotion,
+  isDarkTheme,
   profile,
   phases,
 }: PointCloudSystemProps) {
@@ -312,6 +317,10 @@ function PointCloudSystem({
   }, [invalidate, phases]);
 
   useEffect(() => {
+    invalidate();
+  }, [invalidate, isDarkTheme]);
+
+  useEffect(() => {
     renderPositions.set(morphTargets.face);
     geometry.attributes.position.needsUpdate = true;
     invalidate();
@@ -442,7 +451,20 @@ function PointCloudSystem({
 
     cloudMaterial.size =
       phaseState.cloud.pointSize * layoutScaleMultiplier;
-    cloudMaterial.opacity = phaseState.cloud.opacity;
+    const projectCardPhaseWeight = getProjectCardPhaseWeight(
+      phaseState.current.key,
+      phaseState.next.key,
+      phaseState.mix,
+    );
+    const themeOpacityMultiplier = isDarkTheme
+      ? lerp(
+          1,
+          DARK_PROJECT_PARTICLE_OPACITY_MULTIPLIER,
+          projectCardPhaseWeight,
+        )
+      : 1;
+    cloudMaterial.opacity =
+      phaseState.cloud.opacity * themeOpacityMultiplier;
 
     cloud.updateMatrixWorld();
     cloud.getWorldPosition(cloudWorldPosition);
@@ -1480,6 +1502,34 @@ function useQualityProfile(reducedMotion: boolean) {
   );
 }
 
+function useIsDarkTheme() {
+  const [isDarkTheme, setIsDarkTheme] = useState(
+    () =>
+      typeof document === "undefined" ||
+      document.documentElement.dataset.theme !== "light",
+  );
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const syncTheme = () => {
+      setIsDarkTheme(root.dataset.theme !== "light");
+    };
+    const observer = new MutationObserver(syncTheme);
+
+    observer.observe(root, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+    syncTheme();
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  return isDarkTheme;
+}
+
 function useDevicePixelRatio() {
   const [devicePixelRatio, setDevicePixelRatio] = useState(1);
 
@@ -1520,6 +1570,17 @@ function useDevicePixelRatio() {
   }, []);
 
   return devicePixelRatio;
+}
+
+function getProjectCardPhaseWeight(
+  currentKey: string,
+  nextKey: string,
+  mix: number,
+) {
+  const currentWeight = currentKey.startsWith("project:") ? 1 : 0;
+  const nextWeight = nextKey.startsWith("project:") ? 1 : 0;
+
+  return lerp(currentWeight, nextWeight, mix);
 }
 
 function sampleSceneProgress(
