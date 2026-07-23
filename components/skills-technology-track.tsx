@@ -7,7 +7,7 @@ import {
   useSpring,
   useTransform,
 } from "motion/react";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useId, useRef, useState, type RefObject } from "react";
 
 import type { SkillEntry } from "@/lib/content";
 
@@ -58,6 +58,7 @@ export function SkillsTechnologyTrack({
   progress: MotionValue<number>;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
+  const pathId = `skills-technology-path-${useId().replace(/:/g, "")}`;
   const size = useObservedSize(trackRef);
   const geometry = createTrackGeometry(size);
   const reducedMotion = Boolean(useReducedMotion());
@@ -77,16 +78,26 @@ export function SkillsTechnologyTrack({
         className="skills-technology-track"
         data-skills-technology-track
       >
-        {items.map((item, index) => (
-          <TechnologyTrackItem
-            key={item.id}
-            geometry={geometry}
-            index={index}
-            itemCount={items.length}
-            label={item.label}
-            progress={renderedProgress}
-          />
-        ))}
+        <svg
+          className="skills-technology-track__svg"
+          preserveAspectRatio="none"
+          viewBox={`0 0 ${Math.max(size.width, 1)} ${Math.max(size.height, 1)}`}
+        >
+          <defs>
+            <path id={pathId} d={getTrackPath(geometry)} />
+          </defs>
+          {items.map((item, index) => (
+            <TechnologyTrackItem
+              key={item.id}
+              geometry={geometry}
+              index={index}
+              itemCount={items.length}
+              label={item.label}
+              pathId={pathId}
+              progress={renderedProgress}
+            />
+          ))}
+        </svg>
       </div>
     </div>
   );
@@ -97,22 +108,22 @@ function TechnologyTrackItem({
   index,
   itemCount,
   label,
+  pathId,
   progress,
 }: {
   geometry: TrackGeometry;
   index: number;
   itemCount: number;
   label: string;
+  pathId: string;
   progress: MotionValue<number>;
 }) {
   const itemProgress = useTransform(progress, (value) =>
     getItemProgress(value, index, itemCount),
   );
-  const transform = useTransform(itemProgress, (value) => {
-    const point = getTrackPoint(geometry, value);
-
-    return `translate3d(${point.x}px, ${point.y}px, 0) rotate(${point.rotate}deg)`;
-  });
+  const startOffset = useTransform(itemProgress, (value) =>
+    getTrackOffset(geometry, value),
+  );
   const opacity = useTransform(progress, (value) => {
     const itemValue = getItemProgress(value, index, itemCount);
     const trackFade =
@@ -122,12 +133,16 @@ function TechnologyTrackItem({
   });
 
   return (
-    <motion.span
-      className="skills-technology-track__position"
-      style={{ opacity, transform }}
+    <motion.text
+      className="skills-technology-track__label"
+      dominantBaseline="central"
+      style={{ opacity }}
+      textAnchor="middle"
     >
-      <span className="skills-technology-track__label">{label}</span>
-    </motion.span>
+      <motion.textPath href={`#${pathId}`} startOffset={startOffset}>
+        {label}
+      </motion.textPath>
+    </motion.text>
   );
 }
 
@@ -214,45 +229,25 @@ function createTrackGeometry({ height, width }: ViewportSize): TrackGeometry {
   };
 }
 
-function getTrackPoint(geometry: TrackGeometry, progress: number) {
+function getTrackPath(geometry: TrackGeometry) {
   if (geometry.pathLength <= 0) {
-    return { rotate: 0, x: 0, y: 0 };
+    return "";
   }
 
-  const distance = clamp01(progress) * geometry.pathLength;
+  const cornerX = geometry.rightX - geometry.radius;
+  const cornerY = geometry.topY + geometry.radius;
+  const endY = cornerY + geometry.verticalLength;
 
-  if (distance <= geometry.horizontalLength) {
-    return {
-      rotate: 0,
-      x: geometry.startX + distance,
-      y: geometry.topY,
-    };
-  }
+  return [
+    `M 0 ${geometry.topY}`,
+    `H ${cornerX}`,
+    `A ${geometry.radius} ${geometry.radius} 0 0 1 ${geometry.rightX} ${cornerY}`,
+    `V ${endY}`,
+  ].join(" ");
+}
 
-  if (distance <= geometry.horizontalLength + geometry.arcLength) {
-    const angle =
-      -Math.PI / 2 + (distance - geometry.horizontalLength) / geometry.radius;
-    const centerX = geometry.rightX - geometry.radius;
-    const centerY = geometry.topY + geometry.radius;
-
-    return {
-      rotate: (angle * 180) / Math.PI + 90,
-      x: centerX + Math.cos(angle) * geometry.radius,
-      y: centerY + Math.sin(angle) * geometry.radius,
-    };
-  }
-
-  return {
-    rotate: 90,
-    x: geometry.rightX,
-    y:
-      geometry.topY +
-      geometry.radius +
-      Math.min(
-        distance - geometry.horizontalLength - geometry.arcLength,
-        geometry.verticalLength,
-      ),
-  };
+function getTrackOffset(geometry: TrackGeometry, progress: number) {
+  return geometry.startX + clamp01(progress) * geometry.pathLength;
 }
 
 function getItemProgress(
