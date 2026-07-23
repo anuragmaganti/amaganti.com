@@ -13,7 +13,7 @@ import {
   useSpring,
   useTransform,
 } from "motion/react";
-import { useEffect, useRef } from "react";
+import { type CSSProperties, useEffect, useRef } from "react";
 
 import {
   getSectionTimelineAttributes,
@@ -24,6 +24,45 @@ import type { SectionDefinition } from "@/config/sections";
 import { useParticleObstacle } from "@/hooks/use-particle-obstacle";
 import type { SceneTimeline } from "@/lib/scene-types";
 const PROJECT_ACTION_ORB_SIZE = 64;
+
+type ProjectImageSizingStyle = CSSProperties & {
+  "--project-image-aspect-ratio": string;
+  "--project-image-width-wide": string;
+  "--project-image-width-desktop": string;
+  "--project-image-width-tablet": string;
+  "--project-image-width-medium": string;
+  "--project-image-width-mobile": string;
+  "--project-image-width-compact": string;
+};
+
+function formatLength(value: number, unit: "rem" | "svh") {
+  return `${Number(value.toFixed(5))}${unit}`;
+}
+
+function createProjectImageSizingStyle(
+  width: number,
+  height: number,
+): ProjectImageSizingStyle {
+  const aspectRatio = width / height;
+  const widthForHeightCap = (
+    maxWidthRem: number,
+    viewportHeight: number,
+    maxHeightRem: number,
+  ) =>
+    `min(${maxWidthRem}rem, ${formatLength(viewportHeight * aspectRatio, "svh")}, ${formatLength(maxHeightRem * aspectRatio, "rem")})`;
+  const widthForDesktopHeightCap = (maxWidthRem: number) =>
+    `min(${maxWidthRem}rem, ${formatLength(70 * aspectRatio, "svh")}, calc(${formatLength(100 * aspectRatio, "svh")} - ${formatLength(9 * aspectRatio, "rem")}))`;
+
+  return {
+    "--project-image-aspect-ratio": `${width} / ${height}`,
+    "--project-image-width-wide": widthForDesktopHeightCap(36),
+    "--project-image-width-desktop": widthForDesktopHeightCap(31),
+    "--project-image-width-tablet": widthForHeightCap(40, 22, 14),
+    "--project-image-width-medium": widthForHeightCap(34, 24, 13),
+    "--project-image-width-mobile": widthForHeightCap(24, 20, 10),
+    "--project-image-width-compact": widthForHeightCap(24, 18, 7.5),
+  };
+}
 
 function ProjectActionOrb({
   state,
@@ -236,6 +275,10 @@ export function ProjectCardSection({
   const borderColor = useMotionTemplate`rgba(var(--project-card-border-rgb), ${borderAlpha})`;
   const cardShadow = useMotionTemplate`0 30px 90px rgba(var(--project-card-shadow-rgb), 0.52), 0 0 48px rgba(var(--project-card-glow-rgb), ${glowAlpha})`;
   const titleId = `${project.slug}-title`;
+  const imageSizingStyle = createProjectImageSizingStyle(
+    project.imageSrc.width,
+    project.imageSrc.height,
+  );
   useParticleObstacle(project.slug, cardRef, focus);
 
   return (
@@ -252,13 +295,11 @@ export function ProjectCardSection({
           className="panel project-card"
           style={{ scale, y, borderColor, boxShadow: cardShadow }}
         >
-          <div className="project-card__media">
+          <div className="project-card__media" style={imageSizingStyle}>
             <motion.div className="project-card__media-inner" style={{ scale: mediaScale }}>
               <Image
                 src={project.imageSrc}
                 alt={project.imageAlt}
-                width={project.imageWidth}
-                height={project.imageHeight}
                 className="project-card__image"
                 loading="eager"
                 sizes="(max-width: 640px) calc(100vw - 3rem), (max-width: 1280px) min(82vw, 40rem), 34rem"

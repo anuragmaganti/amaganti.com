@@ -16,21 +16,23 @@
   }
 
   .project-card__media {
-    width: fit-content;
-    max-width: 100%;
+    --project-image-width: var(--project-image-width-tablet);
+
+    width: var(--project-image-width);
+    max-width: none;
     max-height: min(22svh, 14rem);
     justify-self: center;
   }
 
   .project-card__media-inner {
-    width: fit-content;
-    max-width: 100%;
+    width: 100%;
+    max-width: none;
   }
 
   .project-card__image {
-    width: auto;
-    max-width: min(100%, 40rem);
-    max-height: min(22svh, 14rem);
+    width: 100%;
+    max-width: none;
+    max-height: none;
   }
 
   .project-card__copy {
@@ -162,9 +164,8 @@
     padding-block: clamp(1.15rem, 2.2vh, 1.6rem);
   }
 
-  .project-card__image {
-    max-width: min(100%, 34rem);
-    max-height: min(24svh, 13rem);
+  .project-card__media {
+    --project-image-width: var(--project-image-width-medium);
   }
 
   .project-card__copy {
@@ -292,9 +293,8 @@
     padding: 0.85rem 0.8rem;
   }
 
-  .project-card__image {
-    max-width: min(100%, 24rem);
-    max-height: min(20svh, 10rem);
+  .project-card__media {
+    --project-image-width: var(--project-image-width-mobile);
   }
 
   .intro-stage {
@@ -394,8 +394,8 @@
     gap: 0.5rem;
   }
 
-  .project-card__image {
-    max-height: min(18svh, 7.5rem);
+  .project-card__media {
+    --project-image-width: var(--project-image-width-compact);
   }
 
   .project-card__copy {

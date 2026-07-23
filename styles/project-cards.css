@@ -11,14 +11,17 @@
 }
 
 .project-card__media {
+  --project-image-width: var(--project-image-width-wide);
+
   position: relative;
+  z-index: 1;
   isolation: isolate;
   display: flex;
   align-items: center;
   justify-content: center;
   align-self: center;
-  width: fit-content;
-  max-width: 36rem;
+  width: var(--project-image-width);
+  max-width: none;
   min-height: 0;
   overflow: hidden;
   border-radius: calc(var(--radius-lg) - 0.2rem);
@@ -28,8 +31,8 @@
 
 .project-card__media-inner {
   position: relative;
-  width: fit-content;
-  max-width: 100%;
+  width: 100%;
+  max-width: none;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -38,10 +41,13 @@
 .project-card__image {
   display: block;
   opacity: 1;
-  width: auto;
-  max-width: 100%;
+  filter: none;
+  mix-blend-mode: normal;
+  width: 100%;
+  max-width: none;
   height: auto;
-  max-height: min(70svh, calc(100svh - 9rem));
+  max-height: none;
+  aspect-ratio: var(--project-image-aspect-ratio);
   object-fit: contain;
   object-position: center;
 }
@@ -119,7 +125,7 @@
   }
 
   .project-card__media {
-    max-width: 31rem;
+    --project-image-width: var(--project-image-width-desktop);
   }
 
   .project-card h2 {

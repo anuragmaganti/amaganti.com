@@ -1,4 +1,11 @@
+import type { StaticImageData } from "next/image";
+
 import type { ProjectFieldPresetId } from "@/lib/project-field-presets";
+import airInkImage from "@/public/projects/air-ink.png";
+import ctrlSayImage from "@/public/projects/ctrl-say.png";
+import resumeLoomrImage from "@/public/projects/resumeloomr-v2.png";
+import text2SpeechImage from "@/public/projects/text2speech.png";
+import thesisTraceImage from "@/public/projects/thesistrace.png";
 
 type SiteConfig = {
   name: string;
@@ -88,10 +95,8 @@ export type ProjectEntry = {
     body: string;
   }[];
   technologies: readonly string[];
-  imageSrc: string;
+  imageSrc: StaticImageData;
   imageAlt: string;
-  imageWidth: number;
-  imageHeight: number;
   href?: string;
   linkLabel?: string;
   githubHref?: string;
@@ -127,11 +132,9 @@ export const projects = [
       "SwiftData",
       "Core Animation",
     ],
-    imageSrc: "/projects/ctrl-say.png",
+    imageSrc: ctrlSayImage,
     imageAlt:
       "Ctrl-Say floating clipboard showing numbered and named voice-controlled slots for text, an image, and files on macOS.",
-    imageWidth: 812,
-    imageHeight: 1060,
     githubHref: "https://github.com/anuragmaganti/Ctrl-Say",
     particlePreset: "torsion-column",
   },
@@ -163,11 +166,9 @@ export const projects = [
       "OpenAI",
       "Zod",
     ],
-    imageSrc: "/projects/thesistrace.png",
+    imageSrc: thesisTraceImage,
     imageAlt:
       "ThesisTrace Grid Infrastructure workspace showing recent developments, market coverage, AI research actions, and a market map.",
-    imageWidth: 3146,
-    imageHeight: 1954,
     href: "https://thesistrace.vercel.app/",
     linkLabel: "Visit Website",
     githubHref: "https://github.com/anuragmaganti/thesistrace",
@@ -200,11 +201,9 @@ export const projects = [
       "Web Workers",
       "Canvas API",
     ],
-    imageSrc: "/projects/air-ink.png",
+    imageSrc: airInkImage,
     imageAlt:
       "Air Ink signature studio showing its camera preview, gesture guidance, drawing stage, and download controls.",
-    imageWidth: 2394,
-    imageHeight: 1424,
     href: "https://webcamsign.com",
     linkLabel: "Visit Website",
     githubHref: "https://github.com/anuragmaganti/air-ink",
@@ -237,11 +236,9 @@ export const projects = [
       "Vercel API Routes",
       "Gemini API",
     ],
-    imageSrc: "/projects/resumeloomr-v2.png",
+    imageSrc: resumeLoomrImage,
     imageAlt:
       "ResumeLoomr interface showing a resume editor, section navigation, and live printable resume preview.",
-    imageWidth: 2934,
-    imageHeight: 1750,
     href: "https://resumeloomr.com/",
     linkLabel: "Visit Website",
     githubHref: "https://github.com/anuragmaganti/ResumeLoomr",
@@ -275,11 +272,9 @@ export const projects = [
       "Chatterbox TTS",
       "AWS S3",
     ],
-    imageSrc: "/projects/text2speech.png",
+    imageSrc: text2SpeechImage,
     imageAlt:
       "Text2Speech dashboard showing account statistics, generation shortcuts, recent audio projects, and available credits.",
-    imageWidth: 2152,
-    imageHeight: 1952,
     href: "https://text2speech.dev",
     linkLabel: "Visit Website",
     githubHref: "https://github.com/anuragmaganti/text-to-speech",
