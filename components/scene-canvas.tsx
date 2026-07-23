@@ -1,6 +1,5 @@
 "use client";
 
-import { AdaptiveDpr } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import type { MotionValue } from "motion";
 import { useReducedMotion } from "motion/react";
@@ -52,7 +51,6 @@ type SceneCanvasProps = {
 
 type QualityProfile = {
   maxPoints: number;
-  dpr: [number, number];
   sizeMultiplier: number;
   noiseMultiplier: number;
   textHaloMultiplier: number;
@@ -98,12 +96,13 @@ type CardExclusionState = {
 
 export function SceneCanvas({ progress, timeline }: SceneCanvasProps) {
   const reducedMotion = Boolean(useReducedMotion());
+  const devicePixelRatio = useDevicePixelRatio();
   const profile = useQualityProfile(reducedMotion);
   const basePositions = usePointCloudSource(profile.maxPoints);
 
   return (
     <Canvas
-      dpr={profile.dpr}
+      dpr={devicePixelRatio}
       camera={{ position: [0, 0, 4.9], fov: 30 }}
       frameloop="demand"
       gl={{
@@ -115,7 +114,6 @@ export function SceneCanvas({ progress, timeline }: SceneCanvasProps) {
       }}
       performance={{ min: 0.55 }}
     >
-      <AdaptiveDpr pixelated />
       <PointCloudSystem
         basePositions={basePositions}
         progress={progress}
@@ -963,7 +961,6 @@ function useQualityProfile(reducedMotion: boolean) {
     maxPoints: reducedMotion
       ? RENDER_DEFAULTS.reducedMaxPoints
       : RENDER_DEFAULTS.desktopMaxPoints,
-    dpr: reducedMotion ? RENDER_DEFAULTS.mobileDpr : RENDER_DEFAULTS.desktopDpr,
     sizeMultiplier: reducedMotion ? 1.2 : 1,
     noiseMultiplier: reducedMotion ? 0.5 : 1,
     textHaloMultiplier: reducedMotion ? 0.2 : 1,
@@ -1008,7 +1005,6 @@ function useQualityProfile(reducedMotion: boolean) {
       if (reducedMotion) {
         setProfile({
           maxPoints: RENDER_DEFAULTS.reducedMaxPoints,
-          dpr: RENDER_DEFAULTS.mobileDpr,
           sizeMultiplier: 1.18,
           noiseMultiplier: 0.18,
           textHaloMultiplier: 0.12,
@@ -1028,9 +1024,6 @@ function useQualityProfile(reducedMotion: boolean) {
         maxPoints: constrainedDevice
           ? RENDER_DEFAULTS.mobileMaxPoints
           : RENDER_DEFAULTS.desktopMaxPoints,
-        dpr: constrainedDevice
-          ? RENDER_DEFAULTS.mobileDpr
-          : RENDER_DEFAULTS.desktopDpr,
         sizeMultiplier: constrainedDevice ? 1.12 : 1,
         noiseMultiplier: constrainedDevice ? 0.3 : 0.48,
         textHaloMultiplier: constrainedDevice ? 0.42 : 1,
@@ -1065,6 +1058,48 @@ function useQualityProfile(reducedMotion: boolean) {
   }, [reducedMotion]);
 
   return profile;
+}
+
+function useDevicePixelRatio() {
+  const [devicePixelRatio, setDevicePixelRatio] = useState(1);
+
+  useEffect(() => {
+    let resolutionQuery: MediaQueryList | null = null;
+
+    const updateDevicePixelRatio = () => {
+      const nextDevicePixelRatio = window.devicePixelRatio || 1;
+
+      setDevicePixelRatio((currentDevicePixelRatio) =>
+        currentDevicePixelRatio === nextDevicePixelRatio
+          ? currentDevicePixelRatio
+          : nextDevicePixelRatio,
+      );
+
+      resolutionQuery?.removeEventListener(
+        "change",
+        updateDevicePixelRatio,
+      );
+      resolutionQuery = window.matchMedia(
+        `(resolution: ${nextDevicePixelRatio}dppx)`,
+      );
+      resolutionQuery.addEventListener("change", updateDevicePixelRatio);
+    };
+
+    updateDevicePixelRatio();
+    window.addEventListener("resize", updateDevicePixelRatio, {
+      passive: true,
+    });
+
+    return () => {
+      window.removeEventListener("resize", updateDevicePixelRatio);
+      resolutionQuery?.removeEventListener(
+        "change",
+        updateDevicePixelRatio,
+      );
+    };
+  }, []);
+
+  return devicePixelRatio;
 }
 
 function getResponsiveCloudScaleMultiplier(

@@ -158,8 +158,6 @@ export const RENDER_DEFAULTS = {
   desktopMaxPoints: 8000,
   mobileMaxPoints: 3200,
   reducedMaxPoints: 1600,
-  desktopDpr: [1, 1.35] as [number, number],
-  mobileDpr: [1, 1.1] as [number, number],
 };
 
 function createScenePreset(
