@@ -1155,12 +1155,19 @@ function IntroSection({
                   renderSubtitle={({ className, children }) => (
                     <motion.p
                       className={className}
-                      initial={{ x: introLoadState.subtitleX }}
-                      animate={{ x: 0 }}
+                      initial={{ opacity: 0, x: introLoadState.subtitleX }}
+                      animate={{ opacity: 1, x: 0 }}
                       transition={{
-                        duration: INTRO_TEXT_REVEAL_DURATION,
-                        delay: INTRO_TEXT_MOVE_DELAY,
-                        ease: INTRO_LOAD_EASE,
+                        opacity: {
+                          duration: INTRO_TEXT_REVEAL_DURATION,
+                          delay: INTRO_TEXT_MOVE_DELAY,
+                          ease: INTRO_LOAD_EASE,
+                        },
+                        x: {
+                          duration: INTRO_TEXT_REVEAL_DURATION,
+                          delay: INTRO_TEXT_MOVE_DELAY,
+                          ease: INTRO_LOAD_EASE,
+                        },
                       }}
                     >
                       {children}
@@ -1169,12 +1176,19 @@ function IntroSection({
                   renderNote={({ className, children }) => (
                     <motion.div
                       className={className}
-                      initial={{ x: introLoadState.noteX }}
-                      animate={{ x: 0 }}
+                      initial={{ opacity: 0, x: introLoadState.noteX }}
+                      animate={{ opacity: 1, x: 0 }}
                       transition={{
-                        duration: INTRO_TEXT_REVEAL_DURATION,
-                        delay: INTRO_TEXT_MOVE_DELAY,
-                        ease: INTRO_LOAD_EASE,
+                        opacity: {
+                          duration: INTRO_TEXT_REVEAL_DURATION,
+                          delay: INTRO_TEXT_MOVE_DELAY,
+                          ease: INTRO_LOAD_EASE,
+                        },
+                        x: {
+                          duration: INTRO_TEXT_REVEAL_DURATION,
+                          delay: INTRO_TEXT_MOVE_DELAY,
+                          ease: INTRO_LOAD_EASE,
+                        },
                       }}
                     >
                       {children}

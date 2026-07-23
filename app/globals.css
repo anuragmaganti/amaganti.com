@@ -802,11 +802,12 @@ select {
 
 .intro-title {
   display: grid;
+  justify-items: start;
   gap: 0.15em;
   font-family: var(--font-display), sans-serif;
   font-size: clamp(4.4rem, 9vw, 8.6rem);
   font-weight: 700;
-  letter-spacing: -0.08em;
+  letter-spacing: -0.05em;
   line-height: 0.82;
 }
 
@@ -1293,7 +1294,7 @@ select {
 .project-action--primary {
   --project-action-label: #111318;
   --project-action-highlight: #000;
-  background: rgba(255, 255, 255, 0.985);
+  background: #fff;
   color: var(--project-action-label);
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.08),
@@ -1303,7 +1304,7 @@ select {
 .project-action--secondary {
   --project-action-label: #f7f8fb;
   --project-action-highlight: #fff;
-  background: rgba(8, 9, 11, 0.76);
+  background: #08090b;
   color: var(--project-action-label);
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.11),
@@ -1374,7 +1375,7 @@ select {
 
 .project-action--secondary:hover,
 .project-action--secondary:focus-visible {
-  background: rgba(8, 9, 11, 0.9);
+  background: #111318;
   color: var(--project-action-label);
 }
 
