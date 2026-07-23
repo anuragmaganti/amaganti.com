@@ -5,6 +5,7 @@ import {
   createSampledScene,
   createSceneTimeline,
   createSceneTimelineFromSections,
+  getTimelineProgressPoint,
   sampleSceneProgress,
 } from "../lib/scene-timeline";
 
@@ -69,5 +70,51 @@ test.describe("scene engine contract", () => {
     expect(sample.next.key).toBe("section:static-copy:hold:end");
     expect(sample.current.cloud.shape).toBe("face");
     expect(sample.next.cloud.shape).toBe("face");
+  });
+
+  test("morphs continuously from the Skills field into the outro face", () => {
+    const timeline = createSceneTimeline();
+    const phaseIndexRef = { current: 0 };
+    const sample = createSampledScene(timeline.phases);
+    const checkpoints = [0.05, 0.3, 0.6].map((localProgress) => {
+      const frame = sampleSceneProgress(
+        getTimelineProgressPoint(timeline, "outro", localProgress),
+        timeline.phases,
+        phaseIndexRef,
+        sample,
+      );
+
+      return {
+        currentKey: frame.current.key,
+        nextKey: frame.next.key,
+        currentShape: frame.current.cloud.shape,
+        nextShape: frame.next.cloud.shape,
+        mix: frame.mix,
+        scale: frame.cloud.scale,
+        opacity: frame.cloud.opacity,
+      };
+    });
+
+    for (const checkpoint of checkpoints) {
+      expect(checkpoint.currentKey).toBe("skills-to-contact");
+      expect(checkpoint.nextKey).toBe("contact");
+      expect(checkpoint.currentShape).toBe("project-field");
+      expect(checkpoint.nextShape).toBe("face");
+    }
+
+    expect(checkpoints[0].mix).toBeLessThan(checkpoints[1].mix);
+    expect(checkpoints[1].mix).toBeLessThan(checkpoints[2].mix);
+    expect(checkpoints[0].scale).toBeGreaterThan(checkpoints[1].scale);
+    expect(checkpoints[1].scale).toBeGreaterThan(checkpoints[2].scale);
+    expect(checkpoints[0].opacity).toBeLessThan(checkpoints[1].opacity);
+    expect(checkpoints[1].opacity).toBeLessThan(checkpoints[2].opacity);
+
+    const settled = sampleSceneProgress(
+      getTimelineProgressPoint(timeline, "outro", 0.8),
+      timeline.phases,
+      phaseIndexRef,
+      sample,
+    );
+    expect(settled.cloud.shape).toBe("face");
   });
 });

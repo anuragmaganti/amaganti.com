@@ -45,6 +45,11 @@ import {
   getProjectCardPhaseWeight,
   sampleSceneProgress,
 } from "@/lib/scene-timeline";
+import {
+  createSceneDiagnostics,
+  exposeSceneDiagnostics,
+  updateSceneDiagnostics,
+} from "@/lib/scene-diagnostics";
 import type {
   PointCloudTargetId,
   ScenePhase,
@@ -208,6 +213,11 @@ function PointCloudSystem({
   const phaseIndexRef = useRef(0);
   const sceneSample = useMemo(() => createSampledScene(phases), [phases]);
   const particle = useMemo(() => createParticleState(), []);
+  const diagnostics = useMemo(
+    () =>
+      process.env.NODE_ENV === "production" ? null : createSceneDiagnostics(),
+    [],
+  );
 
   useEffect(() => {
     const unsubscribe = progress.on("change", () => {
@@ -276,6 +286,14 @@ function PointCloudSystem({
       window.removeEventListener("blur", resetPointer);
     };
   }, [invalidate, pointerTarget, reducedMotion]);
+
+  useEffect(() => {
+    if (!diagnostics) {
+      return;
+    }
+
+    return exposeSceneDiagnostics(diagnostics);
+  }, [diagnostics]);
 
   useEffect(() => {
     return () => {
@@ -413,6 +431,21 @@ function PointCloudSystem({
       cloud,
       resources: mouseRepulsionResources,
     });
+
+    if (diagnostics) {
+      updateSceneDiagnostics(
+        diagnostics,
+        phaseState.current.key,
+        phaseState.next.key,
+        phaseState.current.cloud.shape,
+        phaseState.next.cloud.shape,
+        phaseState.mix,
+        pointerPresenceCurrent.current,
+        phaseState.cloud.obstacleRepulsion,
+        obstacleExclusionFrame.fields,
+      );
+    }
+
     for (let index = 0; index < pointCount; index += 1) {
       const offset = index * 3;
       sampleParticlePosition(

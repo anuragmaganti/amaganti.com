@@ -80,3 +80,25 @@ export async function expectNoHorizontalOverflow(page: Page) {
 
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
 }
+
+export async function expectActiveParticleObstacle(page: Page, id: string) {
+  await expect
+    .poll(
+      () =>
+        page.evaluate((obstacleId) => {
+          const diagnostics = window.__portfolioSceneDiagnostics;
+          const obstacleIndex = diagnostics?.obstacleIds.indexOf(obstacleId) ?? -1;
+
+          if (!diagnostics || obstacleIndex < 0) {
+            return 0;
+          }
+
+          return Math.min(
+            diagnostics.obstacleRepulsion,
+            diagnostics.obstacleStrengths[obstacleIndex] ?? 0,
+          );
+        }, id),
+      { timeout: 2_500 },
+    )
+    .toBeGreaterThan(0.25);
+}
