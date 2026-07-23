@@ -7,7 +7,10 @@ import {
   type ProjectFieldPreset,
   type ProjectFieldPresetId,
 } from "@/lib/project-field-presets";
-import type { PointCloudTargetId } from "@/lib/scene-types";
+import type {
+  PointCloudTargetId,
+  SceneCloudState,
+} from "@/lib/scene-types";
 
 const TWO_PI = Math.PI * 2;
 
@@ -84,6 +87,20 @@ export function createMorphTargets(
   }
 
   return targets as Record<PointCloudTargetId, Float32Array>;
+}
+
+export function resolveMorphTargetId(cloud: SceneCloudState): PointCloudTargetId {
+  if (cloud.shape === "text" && cloud.textTargetId) {
+    return cloud.textTargetId;
+  }
+
+  if (cloud.shape === "project-field" && cloud.projectFieldPresetId) {
+    return cloud.projectFieldPresetId;
+  }
+
+  return cloud.shape === "text" || cloud.shape === "project-field"
+    ? "settle"
+    : cloud.shape;
 }
 
 function writeProjectFieldPosition(

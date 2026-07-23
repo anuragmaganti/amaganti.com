@@ -3,15 +3,22 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import type { MotionValue } from "motion";
 import { useReducedMotion } from "motion/react";
-import { startTransition, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
 import {
   particleTextTargets,
   particleVisualConfig,
-  type PointCloudTextTargetId,
 } from "@/config/visual";
+import { useIntroCopyFrame } from "@/hooks/use-intro-copy-frame";
 import { usePointCloudSource } from "@/hooks/use-point-cloud-source";
+import {
+  useDevicePixelRatio,
+  useIsDarkTheme,
+  usePointCloudQualityProfile,
+  type PointCloudQualityProfile,
+} from "@/hooks/use-scene-environment";
+import { useTypographyVersion } from "@/hooks/use-typography-version";
 import {
   applyObstacleExclusions,
   createObstacleExclusionResources,
@@ -29,15 +36,17 @@ import {
   resolveMouseRepulsionFrame,
   updatePointerState,
 } from "@/lib/pointer-particle-interaction";
-import { createMorphTargets } from "@/lib/point-cloud-targets";
 import {
+  createMorphTargets,
+  resolveMorphTargetId,
+} from "@/lib/point-cloud-targets";
+import {
+  createSampledScene,
   getProjectCardPhaseWeight,
   sampleSceneProgress,
 } from "@/lib/scene-timeline";
 import type {
-  PointCloudShape,
   PointCloudTargetId,
-  SceneCloudState,
   ScenePhase,
   SceneTimeline,
 } from "@/lib/scene-types";
@@ -45,7 +54,6 @@ import {
   applyViewportCloudLayout,
   createCloudLayoutResources,
   createPositionBounds,
-  type IntroCopyFrame,
 } from "@/lib/viewport-cloud-layout";
 import {
   getParticleObstacleSnapshot,
@@ -58,17 +66,12 @@ type SceneCanvasProps = {
   timeline: SceneTimeline;
 };
 
-type QualityProfile = {
-  noiseMultiplier: number;
-  textHaloMultiplier: number;
-};
-
 type PointCloudSystemProps = {
   basePositions: Float32Array;
   progress: MotionValue<number>;
   reducedMotion: boolean;
   isDarkTheme: boolean;
-  profile: QualityProfile;
+  profile: PointCloudQualityProfile;
   phases: ScenePhase[];
 };
 
@@ -76,7 +79,7 @@ export function SceneCanvas({ progress, timeline }: SceneCanvasProps) {
   const reducedMotion = Boolean(useReducedMotion());
   const isDarkTheme = useIsDarkTheme();
   const devicePixelRatio = useDevicePixelRatio();
-  const profile = useQualityProfile(reducedMotion);
+  const profile = usePointCloudQualityProfile(reducedMotion);
   const basePositions = usePointCloudSource(
     particleVisualConfig.density.maxPoints,
   );
@@ -203,6 +206,7 @@ function PointCloudSystem({
   const layoutResources = useMemo(() => createCloudLayoutResources(), []);
   const elapsedTimeRef = useRef(0);
   const phaseIndexRef = useRef(0);
+  const sceneSample = useMemo(() => createSampledScene(phases), [phases]);
   const particle = useMemo(() => createParticleState(), []);
 
   useEffect(() => {
@@ -286,6 +290,7 @@ function PointCloudSystem({
       progress.get(),
       phases,
       phaseIndexRef,
+      sceneSample,
     );
     const shapeFrom =
       morphTargets[resolveMorphTargetId(phaseState.current.cloud)] ??
@@ -462,215 +467,6 @@ function PointCloudSystem({
   return <primitive object={cloud} />;
 }
 
-function useIntroCopyFrame(invalidate: () => void) {
-  const frameRef = useRef<IntroCopyFrame | null>(null);
-
-  useEffect(() => {
-    let frameId = 0;
-    const resizeObserver = new ResizeObserver(() => scheduleSync());
-    const mutationObserver = new MutationObserver(() => scheduleSync());
-
-    const syncFrame = () => {
-      frameId = 0;
-      const stage = document.querySelector<HTMLElement>(".intro-stage");
-      const copy = stage?.querySelector<HTMLElement>(".intro-copy");
-      const shell = copy?.closest<HTMLElement>(".intro-copy-shell");
-      const copyBlocks = copy
-        ? Array.from(copy.querySelectorAll<HTMLElement>(".intro-copy-block"))
-        : [];
-
-      if (!stage || !copy || !shell || !copyBlocks.length) {
-        frameRef.current = null;
-        return;
-      }
-
-      const stageRect = stage.getBoundingClientRect();
-      const shellRect = shell.getBoundingClientRect();
-      const blockRects = copyBlocks.map((block) => block.getBoundingClientRect());
-      const visualLeft = Math.min(...blockRects.map((rect) => rect.left));
-      const visualRight = Math.max(...blockRects.map((rect) => rect.right));
-      const visualTop = Math.min(...blockRects.map((rect) => rect.top));
-      const visualBottom = Math.max(...blockRects.map((rect) => rect.bottom));
-      const shellLayoutLeft = stageRect.left + shell.offsetLeft;
-      const shellLayoutTop = stageRect.top + shell.offsetTop;
-      const left = visualLeft + shellLayoutLeft - shellRect.left;
-      const right = visualRight + shellLayoutLeft - shellRect.left;
-      const top = visualTop + shellLayoutTop - shellRect.top;
-      const bottom = visualBottom + shellLayoutTop - shellRect.top;
-
-      frameRef.current = {
-        left,
-        right,
-        top,
-        bottom,
-        centered: getComputedStyle(copy).textAlign === "center",
-      };
-      resizeObserver.observe(stage);
-      resizeObserver.observe(copy);
-      copyBlocks.forEach((block) => resizeObserver.observe(block));
-      invalidate();
-    };
-    const scheduleSync = () => {
-      if (frameId) {
-        return;
-      }
-
-      frameId = window.requestAnimationFrame(syncFrame);
-    };
-
-    scheduleSync();
-    window.addEventListener("resize", scheduleSync, { passive: true });
-    mutationObserver.observe(document.body, { childList: true, subtree: true });
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-      window.removeEventListener("resize", scheduleSync);
-      mutationObserver.disconnect();
-      resizeObserver.disconnect();
-    };
-  }, [invalidate]);
-
-  return frameRef;
-}
-
-function useQualityProfile(reducedMotion: boolean) {
-  return useMemo<QualityProfile>(
-    () =>
-      reducedMotion
-        ? particleVisualConfig.quality.reducedMotion
-        : particleVisualConfig.quality.standard,
-    [reducedMotion],
-  );
-}
-
-function useIsDarkTheme() {
-  const [isDarkTheme, setIsDarkTheme] = useState(
-    () =>
-      typeof document === "undefined" ||
-      document.documentElement.dataset.theme !== "light",
-  );
-
-  useEffect(() => {
-    const root = document.documentElement;
-    const syncTheme = () => {
-      setIsDarkTheme(root.dataset.theme !== "light");
-    };
-    const observer = new MutationObserver(syncTheme);
-
-    observer.observe(root, {
-      attributes: true,
-      attributeFilter: ["data-theme"],
-    });
-    syncTheme();
-
-    return () => {
-      observer.disconnect();
-    };
-  }, []);
-
-  return isDarkTheme;
-}
-
-function useDevicePixelRatio() {
-  const [devicePixelRatio, setDevicePixelRatio] = useState(1);
-
-  useEffect(() => {
-    let resolutionQuery: MediaQueryList | null = null;
-
-    const updateDevicePixelRatio = () => {
-      const nextDevicePixelRatio = window.devicePixelRatio || 1;
-
-      setDevicePixelRatio((currentDevicePixelRatio) =>
-        currentDevicePixelRatio === nextDevicePixelRatio
-          ? currentDevicePixelRatio
-          : nextDevicePixelRatio,
-      );
-
-      resolutionQuery?.removeEventListener(
-        "change",
-        updateDevicePixelRatio,
-      );
-      resolutionQuery = window.matchMedia(
-        `(resolution: ${nextDevicePixelRatio}dppx)`,
-      );
-      resolutionQuery.addEventListener("change", updateDevicePixelRatio);
-    };
-
-    updateDevicePixelRatio();
-    window.addEventListener("resize", updateDevicePixelRatio, {
-      passive: true,
-    });
-
-    return () => {
-      window.removeEventListener("resize", updateDevicePixelRatio);
-      resolutionQuery?.removeEventListener(
-        "change",
-        updateDevicePixelRatio,
-      );
-    };
-  }, []);
-
-  return devicePixelRatio;
-}
-
 function lerp(start: number, end: number, progress: number) {
   return start + (end - start) * progress;
-}
-
-function resolveMorphTargetId(cloud: {
-  shape: PointCloudShape;
-  textTargetId?: PointCloudTextTargetId;
-  projectFieldPresetId?: SceneCloudState["projectFieldPresetId"];
-}): PointCloudTargetId {
-  if (cloud.shape === "text" && cloud.textTargetId) {
-    return cloud.textTargetId;
-  }
-
-  if (cloud.shape === "project-field" && cloud.projectFieldPresetId) {
-    return cloud.projectFieldPresetId;
-  }
-
-  return cloud.shape === "text" || cloud.shape === "project-field"
-    ? "settle"
-    : cloud.shape;
-}
-
-function useTypographyVersion(fontDescriptor: string | string[]) {
-  const [version, setVersion] = useState(0);
-
-  useEffect(() => {
-    if (typeof document === "undefined" || !("fonts" in document)) {
-      return;
-    }
-
-    let cancelled = false;
-    const descriptors = Array.isArray(fontDescriptor)
-      ? fontDescriptor
-      : [fontDescriptor];
-
-    if (descriptors.every((descriptor) => document.fonts.check(descriptor))) {
-      return;
-    }
-
-    Promise.all([
-      ...descriptors.map((descriptor) =>
-        document.fonts.load(descriptor).catch(() => undefined),
-      ),
-      document.fonts.ready.catch(() => undefined),
-    ]).then(() => {
-      if (cancelled) {
-        return;
-      }
-
-      startTransition(() => {
-        setVersion((current) => current + 1);
-      });
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [fontDescriptor]);
-
-  return version;
 }
