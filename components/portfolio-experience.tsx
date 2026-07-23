@@ -1459,8 +1459,11 @@ function ProjectCardSection({
             </motion.div>
           </div>
 
-          <motion.div className="project-card__copy" style={{ opacity: copyOpacity }}>
-            <div className="project-card__scroll">
+          <div className="project-card__copy">
+            <motion.div
+              className="project-card__scroll"
+              style={{ opacity: copyOpacity }}
+            >
               <div className="project-headline">
                 <h2 id={titleId}>{project.title}</h2>
                 <p className="project-card__summary">{project.summary}</p>
@@ -1483,7 +1486,7 @@ function ProjectCardSection({
                   <li key={technology}>{technology}</li>
                 ))}
               </ul>
-            </div>
+            </motion.div>
 
             <div className="project-card__actions">
               {project.href && project.linkLabel ? (
@@ -1505,7 +1508,7 @@ function ProjectCardSection({
                 />
               ) : null}
             </div>
-          </motion.div>
+          </div>
         </motion.article>
       </div>
     </section>
