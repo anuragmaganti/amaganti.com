@@ -76,7 +76,7 @@ export const particleVisualConfig = {
   },
   interaction: {
     pointerRepulsionStrength: 1,
-    cardRepulsionStrength: 1,
+    cardFlowStrength: 1,
   },
   quality: {
     standard: {

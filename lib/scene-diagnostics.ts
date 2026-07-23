@@ -1,4 +1,4 @@
-import type { ObstacleExclusionRuntime } from "@/lib/particle-obstacle-field";
+import type { ParticleObstacleRuntime } from "@/lib/particle-obstacle-field";
 import type { PointCloudShape } from "@/lib/scene-types";
 
 export type SceneDiagnostics = {
@@ -9,7 +9,7 @@ export type SceneDiagnostics = {
   nextShape: PointCloudShape;
   mix: number;
   pointerPresence: number;
-  obstacleRepulsion: number;
+  obstacleFlow: number;
   obstacleIds: string[];
   obstacleStrengths: number[];
 };
@@ -29,7 +29,7 @@ export function createSceneDiagnostics(): SceneDiagnostics {
     nextShape: "face",
     mix: 0,
     pointerPresence: 0,
-    obstacleRepulsion: 0,
+    obstacleFlow: 0,
     obstacleIds: [],
     obstacleStrengths: [],
   };
@@ -53,8 +53,8 @@ export function updateSceneDiagnostics(
   nextShape: PointCloudShape,
   mix: number,
   pointerPresence: number,
-  obstacleRepulsion: number,
-  obstacleFields: ObstacleExclusionRuntime[],
+  obstacleFlow: number,
+  obstacleFields: ParticleObstacleRuntime[],
 ) {
   diagnostics.frameCount += 1;
   diagnostics.currentPhaseKey = currentPhaseKey;
@@ -63,7 +63,7 @@ export function updateSceneDiagnostics(
   diagnostics.nextShape = nextShape;
   diagnostics.mix = mix;
   diagnostics.pointerPresence = pointerPresence;
-  diagnostics.obstacleRepulsion = obstacleRepulsion;
+  diagnostics.obstacleFlow = obstacleFlow;
   diagnostics.obstacleIds.length = obstacleFields.length;
   diagnostics.obstacleStrengths.length = obstacleFields.length;
 

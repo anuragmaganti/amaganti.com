@@ -173,9 +173,9 @@ export function sampleSceneProgress(
     next.cloud.viewportFrame,
     mix,
   );
-  sample.cloud.obstacleRepulsion = lerp(
-    current.cloud.obstacleRepulsion,
-    next.cloud.obstacleRepulsion,
+  sample.cloud.obstacleFlow = lerp(
+    current.cloud.obstacleFlow,
+    next.cloud.obstacleFlow,
     mix,
   );
   sample.cloud.textTargetId = chooseAtMidpoint(

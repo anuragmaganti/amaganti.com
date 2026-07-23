@@ -115,54 +115,34 @@ function writeProjectFieldPosition(
   jitterB: number,
   jitterC: number,
 ) {
-  const normalizedX = (u - 0.5) * 2;
-  const normalizedY = (0.5 - v) * 2;
-  const centerWeight = 1 - Math.abs(normalizedX);
-  const edgeWeight = Math.abs(normalizedX);
-  let x =
-    normalizedX *
-    preset.xScale *
-    (1 - centerWeight * preset.centerPinch + edgeWeight * preset.edgeFan);
-  let y = normalizedY * preset.yScale * (1 + edgeWeight * preset.verticalSpread);
-  let z =
-    band * preset.depthScale +
+  const along = (u - 0.5) * 2;
+  const across = (0.5 - v) * 2;
+  const edgeWeight = Math.abs(along);
+  const streamWidth = preset.width * (1 + edgeWeight * preset.fan);
+  const wave =
+    Math.sin(
+      (along * preset.waveFrequency + preset.phase) * Math.PI + band * 1.7,
+    ) * preset.waveAmplitude;
+  const centerline =
+    Math.sin((along + preset.phase * 0.35) * Math.PI * 0.72) *
+      preset.bend +
+    wave * (0.35 + Math.abs(across) * 0.65);
+  const streamAlong =
+    along * preset.length +
+    Math.sin(across * Math.PI + band * 2.1) * preset.waveAmplitude * 0.26;
+  const streamAcross = across * streamWidth + centerline;
+  const twistAngle = along * preset.twist + band * 0.42;
+  const twistedAcross = streamAcross * Math.cos(twistAngle);
+  const depth =
+    band * preset.depth +
+    streamAcross * Math.sin(twistAngle) * preset.depth * 0.48 +
     Math.cos(
-      normalizedX * Math.PI * preset.depthWaveFrequencyX +
-        normalizedY * Math.PI * preset.depthWaveFrequencyY,
+      (along * preset.waveFrequency - across * 0.62 + preset.phase) * Math.PI,
     ) *
-      preset.depthWaveAmplitude +
-    centerWeight * preset.depthBias;
-
-  x +=
-    Math.sin(
-      normalizedY * Math.PI * preset.horizontalWaveFrequency +
-        band * preset.bandFrequency,
-    ) *
-      preset.horizontalWaveAmplitude +
-    normalizedY * preset.sweep;
-  y +=
-    Math.sin(
-      normalizedX * Math.PI * preset.verticalWaveFrequency +
-        band * (preset.bandFrequency * 0.65 + 0.45),
-    ) *
-      preset.verticalWaveAmplitude +
-    Math.sin(normalizedX * Math.PI) * preset.bow;
-
-  const twistAngle =
-    normalizedY * preset.twist +
-    Math.sin(normalizedX * Math.PI * 0.5 + normalizedY * Math.PI) *
-      (preset.twist * 0.22);
-  [x, z] = rotate2d(x, z, twistAngle);
-
-  target[offset] = x + jitterA * preset.jitterX;
-  target[offset + 1] = y + jitterB * preset.jitterY;
-  target[offset + 2] = z + jitterC * preset.jitterZ;
-}
-
-function rotate2d(x: number, y: number, angle: number): [number, number] {
-  const cos = Math.cos(angle);
-  const sin = Math.sin(angle);
-  return [x * cos - y * sin, x * sin + y * cos];
+      preset.depth * 0.14;
+  target[offset] = streamAlong + jitterA * preset.jitter[0];
+  target[offset + 1] = twistedAcross + jitterB * preset.jitter[1];
+  target[offset + 2] = depth + jitterC * preset.jitter[2];
 }
 
 function pseudoRandom(index: number, seed: number) {

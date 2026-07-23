@@ -10,10 +10,17 @@ export type ParticleObstacleRect = {
   cornerRadius: number;
 };
 
+export type ParticleObstacleMotion = {
+  velocityX: number;
+  velocityY: number;
+  sampledAt: number;
+};
+
 export type ParticleObstacleEntry = {
   id: string;
   rect: ParticleObstacleRect;
   strength: number;
+  motion: ParticleObstacleMotion;
 };
 
 export type ParticleObstacleSnapshot = readonly ParticleObstacleEntry[];
@@ -27,8 +34,9 @@ export function upsertParticleObstacle(
   id: string,
   rect: ParticleObstacleRect,
   strength: number,
+  motion: ParticleObstacleMotion,
 ) {
-  const nextEntry = { id, rect, strength };
+  const nextEntry = { id, rect, strength, motion };
   const currentEntry = entries.get(id);
 
   if (currentEntry && areEntriesEqual(currentEntry, nextEntry)) {
@@ -64,6 +72,7 @@ function emitSnapshot() {
     .map((entry) => ({
       ...entry,
       rect: { ...entry.rect },
+      motion: { ...entry.motion },
     }));
 
   listeners.forEach((listener) => listener());
@@ -81,6 +90,10 @@ function areEntriesEqual(
   previous: ParticleObstacleEntry,
   next: ParticleObstacleEntry,
 ) {
+  const hasActiveMotion =
+    Math.abs(next.motion.velocityX) > 0.75 ||
+    Math.abs(next.motion.velocityY) > 0.75;
+
   return (
     previous.id === next.id &&
     Math.abs(previous.strength - next.strength) < 0.002 &&
@@ -88,6 +101,10 @@ function areEntriesEqual(
     Math.abs(previous.rect.top - next.rect.top) < 0.25 &&
     Math.abs(previous.rect.width - next.rect.width) < 0.25 &&
     Math.abs(previous.rect.height - next.rect.height) < 0.25 &&
-    Math.abs(previous.rect.cornerRadius - next.rect.cornerRadius) < 0.25
+    Math.abs(previous.rect.cornerRadius - next.rect.cornerRadius) < 0.25 &&
+    Math.abs(previous.motion.velocityX - next.motion.velocityX) < 1 &&
+    Math.abs(previous.motion.velocityY - next.motion.velocityY) < 1 &&
+    (!hasActiveMotion ||
+      Math.abs(previous.motion.sampledAt - next.motion.sampledAt) < 8)
   );
 }

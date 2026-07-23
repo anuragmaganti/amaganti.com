@@ -98,7 +98,7 @@ export async function expectActiveParticleObstacle(page: Page, id: string) {
           }
 
           return Math.min(
-            diagnostics.obstacleRepulsion,
+            diagnostics.obstacleFlow,
             diagnostics.obstacleStrengths[obstacleIndex] ?? 0,
           );
         }, id),

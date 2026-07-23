@@ -79,9 +79,9 @@ function createProjectSection<const Project extends ProjectEntry>(
     render: { type: "project-card", projectSlug: project.slug as ProjectSlug },
     snapLocalProgress: 0,
     sceneBeats: [
-      sceneBeat(`project:${project.slug}:hold`, currentPresetId, 18),
-      sceneBeat(`project:${project.slug}:handoff`, currentPresetId, 64),
-      sceneBeat(`project:${project.slug}:settle`, nextPresetId, 18),
+      sceneBeat(`project:${project.slug}:hold`, currentPresetId, 70),
+      sceneBeat(`project:${project.slug}:handoff`, currentPresetId, 25),
+      sceneBeat(`project:${project.slug}:settle`, nextPresetId, 5),
     ],
   };
 }

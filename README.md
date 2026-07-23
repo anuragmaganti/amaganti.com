@@ -193,7 +193,7 @@ Use `particleVisualConfig` in `config/visual.ts` for owner-facing changes:
   applied only in dark mode.
 - `interaction.pointerRepulsionStrength`: cursor field multiplier; `0` disables
   it.
-- `interaction.cardRepulsionStrength`: card-exclusion multiplier; `0` disables
+- `interaction.cardFlowStrength`: card-wake multiplier; `0` disables
   it.
 - `quality`: standard and reduced-motion noise/halo multipliers.
 

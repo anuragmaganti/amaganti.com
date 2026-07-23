@@ -20,9 +20,10 @@ import {
 } from "@/hooks/use-scene-environment";
 import { useTypographyVersion } from "@/hooks/use-typography-version";
 import {
-  applyObstacleExclusions,
-  createObstacleExclusionResources,
-  resolveObstacleExclusionFrame,
+  applyParticleObstacleFlow,
+  createParticleObstacleFlowState,
+  createParticleObstacleResources,
+  resolveParticleObstacleFrame,
 } from "@/lib/particle-obstacle-field";
 import {
   createParticleSeeds,
@@ -204,9 +205,14 @@ function PointCloudSystem({
     getParticleObstacleSnapshot(),
   );
   const obstacleResources = useMemo(
-    () => createObstacleExclusionResources(),
+    () => createParticleObstacleResources(),
     [],
   );
+  const obstacleFlowState = useMemo(
+    () => createParticleObstacleFlowState(pointCount),
+    [pointCount],
+  );
+  const obstacleParticleMotionActiveRef = useRef(false);
   const introCopyFrameRef = useIntroCopyFrame(invalidate);
   const layoutResources = useMemo(() => createCloudLayoutResources(), []);
   const elapsedTimeRef = useRef(0);
@@ -407,10 +413,10 @@ function PointCloudSystem({
       cloudWorldPosition,
     );
 
-    const obstacleExclusionFrame = resolveObstacleExclusionFrame({
-      obstacleRepulsion:
-        phaseState.cloud.obstacleRepulsion *
-        particleVisualConfig.interaction.cardRepulsionStrength,
+    const obstacleFrame = resolveParticleObstacleFrame({
+      obstacleFlow:
+        phaseState.cloud.obstacleFlow *
+        particleVisualConfig.interaction.cardFlowStrength,
       obstacleSnapshots: obstacleSnapshotRef.current,
       delta,
       perspectiveCamera,
@@ -441,10 +447,16 @@ function PointCloudSystem({
         phaseState.next.cloud.shape,
         phaseState.mix,
         pointerPresenceCurrent.current,
-        phaseState.cloud.obstacleRepulsion,
-        obstacleExclusionFrame.fields,
+        phaseState.cloud.obstacleFlow,
+        obstacleFrame.fields,
       );
     }
+
+    const updateObstacleParticles =
+      obstacleFrame.fields.length > 0 ||
+      obstacleFrame.unsettled ||
+      obstacleParticleMotionActiveRef.current;
+    let obstacleParticleMotionActive = false;
 
     for (let index = 0; index < pointCount; index += 1) {
       const offset = index * 3;
@@ -470,12 +482,17 @@ function PointCloudSystem({
         );
       }
 
-      if (obstacleExclusionFrame.fields.length) {
-        applyObstacleExclusions(
+      if (updateObstacleParticles) {
+        const particleMotionActive = applyParticleObstacleFlow(
           particle,
-          obstacleExclusionFrame.fields,
+          index,
+          obstacleFrame.fields,
+          obstacleFlowState,
           obstacleResources,
+          delta,
         );
+        obstacleParticleMotionActive =
+          particleMotionActive || obstacleParticleMotionActive;
       }
 
       renderPositions[offset] = particle.x;
@@ -483,13 +500,15 @@ function PointCloudSystem({
       renderPositions[offset + 2] = particle.z;
     }
 
+    obstacleParticleMotionActiveRef.current = obstacleParticleMotionActive;
     geometry.attributes.position.needsUpdate = true;
 
     if (
       pointerCurrent.distanceToSquared(pointerTarget) > 0.00004 ||
       Math.abs(pointerPresenceCurrent.current - pointerPresenceTarget.current) >
         0.00004 ||
-      obstacleExclusionFrame.unsettled
+      obstacleFrame.unsettled ||
+      obstacleParticleMotionActive
     ) {
       invalidate();
     }

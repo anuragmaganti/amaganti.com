@@ -5,14 +5,27 @@ import { type RefObject, useEffect } from "react";
 
 import {
   removeParticleObstacle,
+  type ParticleObstacleMotion,
   type ParticleObstacleRect,
   upsertParticleObstacle,
 } from "@/lib/particle-obstacle-store";
 
 const PREWARM_VERTICAL_VIEWPORT_RATIO = 0.55;
 const PREWARM_HORIZONTAL_VIEWPORT_RATIO = 0.2;
-const measurementListeners = new Set<() => void>();
+const MAX_SCREEN_VELOCITY = 2400;
+const MOTION_SMOOTHING = 12;
+const STICKY_SCROLL_COUPLING = 0.55;
+
+type MeasurementFrame = {
+  timestamp: number;
+  scrollVelocityY: number;
+};
+
+const measurementListeners = new Set<(frame: MeasurementFrame) => void>();
 let measurementFrameId = 0;
+let lastMeasurementTimestamp = 0;
+let lastScrollY = 0;
+let smoothedScrollVelocityY = 0;
 
 export function useParticleObstacle(
   id: string,
@@ -27,13 +40,78 @@ export function useParticleObstacle(
     }
 
     let cornerRadius = readCornerRadius(element);
+    let previousCenterX = 0;
+    let previousCenterY = 0;
+    let previousTimestamp = 0;
+    let smoothedVelocityX = 0;
+    let smoothedVelocityY = 0;
 
-    const syncObstacle = () => {
+    const syncObstacle = (frame: MeasurementFrame) => {
       const rect = readParticleObstacleRect(element, cornerRadius);
       const strength = getViewportApproachStrength(rect);
+      const centerX = rect.left + rect.width * 0.5;
+      const centerY = rect.top + rect.height * 0.5;
+      const deltaSeconds = previousTimestamp
+        ? Math.max((frame.timestamp - previousTimestamp) / 1000, 0.001)
+        : 0;
+      const rawVelocityX = deltaSeconds
+        ? clamp(
+            (centerX - previousCenterX) / deltaSeconds,
+            -MAX_SCREEN_VELOCITY,
+            MAX_SCREEN_VELOCITY,
+          )
+        : 0;
+      const rawVelocityY = deltaSeconds
+        ? clamp(
+            (centerY - previousCenterY) / deltaSeconds,
+            -MAX_SCREEN_VELOCITY,
+            MAX_SCREEN_VELOCITY,
+          )
+        : 0;
+      const velocityLerp = deltaSeconds
+        ? 1 - Math.exp(-deltaSeconds * MOTION_SMOOTHING)
+        : 1;
+
+      smoothedVelocityX = lerp(
+        smoothedVelocityX,
+        rawVelocityX,
+        velocityLerp,
+      );
+      smoothedVelocityY = lerp(
+        smoothedVelocityY,
+        rawVelocityY,
+        velocityLerp,
+      );
+
+      const scrollDrivenCardVelocityY = -frame.scrollVelocityY;
+      const cardMovementShare = clamp(
+        Math.abs(smoothedVelocityY) /
+          (Math.abs(scrollDrivenCardVelocityY) + 1),
+        0,
+        1,
+      );
+      // A sticky card barely moves on screen, so retain a smaller scroll-driven
+      // current to keep its surrounding field responsive while it is locked.
+      const stickyCurrentY =
+        scrollDrivenCardVelocityY *
+        (1 - cardMovementShare) *
+        STICKY_SCROLL_COUPLING;
+      const motion: ParticleObstacleMotion = {
+        velocityX: smoothedVelocityX,
+        velocityY: clamp(
+          smoothedVelocityY + stickyCurrentY,
+          -MAX_SCREEN_VELOCITY,
+          MAX_SCREEN_VELOCITY,
+        ),
+        sampledAt: frame.timestamp,
+      };
+
+      previousCenterX = centerX;
+      previousCenterY = centerY;
+      previousTimestamp = frame.timestamp;
 
       if (strength > 0.001) {
-        upsertParticleObstacle(id, rect, strength);
+        upsertParticleObstacle(id, rect, strength, motion);
       } else {
         removeParticleObstacle(id);
       }
@@ -57,10 +135,13 @@ export function useParticleObstacle(
   }, [elementRef, id, motionDriver]);
 }
 
-function subscribeMeasurements(listener: () => void) {
+function subscribeMeasurements(listener: (frame: MeasurementFrame) => void) {
   measurementListeners.add(listener);
 
   if (measurementListeners.size === 1) {
+    lastMeasurementTimestamp = 0;
+    lastScrollY = window.scrollY;
+    smoothedScrollVelocityY = 0;
     window.addEventListener("scroll", scheduleMeasurements, {
       passive: true,
     });
@@ -105,9 +186,36 @@ function scheduleMeasurements() {
   measurementFrameId = window.requestAnimationFrame(flushMeasurements);
 }
 
-function flushMeasurements() {
+function flushMeasurements(timestamp: number) {
   measurementFrameId = 0;
-  measurementListeners.forEach((listener) => listener());
+  const deltaSeconds = lastMeasurementTimestamp
+    ? clamp((timestamp - lastMeasurementTimestamp) / 1000, 0.001, 0.08)
+    : 0;
+  const scrollY = window.scrollY;
+  const rawScrollVelocityY = deltaSeconds
+    ? clamp(
+        (scrollY - lastScrollY) / deltaSeconds,
+        -MAX_SCREEN_VELOCITY,
+        MAX_SCREEN_VELOCITY,
+      )
+    : 0;
+  const scrollVelocityLerp = deltaSeconds
+    ? 1 - Math.exp(-deltaSeconds * MOTION_SMOOTHING)
+    : 1;
+
+  smoothedScrollVelocityY = lerp(
+    smoothedScrollVelocityY,
+    rawScrollVelocityY,
+    scrollVelocityLerp,
+  );
+  lastMeasurementTimestamp = timestamp;
+  lastScrollY = scrollY;
+
+  const frame = {
+    timestamp,
+    scrollVelocityY: smoothedScrollVelocityY,
+  };
+  measurementListeners.forEach((listener) => listener(frame));
 }
 
 function getViewportApproachStrength(rect: ParticleObstacleRect) {
@@ -170,4 +278,12 @@ function readCornerRadius(element: HTMLElement) {
   const radius = Number.parseFloat(value);
 
   return Number.isFinite(radius) ? radius : 0;
+}
+
+function lerp(start: number, end: number, progress: number) {
+  return start + (end - start) * progress;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
 }

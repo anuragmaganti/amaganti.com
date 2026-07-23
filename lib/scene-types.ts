@@ -22,7 +22,7 @@ export type SceneCloudState = {
   textTargetId?: PointCloudTextTargetId;
   projectFieldPresetId?: ProjectFieldPresetId;
   viewportFrame: SceneViewportFrame;
-  obstacleRepulsion: number;
+  obstacleFlow: number;
   position: [number, number, number];
   rotation: [number, number, number];
   scale: number;

@@ -1,26 +1,41 @@
 import * as THREE from "three";
 
+import type { ParticleState } from "@/lib/particle-motion";
 import type {
   ParticleObstacleEntry,
+  ParticleObstacleMotion,
   ParticleObstacleRect,
   ParticleObstacleSnapshot,
 } from "@/lib/particle-obstacle-store";
-import type { ParticleState } from "@/lib/particle-motion";
 
-const OBSTACLE_EXCLUSION_SMOOTHING = 13;
-const OBSTACLE_EXCLUSION_SOFT_PAD = 0.22;
-const OBSTACLE_EXCLUSION_SOFT_STRENGTH = 0.14;
-const OBSTACLE_EXCLUSION_HARD_STRENGTH = 1;
-const OBSTACLE_EXCLUSION_OVERSHOOT = 0.1;
-const OBSTACLE_EXCLUSION_DEPTH_FACTOR = 0.16;
-const OBSTACLE_INTERIOR_ROUTE_EXPONENT = 6;
-const OBSTACLE_MAX_COMBINED_DISPLACEMENT = 0.9;
-const OBSTACLE_STRENGTH_EPSILON = 0.001;
+const FIELD_STRENGTH_SMOOTHING = 11;
+const FIELD_VELOCITY_SMOOTHING = 12;
+const MOTION_DECAY_SECONDS = 0.3;
+const MIN_FIELD_STRENGTH = 0.001;
+const MIN_FLOW_SPEED = 0.008;
+const FLOW_RADIUS_RATIO = 0.62;
+const FLOW_RADIUS_MIN = 0.16;
+const FLOW_DISPLACEMENT_RATIO = 0.24;
+const LEADING_PRESSURE = 0.82;
+const LEADING_SPLIT = 0.68;
+const LEADING_SPLIT_BLEND_RATIO = 0.34;
+const EDGE_SLIP = 0.5;
+const TRAILING_PULL = 0.72;
+const WAKE_PULL = 0.94;
+const WAKE_CENTERING = 0.46;
+const WAKE_CURL = 0.18;
+const FLOW_DEPTH = 0.08;
+const FLOW_RESPONSE = 15;
+const FLOW_RETURN = 6;
+const COLLISION_MARGIN = 0.018;
+const MAX_PARTICLE_OFFSET = 0.42;
+const PARTICLE_MOTION_EPSILON = 0.0005;
 
-export type ObstacleExclusionRuntime = {
+export type ParticleObstacleRuntime = {
   id: string;
   present: boolean;
   rect: ParticleObstacleRect | null;
+  motion: ParticleObstacleMotion | null;
   halfWidth: number;
   halfHeight: number;
   cornerRadius: number;
@@ -34,35 +49,63 @@ export type ObstacleExclusionRuntime = {
   rightAxis: THREE.Vector3;
   upAxis: THREE.Vector3;
   planeNormal: THREE.Vector3;
+  flowVelocity: THREE.Vector2;
+  targetFlowVelocity: THREE.Vector2;
 };
 
-type ObstacleExclusionFrame = {
-  fields: ObstacleExclusionRuntime[];
+export type ParticleObstacleFrame = {
+  fields: ParticleObstacleRuntime[];
   unsettled: boolean;
 };
 
-export type ObstacleExclusionResources = {
-  runtimes: Map<string, ObstacleExclusionRuntime>;
-  frame: ObstacleExclusionFrame;
-  ndcPoint: THREE.Vector2;
-  worldPoint: THREE.Vector3;
-  localPointDelta: THREE.Vector3;
-  displacement: THREE.Vector3;
+type ParticleFlowAccumulator = {
+  targetX: number;
+  targetY: number;
+  targetZ: number;
+  correctionX: number;
+  correctionY: number;
+  correctionZ: number;
 };
 
-export function createObstacleExclusionResources(): ObstacleExclusionResources {
+export type ParticleObstacleResources = {
+  runtimes: Map<string, ParticleObstacleRuntime>;
+  frame: ParticleObstacleFrame;
+  ndcPoint: THREE.Vector2;
+  worldPoint: THREE.Vector3;
+  accumulator: ParticleFlowAccumulator;
+};
+
+export type ParticleObstacleFlowState = {
+  offsets: Float32Array;
+};
+
+export function createParticleObstacleResources(): ParticleObstacleResources {
   return {
     runtimes: new Map(),
     frame: { fields: [], unsettled: false },
     ndcPoint: new THREE.Vector2(),
     worldPoint: new THREE.Vector3(),
-    localPointDelta: new THREE.Vector3(),
-    displacement: new THREE.Vector3(),
+    accumulator: {
+      targetX: 0,
+      targetY: 0,
+      targetZ: 0,
+      correctionX: 0,
+      correctionY: 0,
+      correctionZ: 0,
+    },
   };
 }
 
-export function resolveObstacleExclusionFrame({
-  obstacleRepulsion,
+export function createParticleObstacleFlowState(
+  pointCount: number,
+): ParticleObstacleFlowState {
+  return {
+    offsets: new Float32Array(pointCount * 3),
+  };
+}
+
+export function resolveParticleObstacleFrame({
+  obstacleFlow,
   obstacleSnapshots,
   delta,
   perspectiveCamera,
@@ -71,17 +114,22 @@ export function resolveObstacleExclusionFrame({
   cloud,
   resources,
 }: {
-  obstacleRepulsion: number;
+  obstacleFlow: number;
   obstacleSnapshots: ParticleObstacleSnapshot;
   delta: number;
   perspectiveCamera: THREE.PerspectiveCamera;
   raycaster: THREE.Raycaster;
   interactionPlane: THREE.Plane;
   cloud: THREE.Points;
-  resources: ObstacleExclusionResources;
+  resources: ParticleObstacleResources;
 }) {
   const { frame, ndcPoint, runtimes, worldPoint } = resources;
+  const now = performance.now();
+  const strengthLerp = 1 - Math.exp(-delta * FIELD_STRENGTH_SMOOTHING);
+  const velocityLerp = 1 - Math.exp(-delta * FIELD_VELOCITY_SMOOTHING);
+
   frame.fields.length = 0;
+  frame.unsettled = false;
 
   for (const runtime of runtimes.values()) {
     runtime.present = false;
@@ -89,38 +137,24 @@ export function resolveObstacleExclusionFrame({
   }
 
   for (const snapshot of obstacleSnapshots) {
-    const targetStrength = snapshot.strength * obstacleRepulsion;
+    const targetStrength = snapshot.strength * obstacleFlow;
     const runtime = getObstacleRuntime(runtimes, snapshot, targetStrength);
+
     runtime.present = true;
     runtime.rect = snapshot.rect;
+    runtime.motion = snapshot.motion;
     runtime.targetStrength = targetStrength;
   }
-
-  const exclusionLerp =
-    1 - Math.exp(-delta * OBSTACLE_EXCLUSION_SMOOTHING);
-  frame.unsettled = false;
 
   for (const [id, runtime] of runtimes) {
     runtime.strength = lerp(
       runtime.strength,
       runtime.targetStrength,
-      exclusionLerp,
+      strengthLerp,
     );
-    frame.unsettled ||=
-      Math.abs(runtime.strength - runtime.targetStrength) > 0.00004;
 
-    if (
-      !runtime.present &&
-      runtime.strength <= OBSTACLE_STRENGTH_EPSILON &&
-      runtime.targetStrength <= OBSTACLE_STRENGTH_EPSILON
-    ) {
-      runtimes.delete(id);
-      continue;
-    }
-
-    if (
+    const projected =
       runtime.rect &&
-      runtime.strength > OBSTACLE_STRENGTH_EPSILON &&
       projectObstacleIntoCloud({
         runtime,
         perspectiveCamera,
@@ -129,51 +163,130 @@ export function resolveObstacleExclusionFrame({
         obstacleNdcPoint: ndcPoint,
         worldInteractionPoint: worldPoint,
         cloud,
-      })
+      });
+
+    if (projected) {
+      updateRuntimeFlowVelocity(runtime, now, velocityLerp);
+    } else {
+      runtime.targetFlowVelocity.set(0, 0);
+      runtime.flowVelocity.lerp(runtime.targetFlowVelocity, velocityLerp);
+    }
+
+    const strengthUnsettled =
+      Math.abs(runtime.strength - runtime.targetStrength) > 0.00004;
+    const velocityUnsettled =
+      runtime.flowVelocity.distanceToSquared(runtime.targetFlowVelocity) >
+        0.00001 ||
+      runtime.flowVelocity.lengthSq() > MIN_FLOW_SPEED * MIN_FLOW_SPEED;
+
+    frame.unsettled ||= strengthUnsettled || velocityUnsettled;
+
+    if (
+      projected &&
+      runtime.strength > MIN_FIELD_STRENGTH
     ) {
       frame.fields.push(runtime);
+    }
+
+    if (
+      !runtime.present &&
+      runtime.strength <= MIN_FIELD_STRENGTH &&
+      runtime.flowVelocity.lengthSq() <= MIN_FLOW_SPEED * MIN_FLOW_SPEED
+    ) {
+      runtimes.delete(id);
     }
   }
 
   return frame;
 }
 
-export function applyObstacleExclusions(
+export function applyParticleObstacleFlow(
   particle: ParticleState,
-  fields: ObstacleExclusionRuntime[],
-  resources: ObstacleExclusionResources,
+  particleIndex: number,
+  fields: ParticleObstacleRuntime[],
+  flowState: ParticleObstacleFlowState,
+  resources: ParticleObstacleResources,
+  delta: number,
 ) {
-  const { displacement, localPointDelta } = resources;
-  displacement.set(0, 0, 0);
+  const offsetIndex = particleIndex * 3;
+  const { offsets } = flowState;
+  const accumulator = resources.accumulator;
+  let offsetX = offsets[offsetIndex];
+  let offsetY = offsets[offsetIndex + 1];
+  let offsetZ = offsets[offsetIndex + 2];
+
+  accumulator.targetX = 0;
+  accumulator.targetY = 0;
+  accumulator.targetZ = 0;
+  accumulator.correctionX = 0;
+  accumulator.correctionY = 0;
+  accumulator.correctionZ = 0;
+
+  // The authored morph target stays immutable. The card contributes a
+  // temporary viscous offset plus an immediate collision correction.
+  const displacedX = particle.x + offsetX;
+  const displacedY = particle.y + offsetY;
+  const displacedZ = particle.z + offsetZ;
 
   for (const field of fields) {
-    accumulateObstacleExclusion(
+    accumulateObstacleFlow(
       particle,
+      displacedX,
+      displacedY,
+      displacedZ,
       field,
-      localPointDelta,
-      displacement,
+      accumulator,
     );
   }
 
-  const displacementLengthSq = displacement.lengthSq();
-  const maxDisplacementSq =
-    OBSTACLE_MAX_COMBINED_DISPLACEMENT *
-    OBSTACLE_MAX_COMBINED_DISPLACEMENT;
-
-  if (displacementLengthSq > maxDisplacementSq) {
-    displacement.multiplyScalar(
-      OBSTACLE_MAX_COMBINED_DISPLACEMENT /
-        Math.sqrt(displacementLengthSq),
-    );
+  const targetLength = Math.hypot(
+    accumulator.targetX,
+    accumulator.targetY,
+    accumulator.targetZ,
+  );
+  if (targetLength > MAX_PARTICLE_OFFSET) {
+    const targetScale = MAX_PARTICLE_OFFSET / targetLength;
+    accumulator.targetX *= targetScale;
+    accumulator.targetY *= targetScale;
+    accumulator.targetZ *= targetScale;
   }
 
-  particle.x += displacement.x;
-  particle.y += displacement.y;
-  particle.z += displacement.z;
+  const responseRate =
+    targetLength > PARTICLE_MOTION_EPSILON ? FLOW_RESPONSE : FLOW_RETURN;
+  const response = 1 - Math.exp(-Math.min(delta, 1 / 30) * responseRate);
+  offsetX = lerp(offsetX, accumulator.targetX, response);
+  offsetY = lerp(offsetY, accumulator.targetY, response);
+  offsetZ = lerp(offsetZ, accumulator.targetZ, response);
+
+  if (
+    targetLength <= PARTICLE_MOTION_EPSILON &&
+    Math.abs(offsetX) <= PARTICLE_MOTION_EPSILON &&
+    Math.abs(offsetY) <= PARTICLE_MOTION_EPSILON &&
+    Math.abs(offsetZ) <= PARTICLE_MOTION_EPSILON
+  ) {
+    offsetX = 0;
+    offsetY = 0;
+    offsetZ = 0;
+  }
+
+  offsets[offsetIndex] = offsetX;
+  offsets[offsetIndex + 1] = offsetY;
+  offsets[offsetIndex + 2] = offsetZ;
+
+  particle.x += offsetX + accumulator.correctionX;
+  particle.y += offsetY + accumulator.correctionY;
+  particle.z += offsetZ + accumulator.correctionZ;
+
+  return (
+    targetLength > PARTICLE_MOTION_EPSILON ||
+    Math.abs(offsetX) > PARTICLE_MOTION_EPSILON ||
+    Math.abs(offsetY) > PARTICLE_MOTION_EPSILON ||
+    Math.abs(offsetZ) > PARTICLE_MOTION_EPSILON
+  );
 }
 
 function getObstacleRuntime(
-  runtimes: Map<string, ObstacleExclusionRuntime>,
+  runtimes: Map<string, ParticleObstacleRuntime>,
   snapshot: ParticleObstacleEntry,
   initialStrength: number,
 ) {
@@ -183,10 +296,11 @@ function getObstacleRuntime(
     return existing;
   }
 
-  const runtime: ObstacleExclusionRuntime = {
+  const runtime: ParticleObstacleRuntime = {
     id: snapshot.id,
     present: true,
     rect: snapshot.rect,
+    motion: snapshot.motion,
     halfWidth: 0,
     halfHeight: 0,
     cornerRadius: 0,
@@ -200,10 +314,40 @@ function getObstacleRuntime(
     rightAxis: new THREE.Vector3(),
     upAxis: new THREE.Vector3(),
     planeNormal: new THREE.Vector3(),
+    flowVelocity: new THREE.Vector2(),
+    targetFlowVelocity: new THREE.Vector2(),
   };
-  runtimes.set(snapshot.id, runtime);
 
+  runtimes.set(snapshot.id, runtime);
   return runtime;
+}
+
+function updateRuntimeFlowVelocity(
+  runtime: ParticleObstacleRuntime,
+  now: number,
+  velocityLerp: number,
+) {
+  const rect = runtime.rect;
+  const motion = runtime.motion;
+
+  if (!rect || !motion) {
+    runtime.targetFlowVelocity.set(0, 0);
+    runtime.flowVelocity.lerp(runtime.targetFlowVelocity, velocityLerp);
+    return;
+  }
+
+  const motionAge = Math.max((now - motion.sampledAt) / 1000, 0);
+  const motionDecay = Math.exp(-motionAge / MOTION_DECAY_SECONDS);
+  const localUnitsPerPixelX =
+    (runtime.halfWidth * 2) / Math.max(rect.width, 1);
+  const localUnitsPerPixelY =
+    (runtime.halfHeight * 2) / Math.max(rect.height, 1);
+
+  runtime.targetFlowVelocity.set(
+    motion.velocityX * localUnitsPerPixelX * motionDecay,
+    -motion.velocityY * localUnitsPerPixelY * motionDecay,
+  );
+  runtime.flowVelocity.lerp(runtime.targetFlowVelocity, velocityLerp);
 }
 
 function projectObstacleIntoCloud({
@@ -215,7 +359,7 @@ function projectObstacleIntoCloud({
   worldInteractionPoint,
   cloud,
 }: {
-  runtime: ObstacleExclusionRuntime;
+  runtime: ParticleObstacleRuntime;
   perspectiveCamera: THREE.PerspectiveCamera;
   raycaster: THREE.Raycaster;
   interactionPlane: THREE.Plane;
@@ -323,127 +467,195 @@ function projectObstacleIntoCloud({
   return true;
 }
 
-function accumulateObstacleExclusion(
+function accumulateObstacleFlow(
   particle: ParticleState,
-  field: ObstacleExclusionRuntime,
-  localPointDelta: THREE.Vector3,
-  displacement: THREE.Vector3,
+  particleX: number,
+  particleY: number,
+  particleZ: number,
+  field: ParticleObstacleRuntime,
+  accumulator: ParticleFlowAccumulator,
 ) {
-  localPointDelta.set(
-    particle.x - field.center.x,
-    particle.y - field.center.y,
-    particle.z - field.center.z,
-  );
-  const planeX = localPointDelta.dot(field.rightAxis);
-  const planeY = localPointDelta.dot(field.upAxis);
-  const absX = Math.abs(planeX);
-  const absY = Math.abs(planeY);
+  const deltaX = particleX - field.center.x;
+  const deltaY = particleY - field.center.y;
+  const deltaZ = particleZ - field.center.z;
+  const planeX =
+    deltaX * field.rightAxis.x +
+    deltaY * field.rightAxis.y +
+    deltaZ * field.rightAxis.z;
+  const planeY =
+    deltaX * field.upAxis.x +
+    deltaY * field.upAxis.y +
+    deltaZ * field.upAxis.z;
+  const signX = planeX >= 0 ? 1 : -1;
+  const signY = planeY >= 0 ? 1 : -1;
   const innerHalfWidth = Math.max(field.halfWidth - field.cornerRadius, 0);
   const innerHalfHeight = Math.max(field.halfHeight - field.cornerRadius, 0);
-  const outsideX = Math.max(absX - innerHalfWidth, 0);
-  const outsideY = Math.max(absY - innerHalfHeight, 0);
+  const distanceX = Math.abs(planeX) - innerHalfWidth;
+  const distanceY = Math.abs(planeY) - innerHalfHeight;
+  const outsideX = Math.max(distanceX, 0);
+  const outsideY = Math.max(distanceY, 0);
+  const outsideLength = Math.hypot(outsideX, outsideY);
   const signedDistance =
-    Math.hypot(outsideX, outsideY) +
-    Math.min(
-      Math.max(absX - innerHalfWidth, absY - innerHalfHeight),
-      0,
-    ) -
+    outsideLength +
+    Math.min(Math.max(distanceX, distanceY), 0) -
     field.cornerRadius;
-  const softRadius =
-    Math.min(field.halfWidth, field.halfHeight) *
-      OBSTACLE_EXCLUSION_SOFT_PAD +
-    0.045;
+  let normalX = 0;
+  let normalY = 0;
 
-  if (signedDistance >= softRadius) {
-    return;
+  if (outsideLength > 0.0001) {
+    normalX = (outsideX / outsideLength) * signX;
+    normalY = (outsideY / outsideLength) * signY;
+  } else if (distanceX > distanceY) {
+    normalX = signX;
+  } else {
+    normalY = signY;
   }
-
-  let pushX = 0;
-  let pushY = 0;
-  let pushMagnitude = 0;
 
   if (signedDistance < 0) {
-    let routeX = planeX / Math.max(field.halfWidth, 0.0001);
-    let routeY = planeY / Math.max(field.halfHeight, 0.0001);
+    const correction =
+      (-signedDistance + COLLISION_MARGIN) * field.strength;
 
-    if (Math.abs(routeX) + Math.abs(routeY) < 0.015) {
-      routeX = particle.spreadX;
-      routeY = particle.spreadY;
-    }
-
-    if (Math.abs(routeX) + Math.abs(routeY) < 0.0001) {
-      routeY = 1;
-    }
-
-    const routeNorm = Math.pow(
-      Math.pow(Math.abs(routeX), OBSTACLE_INTERIOR_ROUTE_EXPONENT) +
-        Math.pow(Math.abs(routeY), OBSTACLE_INTERIOR_ROUTE_EXPONENT),
-      1 / OBSTACLE_INTERIOR_ROUTE_EXPONENT,
+    addPlaneVector(
+      accumulator,
+      field,
+      normalX * correction,
+      normalY * correction,
+      0,
+      true,
     );
-    const boundaryScale = 1 / Math.max(routeNorm, 0.0001);
-    const targetX = routeX * boundaryScale * field.halfWidth;
-    const targetY = routeY * boundaryScale * field.halfHeight;
-    const deltaX = targetX - planeX;
-    const deltaY = targetY - planeY;
-    const deltaLength = Math.hypot(deltaX, deltaY);
-
-    if (deltaLength > 0.0001) {
-      pushX = deltaX / deltaLength;
-      pushY = deltaY / deltaLength;
-    }
-
-    const overshoot =
-      Math.min(field.halfWidth, field.halfHeight) *
-        OBSTACLE_EXCLUSION_OVERSHOOT +
-      0.03;
-    pushMagnitude =
-      (deltaLength + overshoot) * OBSTACLE_EXCLUSION_HARD_STRENGTH;
-  } else {
-    const clampedX = clamp(planeX, -innerHalfWidth, innerHalfWidth);
-    const clampedY = clamp(planeY, -innerHalfHeight, innerHalfHeight);
-    const deltaX = planeX - clampedX;
-    const deltaY = planeY - clampedY;
-    const deltaLength = Math.hypot(deltaX, deltaY);
-
-    if (deltaLength > 0.0001) {
-      pushX = deltaX / deltaLength;
-      pushY = deltaY / deltaLength;
-    } else if (field.halfWidth - absX < field.halfHeight - absY) {
-      pushX = planeX >= 0 ? 1 : -1;
-    } else {
-      pushY = planeY >= 0 ? 1 : -1;
-    }
-
-    const falloff =
-      1 - clamp(signedDistance / Math.max(softRadius, 0.0001), 0, 1);
-    pushMagnitude =
-      falloff * falloff * OBSTACLE_EXCLUSION_SOFT_STRENGTH;
   }
 
-  pushMagnitude *= field.strength;
-
-  if (pushMagnitude <= 0.0001) {
+  const flowSpeed = field.flowVelocity.length();
+  if (flowSpeed <= MIN_FLOW_SPEED) {
     return;
   }
 
-  displacement.x +=
-    (field.rightAxis.x * pushX + field.upAxis.x * pushY) * pushMagnitude +
-    field.planeNormal.x *
-      pushMagnitude *
-      OBSTACLE_EXCLUSION_DEPTH_FACTOR *
-      field.strength;
-  displacement.y +=
-    (field.rightAxis.y * pushX + field.upAxis.y * pushY) * pushMagnitude +
-    field.planeNormal.y *
-      pushMagnitude *
-      OBSTACLE_EXCLUSION_DEPTH_FACTOR *
-      field.strength;
-  displacement.z +=
-    (field.rightAxis.z * pushX + field.upAxis.z * pushY) * pushMagnitude +
-    field.planeNormal.z *
-      pushMagnitude *
-      OBSTACLE_EXCLUSION_DEPTH_FACTOR *
-      field.strength;
+  const motionX = field.flowVelocity.x / flowSpeed;
+  const motionY = field.flowVelocity.y / flowSpeed;
+  const sideX = -motionY;
+  const sideY = motionX;
+  const minHalfSize = Math.min(field.halfWidth, field.halfHeight);
+  const flowRadius = minHalfSize * FLOW_RADIUS_RATIO + FLOW_RADIUS_MIN;
+  const surfaceWeight = smoothstep01(
+    1 - clamp(Math.max(signedDistance, 0) / flowRadius, 0, 1),
+  );
+  const speedWeight = Math.sqrt(
+    clamp(flowSpeed / Math.max(minHalfSize * 1.5, 0.001), 0, 1),
+  );
+  const displacement =
+    minHalfSize *
+    FLOW_DISPLACEMENT_RATIO *
+    field.strength *
+    speedWeight;
+  const normalMotion = normalX * motionX + normalY * motionY;
+  const leadingWeight = Math.max(normalMotion, 0) * surfaceWeight;
+  const trailingWeight = Math.max(-normalMotion, 0) * surfaceWeight;
+  const tangentX = motionX - normalX * normalMotion;
+  const tangentY = motionY - normalY * normalMotion;
+  const sideCoordinate = planeX * sideX + planeY * sideY;
+  const sideExtent =
+    Math.abs(sideX) * field.halfWidth +
+    Math.abs(sideY) * field.halfHeight;
+  // Ease the flow through its centerline instead of sending each half of the
+  // leading edge in an immediately opposite direction. The old binary split
+  // created a visible slit through the particles directly in front of a card.
+  const splitDirection = smoothSigned(
+    sideCoordinate /
+      Math.max(sideExtent * LEADING_SPLIT_BLEND_RATIO, 0.001),
+  );
+  const splitWeight =
+    leadingWeight *
+    (1 - clamp(Math.abs(sideCoordinate) / Math.max(sideExtent, 0.001), 0, 1));
+  let targetX =
+    normalX * leadingWeight * LEADING_PRESSURE +
+    sideX * splitDirection * splitWeight * LEADING_SPLIT +
+    tangentX * surfaceWeight * EDGE_SLIP +
+    motionX * trailingWeight * TRAILING_PULL;
+  let targetY =
+    normalY * leadingWeight * LEADING_PRESSURE +
+    sideY * splitDirection * splitWeight * LEADING_SPLIT +
+    tangentY * surfaceWeight * EDGE_SLIP +
+    motionY * trailingWeight * TRAILING_PULL;
+
+  const alongCoordinate = planeX * motionX + planeY * motionY;
+  const alongExtent =
+    Math.abs(motionX) * field.halfWidth +
+    Math.abs(motionY) * field.halfHeight;
+  const behindDistance = -(alongCoordinate + alongExtent);
+  const wakeLength = alongExtent * 0.9 + minHalfSize * 0.72;
+
+  if (behindDistance >= 0 && behindDistance < wakeLength) {
+    const longitudinalWeight = 1 - behindDistance / wakeLength;
+    const lateralWeight =
+      1 -
+      clamp(
+        (Math.abs(sideCoordinate) - sideExtent * 0.72) /
+          Math.max(sideExtent * 0.72, 0.001),
+        0,
+        1,
+      );
+    const wakeWeight =
+      longitudinalWeight * longitudinalWeight * smoothstep01(lateralWeight);
+    const normalizedSide = sideCoordinate / Math.max(sideExtent, 0.001);
+    const curl =
+      particle.spreadZ *
+      Math.sin(longitudinalWeight * Math.PI) *
+      WAKE_CURL;
+
+    targetX +=
+      motionX * wakeWeight * WAKE_PULL -
+      sideX * normalizedSide * wakeWeight * WAKE_CENTERING +
+      sideX * curl * wakeWeight;
+    targetY +=
+      motionY * wakeWeight * WAKE_PULL -
+      sideY * normalizedSide * wakeWeight * WAKE_CENTERING +
+      sideY * curl * wakeWeight;
+  }
+
+  const depthFlow =
+    (particle.spreadZ * surfaceWeight + trailingWeight * 0.35) * FLOW_DEPTH;
+
+  addPlaneVector(
+    accumulator,
+    field,
+    targetX * displacement,
+    targetY * displacement,
+    depthFlow * displacement,
+    false,
+  );
+}
+
+function addPlaneVector(
+  accumulator: ParticleFlowAccumulator,
+  field: ParticleObstacleRuntime,
+  planeX: number,
+  planeY: number,
+  depth: number,
+  correction: boolean,
+) {
+  const x =
+    field.rightAxis.x * planeX +
+    field.upAxis.x * planeY +
+    field.planeNormal.x * depth;
+  const y =
+    field.rightAxis.y * planeX +
+    field.upAxis.y * planeY +
+    field.planeNormal.y * depth;
+  const z =
+    field.rightAxis.z * planeX +
+    field.upAxis.z * planeY +
+    field.planeNormal.z * depth;
+
+  if (correction) {
+    accumulator.correctionX += x;
+    accumulator.correctionY += y;
+    accumulator.correctionZ += z;
+    return;
+  }
+
+  accumulator.targetX += x;
+  accumulator.targetY += y;
+  accumulator.targetZ += z;
 }
 
 function projectScreenPointToLocal(
@@ -459,6 +671,7 @@ function projectScreenPointToLocal(
 ) {
   const viewportWidth = Math.max(window.innerWidth, 1);
   const viewportHeight = Math.max(window.innerHeight, 1);
+
   ndcPoint.set(
     (clientX / viewportWidth) * 2 - 1,
     1 - (clientY / viewportHeight) * 2,
@@ -472,6 +685,15 @@ function projectScreenPointToLocal(
   localPoint.copy(worldPoint);
   cloud.worldToLocal(localPoint);
   return true;
+}
+
+function smoothstep01(value: number) {
+  const clamped = clamp(value, 0, 1);
+  return clamped * clamped * (3 - 2 * clamped);
+}
+
+function smoothSigned(value: number) {
+  return Math.sign(value) * smoothstep01(Math.abs(value));
 }
 
 function lerp(start: number, end: number, progress: number) {

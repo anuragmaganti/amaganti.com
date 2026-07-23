@@ -13,9 +13,9 @@ type ScenePresetOverrides = {
 
 type SceneCloudDefinition = Omit<
   SceneCloudState,
-  "viewportFrame" | "obstacleRepulsion"
+  "viewportFrame" | "obstacleFlow"
 > &
-  Partial<Pick<SceneCloudState, "viewportFrame" | "obstacleRepulsion">>;
+  Partial<Pick<SceneCloudState, "viewportFrame" | "obstacleFlow">>;
 
 type StaticScenePresetId =
   | "intro-face"
@@ -31,6 +31,11 @@ export type ScenePresetId = StaticScenePresetId | ProjectScenePresetId;
 
 const ABOUT_TEXT_COMPOSITION_SCALE = 0.84;
 const PROJECTS_TEXT_COMPOSITION_SCALE = 0.86;
+const PROJECT_FIELD_ROTATION: SceneCloudState["rotation"] = [
+  -0.04,
+  -0.12,
+  0.02,
+];
 
 function createScenePreset(
   camera: SceneCameraState,
@@ -44,7 +49,7 @@ function createScenePreset(
       // Fields retain authored world space so obstacle projection and preset
       // geometry use one coordinate system. Foreground subjects preserve frame.
       viewportFrame: isProjectField ? "authored" : "preserve",
-      obstacleRepulsion: isProjectField ? 1 : 0,
+      obstacleFlow: isProjectField ? 1 : 0,
       ...cloud,
     },
   };
@@ -123,7 +128,7 @@ export const projectScenePresets: Record<ProjectFieldPresetId, ScenePreset> = {
       shape: "project-field",
       projectFieldPresetId: "contour-sheet",
       position: [0, 0.03, -0.1],
-      rotation: [-0.08, -0.42, 0.12],
+      rotation: PROJECT_FIELD_ROTATION,
       scale: 1.78,
       pointSize: 0.0158,
       noise: 0.06,
@@ -137,7 +142,7 @@ export const projectScenePresets: Record<ProjectFieldPresetId, ScenePreset> = {
       shape: "project-field",
       projectFieldPresetId: "torsion-column",
       position: [0, 0.02, -0.1],
-      rotation: [0.16, 0.2, -0.14],
+      rotation: PROJECT_FIELD_ROTATION,
       scale: 1.72,
       pointSize: 0.0156,
       noise: 0.054,
@@ -151,7 +156,7 @@ export const projectScenePresets: Record<ProjectFieldPresetId, ScenePreset> = {
       shape: "project-field",
       projectFieldPresetId: "bloom-fan",
       position: [0, 0.06, -0.08],
-      rotation: [-0.08, 0.26, -0.04],
+      rotation: PROJECT_FIELD_ROTATION,
       scale: 1.74,
       pointSize: 0.0154,
       noise: 0.052,
