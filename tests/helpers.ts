@@ -1,6 +1,8 @@
 import { expect, type Page } from "@playwright/test";
 
-export type PortfolioTheme = "dark" | "light";
+import type { PortfolioTheme } from "../config/visual";
+
+export type { PortfolioTheme } from "../config/visual";
 
 export const stableCheckpoints = [
   { id: "intro", progress: 0 },

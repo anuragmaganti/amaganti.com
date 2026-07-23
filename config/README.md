@@ -1,0 +1,37 @@
+# Template configuration
+
+This directory is the supported customization boundary for portfolio owners.
+Rendering components should consume these values rather than define editable
+copy or visual preferences themselves.
+
+## `portfolio.ts`
+
+Change identity, metadata, intro copy, About content, projects, Skills, the
+technology ticker, and outro links here. Array order is display order. Keep
+project slugs and content ids unique because they are used as stable section and
+accessibility identifiers.
+
+Project images belong in `public/projects/`. Always provide the image's intrinsic
+width and height and a useful alt description. Select one of the typed
+`particlePreset` values for the field behind each card.
+
+## `visual.ts`
+
+Change the default theme, particle title labels and typography, head asset, and
+high-level particle tuning here.
+
+- `maxPoints` controls shared cloud density. The shipped asset and layouts are
+  characterized at 8,000 points.
+- `pointSizeScale` and `noiseScale` are global multipliers. Start within
+  `0.75 -> 1.25` to avoid changing the composition's character.
+- Pointer and card repulsion strengths are multipliers; `0` disables an effect
+  and `1` preserves the authored behavior.
+- Text `fillDensity` reserves particles for solid letterforms. `haloDensity`
+  controls the available edge dispersion, while `haloRadius` controls its
+  distance.
+- The head asset is raw little-endian `Float32` XYZ triplets. Its orientation is
+  applied before normalization; replacing it is documented in the main template
+  guide added later in this refactor.
+
+Low-level projection, smoothing, and allocation-sensitive render-loop constants
+remain internal by design.

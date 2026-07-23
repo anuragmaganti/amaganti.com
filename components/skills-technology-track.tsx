@@ -9,7 +9,7 @@ import {
 } from "motion/react";
 import { useEffect, useId, useRef, useState, type RefObject } from "react";
 
-import type { SkillEntry } from "@/lib/content";
+import type { SkillEntry } from "@/config/portfolio";
 
 const VISIBLE_SLOTS = 8;
 const EDGE_SLOTS = 1.5;

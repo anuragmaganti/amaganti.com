@@ -2,9 +2,11 @@
 
 import { useRef } from "react";
 
-export type PortfolioTheme = "dark" | "light";
+import {
+  themeConfig,
+  type PortfolioTheme,
+} from "@/config/visual";
 
-const THEME_STORAGE_KEY = "portfolio-theme";
 const MIN_THEME_TRANSITION_DURATION = 620;
 const MAX_THEME_TRANSITION_DURATION = 860;
 const THEME_TRANSITION_MS_PER_PIXEL = 0.52;
@@ -23,7 +25,7 @@ function applyTheme(theme: PortfolioTheme) {
   document.documentElement.style.colorScheme = theme;
 
   try {
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    window.localStorage.setItem(themeConfig.storageKey, theme);
   } catch {
     // The selected theme still applies when storage is unavailable.
   }
@@ -69,7 +71,9 @@ export function ThemeToggle() {
     }
 
     const currentTheme =
-      document.documentElement.dataset.theme === "light" ? "light" : "dark";
+      document.documentElement.dataset.theme === "light"
+        ? "light"
+        : themeConfig.defaultTheme;
     const nextTheme: PortfolioTheme =
       currentTheme === "dark" ? "light" : "dark";
     const reducedMotion = window.matchMedia(

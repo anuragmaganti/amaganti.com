@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-import { projects, type ProjectEntry } from "../lib/content";
+import { projects, type ProjectEntry } from "../config/portfolio";
+import { themeConfig } from "../config/visual";
 import { PORTFOLIO_SECTIONS } from "../lib/scene-config";
 import {
   expectNoHorizontalOverflow,
@@ -29,14 +30,22 @@ test.describe("portfolio behavior contract", () => {
   test("defaults to dark and persists an explicit light theme", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
-    await page.evaluate(() => window.localStorage.removeItem("portfolio-theme"));
+    await page.evaluate(
+      (storageKey) => window.localStorage.removeItem(storageKey),
+      themeConfig.storageKey,
+    );
     await page.reload();
 
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
     await page.getByRole("button", { name: "Toggle color theme" }).click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
     await expect
-      .poll(() => page.evaluate(() => localStorage.getItem("portfolio-theme")))
+      .poll(() =>
+        page.evaluate(
+          (storageKey) => localStorage.getItem(storageKey),
+          themeConfig.storageKey,
+        ),
+      )
       .toBe("light");
 
     await page.reload();

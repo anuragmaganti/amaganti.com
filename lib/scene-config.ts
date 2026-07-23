@@ -3,7 +3,8 @@ import {
   type ContentSectionId,
   type ProjectEntry,
   type ProjectSlug,
-} from "@/lib/content";
+} from "@/config/portfolio";
+import type { PointCloudTextTargetId } from "@/config/visual";
 import type { ProjectFieldPresetId } from "@/lib/project-field-presets";
 
 export type SectionId =
@@ -31,22 +32,8 @@ export type SectionDomVariant =
   | "outro";
 
 export type PointCloudShape = "face" | "text" | "project-field" | "settle";
-export type PointCloudTextTargetId = "projects" | "about-me";
 export type SceneViewportFrame = "preserve" | "authored";
 export type SceneTransitionEasing = "smooth" | "direct";
-
-export type PointCloudTextTarget = {
-  id: PointCloudTextTargetId;
-  label: string;
-  fontFamily: string;
-  fontWeight: number;
-  fillDensity: number;
-  haloDensity: number;
-  width: number;
-  height: number;
-  depth: number;
-  haloRadius: number;
-};
 
 export type PointCloudTargetId =
   | "face"
@@ -132,42 +119,6 @@ export type ScenePhase = {
 export type SceneTimeline = {
   sectionRanges: Record<SectionId, [number, number]>;
   phases: ScenePhase[];
-};
-
-export const POINT_CLOUD_ASSET_PATH = "/models/face-points.bin";
-
-export const POINT_CLOUD_TEXT_TARGETS: Record<
-  PointCloudTextTargetId,
-  PointCloudTextTarget
-> = {
-  "about-me": {
-    id: "about-me",
-    label: "About Me",
-    fontFamily: "Instrument Sans",
-    fontWeight: 700,
-    fillDensity: 0.93,
-    haloDensity: 0.07,
-    width: 1.84,
-    height: 0.46,
-    depth: 0.06,
-    haloRadius: 0.075,
-  },
-  projects: {
-    id: "projects",
-    label: "Projects",
-    fontFamily: "Instrument Sans",
-    fontWeight: 700,
-    fillDensity: 0.84,
-    haloDensity: 0.18,
-    width: 2.72,
-    height: 0.84,
-    depth: 0.14,
-    haloRadius: 0.18,
-  },
-};
-
-export const RENDER_DEFAULTS = {
-  maxPoints: 8000,
 };
 
 const ABOUT_TEXT_COMPOSITION_SCALE = 0.84;

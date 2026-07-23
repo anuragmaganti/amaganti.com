@@ -1,7 +1,9 @@
-import type {
-  PointCloudTargetId,
-  PointCloudTextTarget,
-} from "@/lib/scene-config";
+import {
+  particleVisualConfig,
+  type PointCloudTextTarget,
+  type PointCloudTextTargetId,
+} from "@/config/visual";
+import type { PointCloudTargetId } from "@/lib/scene-config";
 import {
   PROJECT_FIELD_PRESETS,
   type ProjectFieldPreset,
@@ -9,14 +11,10 @@ import {
 } from "@/lib/project-field-presets";
 
 const TWO_PI = Math.PI * 2;
-const IMPORT_SCAN_ORIENTATION = {
-  x: -Math.PI / 2,
-  y: 0,
-  z: 0,
-};
+const IMPORT_SCAN_ORIENTATION = particleVisualConfig.headAsset.orientation;
 
 type CreateMorphTargetsOptions = {
-  textTargets?: PointCloudTextTarget[];
+  textTargets?: (PointCloudTextTarget & { id: PointCloudTextTargetId })[];
   haloDensityMultiplier?: number;
 };
 

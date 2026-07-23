@@ -7,12 +7,13 @@ import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 
 import {
-  POINT_CLOUD_ASSET_PATH,
-  POINT_CLOUD_TEXT_TARGETS,
-  RENDER_DEFAULTS,
+  particleTextTargets,
+  particleVisualConfig,
+  type PointCloudTextTargetId,
+} from "@/config/visual";
+import {
   type PointCloudShape,
   type PointCloudTargetId,
-  type PointCloudTextTargetId,
   type SceneCloudState,
   type ScenePhase,
   type SceneTimeline,
@@ -48,7 +49,6 @@ const OBSTACLE_EXCLUSION_DEPTH_FACTOR = 0.16;
 const OBSTACLE_INTERIOR_ROUTE_EXPONENT = 6;
 const OBSTACLE_MAX_COMBINED_DISPLACEMENT = 0.9;
 const OBSTACLE_STRENGTH_EPSILON = 0.001;
-const DARK_PROJECT_PARTICLE_OPACITY_MULTIPLIER = 0.84;
 const REFERENCE_VIEWPORT_ASPECT = 1440 / 900;
 const MIN_LAYOUT_SCALE = 0.2;
 
@@ -146,7 +146,9 @@ export function SceneCanvas({ progress, timeline }: SceneCanvasProps) {
   const isDarkTheme = useIsDarkTheme();
   const devicePixelRatio = useDevicePixelRatio();
   const profile = useQualityProfile(reducedMotion);
-  const basePositions = usePointCloudSource(RENDER_DEFAULTS.maxPoints);
+  const basePositions = usePointCloudSource(
+    particleVisualConfig.density.maxPoints,
+  );
 
   return (
     <Canvas
@@ -190,7 +192,7 @@ function PointCloudSystem({
   );
   const typographyDescriptors = useMemo(
     () =>
-      Object.values(POINT_CLOUD_TEXT_TARGETS).map(
+      Object.values(particleTextTargets).map(
         (target) => `${target.fontWeight} 220px "${target.fontFamily}"`,
       ),
     [],
@@ -218,7 +220,7 @@ function PointCloudSystem({
     void typographyVersion;
 
     return createMorphTargets(basePositions, {
-      textTargets: Object.values(POINT_CLOUD_TEXT_TARGETS),
+      textTargets: Object.values(particleTextTargets),
       haloDensityMultiplier: profile.textHaloMultiplier,
     });
   }, [
@@ -389,7 +391,10 @@ function PointCloudSystem({
     const shapeTo =
       morphTargets[resolveMorphTargetId(phaseState.next.cloud)] ??
       morphTargets.face;
-    const noise = phaseState.cloud.noise * profile.noiseMultiplier;
+    const noise =
+      phaseState.cloud.noise *
+      profile.noiseMultiplier *
+      particleVisualConfig.appearance.noiseScale;
     const blend = reducedMotion
       ? Math.min(phaseState.mix, 0.6)
       : phaseState.mix;
@@ -450,7 +455,9 @@ function PointCloudSystem({
     cloud.updateMatrixWorld();
 
     cloudMaterial.size =
-      phaseState.cloud.pointSize * layoutScaleMultiplier;
+      phaseState.cloud.pointSize *
+      layoutScaleMultiplier *
+      particleVisualConfig.appearance.pointSizeScale;
     const projectCardPhaseWeight = getProjectCardPhaseWeight(
       phaseState.current.key,
       phaseState.next.key,
@@ -459,7 +466,7 @@ function PointCloudSystem({
     const themeOpacityMultiplier = isDarkTheme
       ? lerp(
           1,
-          DARK_PROJECT_PARTICLE_OPACITY_MULTIPLIER,
+          particleVisualConfig.appearance.darkProjectOpacityMultiplier,
           projectCardPhaseWeight,
         )
       : 1;
@@ -478,7 +485,9 @@ function PointCloudSystem({
     );
 
     const obstacleExclusionFrame = resolveObstacleExclusionFrame({
-      obstacleRepulsion: phaseState.cloud.obstacleRepulsion,
+      obstacleRepulsion:
+        phaseState.cloud.obstacleRepulsion *
+        particleVisualConfig.interaction.cardRepulsionStrength,
       obstacleSnapshots: obstacleSnapshotRef.current,
       obstacleRuntimes,
       activeObstacleFields,
@@ -523,7 +532,8 @@ function PointCloudSystem({
         applyMouseRepulsion(
           particle,
           localInteractionPoint,
-          mouseRepulsionState.strength,
+          mouseRepulsionState.strength *
+            particleVisualConfig.interaction.pointerRepulsionStrength,
         );
       }
 
@@ -1455,7 +1465,7 @@ function usePointCloudSource(maxPoints: number) {
         setRawAssetPositions(positions);
       });
     };
-    void fetch(POINT_CLOUD_ASSET_PATH, { signal: controller.signal })
+    void fetch(particleVisualConfig.headAsset.path, { signal: controller.signal })
       .then((response) => {
         if (!response.ok) {
           throw new Error(`Point cloud request failed with ${response.status}`);
@@ -1494,10 +1504,10 @@ function usePointCloudSource(maxPoints: number) {
 
 function useQualityProfile(reducedMotion: boolean) {
   return useMemo<QualityProfile>(
-    () => ({
-      noiseMultiplier: reducedMotion ? 0.18 : 0.48,
-      textHaloMultiplier: reducedMotion ? 0.12 : 1,
-    }),
+    () =>
+      reducedMotion
+        ? particleVisualConfig.quality.reducedMotion
+        : particleVisualConfig.quality.standard,
     [reducedMotion],
   );
 }

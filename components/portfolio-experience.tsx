@@ -38,13 +38,15 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { useParticleObstacle } from "@/hooks/use-particle-obstacle";
 import {
   contentSectionsById,
+  introContent,
+  outroLinks,
   projectsBySlug,
   skills,
   technologySkills,
   type ContentParagraph,
   type ContentSectionEntry,
   type ProjectEntry,
-} from "@/lib/content";
+} from "@/config/portfolio";
 import {
   createSceneTimeline,
   getTimelineProgressPoint,
@@ -69,38 +71,6 @@ const INTRO_TEXT_FADE_DURATION = 0.92;
 const INTRO_TEXT_MOVE_DELAY = 1.28;
 const INTRO_SCENE_DELAY = 2.08;
 const INTRO_CHROME_DELAY = 2.22;
-const INTRO_TITLE_LINES = ["Hi, I'm", "Anurag"] as const;
-const INTRO_SUBTITLE_TEXT =
-  "a software engineer obsessed with building products that feel a little bit magical";
-const INTRO_NOTE_TEXT = "(yep, that's a real LIDAR scan of my head)";
-type OutroContactItem = {
-  label: string;
-  href?: string;
-  external?: boolean;
-};
-
-const OUTRO_CONTACT_ITEMS: readonly OutroContactItem[] = [
-  {
-    label: "GitHub",
-    href: "https://github.com/anuragmaganti",
-    external: true,
-  },
-  {
-    label: "LinkedIn",
-    href: "https://www.linkedin.com/in/anuragmaganti/",
-    external: true,
-  },
-  {
-    label: "Email me",
-    href: "mailto:amaganti.dev@gmail.com",
-    external: false,
-  },
-  {
-    label: "Nature publication",
-    href: "https://www.nature.com/articles/s41586-018-0697-7",
-    external: true,
-  },
-];
 type IntroCopyContentProps = {
   titleClassName: string;
   subtitleClassName: string;
@@ -405,18 +375,18 @@ function IntroCopyContent({
   renderSubtitle,
   renderNote,
 }: IntroCopyContentProps) {
-  const titleChildren = INTRO_TITLE_LINES.map((line, index) => (
+  const titleChildren = [introContent.greeting, introContent.name].map((line, index) => (
     <IntroCopyToken key={line} initialX={alignmentOffsets?.title[index]}>
       {line}
     </IntroCopyToken>
   ));
   const subtitleChildren = renderIntroWordTokens(
-    INTRO_SUBTITLE_TEXT,
+    introContent.summary,
     alignmentOffsets?.subtitle,
   );
   const noteChildren = (
     <p className="intro-note__text">
-      {renderIntroWordTokens(INTRO_NOTE_TEXT, alignmentOffsets?.note)}
+      {renderIntroWordTokens(introContent.note, alignmentOffsets?.note)}
     </p>
   );
 
@@ -818,25 +788,21 @@ function OutroContactOverlay({
         className="outro-contact-overlay"
         style={{ opacity, y, filter }}
       >
-        {OUTRO_CONTACT_ITEMS.map((item) => (
+        {outroLinks.map((item) => (
           <div
             key={item.label}
             className={`outro-contact-overlay__item${
-              item.href ? " outro-contact-overlay__item--interactive" : ""
+              " outro-contact-overlay__item--interactive"
             }`}
           >
-            {item.href ? (
-              <a
-                className="outro-contact-label outro-contact-label--link"
-                href={item.href}
-                target={item.external ? "_blank" : undefined}
-                rel={item.external ? "noreferrer" : undefined}
-              >
-                {item.label}
-              </a>
-            ) : (
-              <p className="outro-contact-label">{item.label}</p>
-            )}
+            <a
+              className="outro-contact-label outro-contact-label--link"
+              href={item.href}
+              target={item.external ? "_blank" : undefined}
+              rel={item.external ? "noreferrer" : undefined}
+            >
+              {item.label}
+            </a>
           </div>
         ))}
       </motion.div>
