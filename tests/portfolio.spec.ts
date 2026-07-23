@@ -155,13 +155,22 @@ test.describe("portfolio behavior contract", () => {
     await scrollToSection(page, "skills-stage", 0.7);
     await scrollToSection(page, "outro", 0.78);
 
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            () => window.__portfolioSceneDiagnostics?.currentPhaseKey,
+          ),
+        { timeout: 2_500 },
+      )
+      .toBe("contact");
+
     const diagnostics = await page.evaluate(
       () => window.__portfolioSceneDiagnostics,
     );
 
     expect(problems).toEqual([]);
     expect(diagnostics?.frameCount).toBeGreaterThan(1);
-    expect(diagnostics?.currentPhaseKey).toBe("contact");
   });
 
   test("reframes the scene after live resize and orientation changes", async (
