@@ -32,6 +32,8 @@ export type SectionDomVariant =
 
 export type PointCloudShape = "face" | "text" | "project-field" | "settle";
 export type PointCloudTextTargetId = "projects" | "about-me";
+export type SceneViewportFrame = "preserve" | "authored";
+export type SceneTransitionEasing = "smooth" | "direct";
 
 export type PointCloudTextTarget = {
   id: PointCloudTextTargetId;
@@ -62,6 +64,8 @@ export type SceneCloudState = {
   shape: PointCloudShape;
   textTargetId?: PointCloudTextTargetId;
   projectFieldPresetId?: ProjectFieldPresetId;
+  viewportFrame: SceneViewportFrame;
+  obstacleRepulsion: number;
   position: [number, number, number];
   rotation: [number, number, number];
   scale: number;
@@ -81,6 +85,12 @@ type ScenePresetOverrides = {
   cloud?: Partial<SceneCloudState>;
 };
 
+type SceneCloudDefinition = Omit<
+  SceneCloudState,
+  "viewportFrame" | "obstacleRepulsion"
+> &
+  Partial<Pick<SceneCloudState, "viewportFrame" | "obstacleRepulsion">>;
+
 type StaticScenePresetId =
   | "intro-face"
   | "about-transform"
@@ -97,6 +107,7 @@ type SceneBeatDefinition = {
   key: string;
   presetId: ScenePresetId;
   durationWeight: number;
+  transitionEasing: SceneTransitionEasing;
 };
 
 export type SectionDefinition = {
@@ -113,6 +124,7 @@ export type SectionDefinition = {
 export type ScenePhase = {
   key: string;
   range: [number, number];
+  transitionEasing: SceneTransitionEasing;
   camera: SceneCameraState;
   cloud: SceneCloudState;
 };
@@ -158,11 +170,25 @@ export const RENDER_DEFAULTS = {
   maxPoints: 8000,
 };
 
+const ABOUT_TEXT_COMPOSITION_SCALE = 0.84;
+const PROJECTS_TEXT_COMPOSITION_SCALE = 0.86;
+
 function createScenePreset(
   camera: SceneCameraState,
-  cloud: SceneCloudState,
+  cloud: SceneCloudDefinition,
 ): ScenePreset {
-  return { camera, cloud };
+  const isProjectField = cloud.shape === "project-field";
+
+  return {
+    camera,
+    cloud: {
+      // Foreground subjects preserve their desktop frame; fields keep their
+      // authored world-space composition and can flow around live obstacles.
+      viewportFrame: isProjectField ? "authored" : "preserve",
+      obstacleRepulsion: isProjectField ? 1 : 0,
+      ...cloud,
+    },
+  };
 }
 
 function extendScenePreset(
@@ -179,8 +205,9 @@ function createSceneBeat(
   key: string,
   presetId: ScenePresetId,
   durationWeight: number,
+  transitionEasing: SceneTransitionEasing = "smooth",
 ): SceneBeatDefinition {
-  return { key, presetId, durationWeight };
+  return { key, presetId, durationWeight, transitionEasing };
 }
 
 const INTRO_FACE_PRESET = createScenePreset(
@@ -212,8 +239,8 @@ const ABOUT_TITLE_PRESET = createScenePreset(
     textTargetId: "about-me",
     position: [0, 0.72, 0],
     rotation: [0, 0.03, 0],
-    scale: 1,
-    pointSize: 0.017,
+    scale: ABOUT_TEXT_COMPOSITION_SCALE,
+    pointSize: 0.017 * ABOUT_TEXT_COMPOSITION_SCALE,
     noise: 0.022,
     intensity: 0.22,
     opacity: 0.98,
@@ -231,8 +258,8 @@ const PROJECTS_HERO_PRESET = createScenePreset(
     textTargetId: "projects",
     position: [0.03, 0.04, 0],
     rotation: [0, 0.03, 0],
-    scale: 1.02,
-    pointSize: 0.017,
+    scale: 1.02 * PROJECTS_TEXT_COMPOSITION_SCALE,
+    pointSize: 0.017 * PROJECTS_TEXT_COMPOSITION_SCALE,
     noise: 0.022,
     intensity: 0.22,
     opacity: 0.98,
@@ -300,7 +327,7 @@ const SKILLS_AMBIENT_PRESET = extendScenePreset(
       pointSize: 0.013,
       noise: 0.028,
       intensity: 0.12,
-      opacity: 0.24,
+      opacity: 0.3,
     },
   },
 );
@@ -312,8 +339,8 @@ const staticPresets: Record<StaticScenePresetId, ScenePreset> = {
     cloud: {
       position: [0, 0.96, 0],
       rotation: [0.01, 0.04, 0],
-      scale: 1.02,
-      pointSize: 0.0158,
+      scale: 1.02 * ABOUT_TEXT_COMPOSITION_SCALE,
+      pointSize: 0.0158 * ABOUT_TEXT_COMPOSITION_SCALE,
       noise: 0.038,
       intensity: 0.28,
       opacity: 0.97,
@@ -325,8 +352,8 @@ const staticPresets: Record<StaticScenePresetId, ScenePreset> = {
     cloud: {
       position: [0.02, 0.04, 0],
       rotation: [0.01, 0.02, 0],
-      scale: 1.04,
-      pointSize: 0.0172,
+      scale: 1.04 * PROJECTS_TEXT_COMPOSITION_SCALE,
+      pointSize: 0.0172 * PROJECTS_TEXT_COMPOSITION_SCALE,
       noise: 0.038,
       intensity: 0.3,
       opacity: 0.96,
@@ -335,7 +362,12 @@ const staticPresets: Record<StaticScenePresetId, ScenePreset> = {
   "projects-hero": PROJECTS_HERO_PRESET,
   "projects-reveal": extendScenePreset(PROJECTS_HERO_PRESET, {
     camera: { position: [0.02, 0.04, 4.38], fov: 31 },
-    cloud: { scale: 1.01, pointSize: 0.0169, noise: 0.024, intensity: 0.24 },
+    cloud: {
+      scale: 1.01 * PROJECTS_TEXT_COMPOSITION_SCALE,
+      pointSize: 0.0169 * PROJECTS_TEXT_COMPOSITION_SCALE,
+      noise: 0.024,
+      intensity: 0.24,
+    },
   }),
   "skills-ambient": SKILLS_AMBIENT_PRESET,
   "outro-face": createScenePreset(
@@ -362,7 +394,20 @@ const SCENE_PRESETS: Record<ScenePresetId, ScenePreset> = {
   ...projectPresets,
 };
 
-function createCardSection(project: ProjectEntry): SectionDefinition {
+function getProjectScenePresetId(project: ProjectEntry): ProjectScenePresetId {
+  return `project-${project.particlePreset}`;
+}
+
+function createCardSection(
+  project: ProjectEntry,
+  projectIndex: number,
+): SectionDefinition {
+  const currentPresetId = getProjectScenePresetId(project);
+  const nextProject = projects[projectIndex + 1];
+  const nextPresetId = nextProject
+    ? getProjectScenePresetId(nextProject)
+    : currentPresetId;
+
   return {
     id: project.slug as ProjectSlug,
     kind: "card",
@@ -370,11 +415,9 @@ function createCardSection(project: ProjectEntry): SectionDefinition {
     projectSlug: project.slug as ProjectSlug,
     snapLocalProgress: 0,
     sceneBeats: [
-      createSceneBeat(
-        `project:${project.slug}`,
-        `project-${project.particlePreset}`,
-        1,
-      ),
+      createSceneBeat(`project:${project.slug}:hold`, currentPresetId, 18),
+      createSceneBeat(`project:${project.slug}:handoff`, currentPresetId, 64),
+      createSceneBeat(`project:${project.slug}:settle`, nextPresetId, 18),
     ],
   };
 }
@@ -432,8 +475,8 @@ export const PORTFOLIO_SECTIONS: SectionDefinition[] = [
     domVariant: "outro",
     ariaLabel: "Contact links",
     sceneBeats: [
-      createSceneBeat("skills-ambient:hold", "skills-ambient", 42),
-      createSceneBeat("contact", "outro-face", 63),
+      createSceneBeat("skills-to-contact", "skills-ambient", 68, "direct"),
+      createSceneBeat("contact", "outro-face", 32),
     ],
   },
 ];
@@ -477,6 +520,7 @@ export function createSceneTimeline(
       phases.push({
         key: beat.key,
         range: [beatStart, beatEnd],
+        transitionEasing: beat.transitionEasing,
         camera: preset.camera,
         cloud: preset.cloud,
       });

@@ -25,10 +25,12 @@ import {
   samplePositions,
 } from "@/lib/point-cloud";
 import {
-  getProjectCardExclusionSnapshot,
-  subscribeProjectCardExclusion,
-  type ProjectCardExclusionRect,
-} from "@/lib/project-card-exclusion-store";
+  getParticleObstacleSnapshot,
+  subscribeParticleObstacle,
+  type ParticleObstacleEntry,
+  type ParticleObstacleRect,
+  type ParticleObstacleSnapshot,
+} from "@/lib/particle-obstacle-store";
 
 const POINTER_SMOOTHING = 14;
 const POINTER_PRESENCE_SMOOTHING = 10;
@@ -37,12 +39,17 @@ const MOUSE_REPULSION_RADIUS_SQ =
   MOUSE_REPULSION_RADIUS * MOUSE_REPULSION_RADIUS;
 const MOUSE_REPULSION_DISPLACEMENT = 0.14;
 const MOUSE_REPULSION_DEPTH_BOOST = 1.14;
-const CARD_EXCLUSION_SMOOTHING = 10;
-const CARD_EXCLUSION_SOFT_PAD = 0.18;
-const CARD_EXCLUSION_SOFT_STRENGTH = 0.12;
-const CARD_EXCLUSION_HARD_STRENGTH = 1.08;
-const CARD_EXCLUSION_OVERSHOOT = 0.1;
-const CARD_EXCLUSION_DEPTH_FACTOR = 0.18;
+const OBSTACLE_EXCLUSION_SMOOTHING = 13;
+const OBSTACLE_EXCLUSION_SOFT_PAD = 0.22;
+const OBSTACLE_EXCLUSION_SOFT_STRENGTH = 0.16;
+const OBSTACLE_EXCLUSION_HARD_STRENGTH = 1.04;
+const OBSTACLE_EXCLUSION_OVERSHOOT = 0.12;
+const OBSTACLE_EXCLUSION_DEPTH_FACTOR = 0.16;
+const OBSTACLE_INTERIOR_ROUTE_EXPONENT = 6;
+const OBSTACLE_MAX_COMBINED_DISPLACEMENT = 0.9;
+const OBSTACLE_STRENGTH_EPSILON = 0.001;
+const REFERENCE_VIEWPORT_ASPECT = 1440 / 900;
+const MIN_LAYOUT_SCALE = 0.2;
 
 type SceneCanvasProps = {
   progress: MotionValue<number>;
@@ -52,14 +59,6 @@ type SceneCanvasProps = {
 type QualityProfile = {
   noiseMultiplier: number;
   textHaloMultiplier: number;
-  textScaleMultiplier: number;
-  faceScaleMultiplier: number;
-  aboutTextScaleMultiplier: number;
-  projectsTextScaleMultiplier: number;
-  aboutTextYOffset: number;
-  introFaceOffset: [number, number];
-  introCameraYOffset: number;
-  introTargetYOffset: number;
 };
 
 type PointCloudSystemProps = {
@@ -84,12 +83,60 @@ type MouseRepulsionState = {
   strength: number;
 };
 
-type CardExclusionState = {
-  active: boolean;
+type ObstacleExclusionRuntime = {
+  id: string;
+  present: boolean;
+  rect: ParticleObstacleRect | null;
   halfWidth: number;
   halfHeight: number;
+  cornerRadius: number;
   strength: number;
   targetStrength: number;
+  center: THREE.Vector3;
+  leftMid: THREE.Vector3;
+  rightMid: THREE.Vector3;
+  topMid: THREE.Vector3;
+  bottomMid: THREE.Vector3;
+  rightAxis: THREE.Vector3;
+  upAxis: THREE.Vector3;
+  planeNormal: THREE.Vector3;
+};
+
+type ObstacleExclusionFrame = {
+  fields: ObstacleExclusionRuntime[];
+  unsettled: boolean;
+};
+
+type ScreenFrame = {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+  width: number;
+  height: number;
+  centerX: number;
+  centerY: number;
+};
+
+type IntroCopyFrame = {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+  centered: boolean;
+};
+
+type CloudLayoutResources = {
+  bounds: THREE.Box3;
+  boundsCenter: THREE.Vector3;
+  corner: THREE.Vector3;
+  currentFrame: ScreenFrame;
+  referenceFrame: ScreenFrame;
+  currentFramePoint: THREE.Vector3;
+  targetFramePoint: THREE.Vector3;
+  referenceCamera: THREE.PerspectiveCamera;
+  referenceCameraTarget: THREE.Vector3;
+  referenceCloud: THREE.Object3D;
 };
 
 export function SceneCanvas({ progress, timeline }: SceneCanvasProps) {
@@ -166,16 +213,24 @@ function PointCloudSystem({
     void typographyVersion;
 
     return createMorphTargets(basePositions, {
-        textTargets: Object.values(POINT_CLOUD_TEXT_TARGETS),
-        haloDensityMultiplier: profile.textHaloMultiplier,
-        textScaleMultiplier: profile.textScaleMultiplier,
-      });
+      textTargets: Object.values(POINT_CLOUD_TEXT_TARGETS),
+      haloDensityMultiplier: profile.textHaloMultiplier,
+    });
   }, [
     basePositions,
-    profile.textScaleMultiplier,
     profile.textHaloMultiplier,
     typographyVersion,
   ]);
+  const morphTargetBounds = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(morphTargets).map(([id, positions]) => [
+          id,
+          createPositionBounds(positions),
+        ]),
+      ) as Record<PointCloudTargetId, THREE.Box3>,
+    [morphTargets],
+  );
   const cloudMaterial = useMemo(
     () =>
       new THREE.PointsMaterial({
@@ -207,21 +262,33 @@ function PointCloudSystem({
   const cloudWorldPosition = useMemo(() => new THREE.Vector3(), []);
   const worldInteractionPoint = useMemo(() => new THREE.Vector3(), []);
   const localInteractionPoint = useMemo(() => new THREE.Vector3(), []);
-  const exclusionSnapshotRef = useRef<{
-    rect: ProjectCardExclusionRect;
-    strength: number;
-  } | null>(getProjectCardExclusionSnapshot());
-  const exclusionStrengthCurrent = useRef(0);
-  const localCardCenter = useMemo(() => new THREE.Vector3(), []);
-  const localCardLeftMid = useMemo(() => new THREE.Vector3(), []);
-  const localCardRightMid = useMemo(() => new THREE.Vector3(), []);
-  const localCardTopMid = useMemo(() => new THREE.Vector3(), []);
-  const localCardBottomMid = useMemo(() => new THREE.Vector3(), []);
-  const localCardRightAxis = useMemo(() => new THREE.Vector3(), []);
-  const localCardUpAxis = useMemo(() => new THREE.Vector3(), []);
-  const localCardPlaneNormal = useMemo(() => new THREE.Vector3(), []);
-  const cardNdcPoint = useMemo(() => new THREE.Vector2(), []);
+  const obstacleSnapshotRef = useRef<ParticleObstacleSnapshot>(
+    getParticleObstacleSnapshot(),
+  );
+  const obstacleRuntimes = useMemo(
+    () => new Map<string, ObstacleExclusionRuntime>(),
+    [],
+  );
+  const activeObstacleFields = useMemo<ObstacleExclusionRuntime[]>(() => [], []);
+  const obstacleNdcPoint = useMemo(() => new THREE.Vector2(), []);
   const localPointDelta = useMemo(() => new THREE.Vector3(), []);
+  const obstacleDisplacement = useMemo(() => new THREE.Vector3(), []);
+  const introCopyFrameRef = useIntroCopyFrame(invalidate);
+  const layoutResources = useMemo<CloudLayoutResources>(
+    () => ({
+      bounds: new THREE.Box3(),
+      boundsCenter: new THREE.Vector3(),
+      corner: new THREE.Vector3(),
+      currentFrame: createScreenFrame(),
+      referenceFrame: createScreenFrame(),
+      currentFramePoint: new THREE.Vector3(),
+      targetFramePoint: new THREE.Vector3(),
+      referenceCamera: new THREE.PerspectiveCamera(),
+      referenceCameraTarget: new THREE.Vector3(),
+      referenceCloud: new THREE.Object3D(),
+    }),
+    [],
+  );
   const elapsedTimeRef = useRef(0);
   const phaseIndexRef = useRef(0);
   const particle = useMemo<ParticleState>(
@@ -251,8 +318,8 @@ function PointCloudSystem({
   }, [geometry, invalidate, morphTargets, renderPositions]);
 
   useEffect(() => {
-    const unsubscribe = subscribeProjectCardExclusion(() => {
-      exclusionSnapshotRef.current = getProjectCardExclusionSnapshot();
+    const unsubscribe = subscribeParticleObstacle(() => {
+      obstacleSnapshotRef.current = getParticleObstacleSnapshot();
       invalidate();
     });
 
@@ -300,7 +367,7 @@ function PointCloudSystem({
     };
   }, [cloudMaterial, geometry]);
 
-  useFrame(({ camera }, delta) => {
+  useFrame(({ camera, size }, delta) => {
     const perspectiveCamera = camera as THREE.PerspectiveCamera;
     const phaseState = sampleSceneProgress(
       progress.get(),
@@ -340,66 +407,8 @@ function PointCloudSystem({
     const pointerPitch = pointerCurrent.y * 0.08 * trackingStrength;
     const pointerYaw = pointerCurrent.x * 0.14 * trackingStrength;
 
-    const responsiveCloudScaleMultiplier = getResponsiveCloudScaleMultiplier(
-      phaseState.current.cloud,
-      phaseState.next.cloud,
-      blend,
-      profile,
-    );
-    const responsivePointSizeMultiplier = getResponsivePointSizeMultiplier(
-      phaseState.current.cloud,
-      phaseState.next.cloud,
-      blend,
-      profile,
-    );
-    const responsiveIntroFaceOffset = getResponsiveIntroFaceOffset(
-      phaseState.current.key,
-      phaseState.next.key,
-      blend,
-      profile,
-    );
-    const responsiveAboutTextYOffset = getResponsiveAboutTextYOffset(
-      phaseState.current.cloud,
-      phaseState.next.cloud,
-      blend,
-      profile,
-    );
-    cloud.position.set(
-      phaseState.cloud.position[0] + responsiveIntroFaceOffset[0],
-      phaseState.cloud.position[1] +
-        responsiveIntroFaceOffset[1] +
-        responsiveAboutTextYOffset,
-      phaseState.cloud.position[2],
-    );
-    cloud.rotation.set(
-      phaseState.cloud.rotation[0] + pointerPitch,
-      phaseState.cloud.rotation[1] + pointerYaw,
-      phaseState.cloud.rotation[2],
-    );
-    cloud.scale.setScalar(
-      phaseState.cloud.scale * responsiveCloudScaleMultiplier,
-    );
-    cloudMaterial.size =
-      phaseState.cloud.pointSize * responsivePointSizeMultiplier;
-    cloudMaterial.opacity = phaseState.cloud.opacity;
-
-    const responsiveIntroCameraYOffset = getResponsiveIntroCameraYOffset(
-      phaseState.current.key,
-      phaseState.next.key,
-      blend,
-      profile,
-    );
-    const responsiveIntroTargetYOffset = getResponsiveIntroTargetYOffset(
-      phaseState.current.key,
-      phaseState.next.key,
-      blend,
-      profile,
-    );
     desiredCamera.set(...phaseState.camera.position);
     cameraTarget.set(...phaseState.camera.target);
-    desiredCamera.y += responsiveIntroCameraYOffset;
-    cameraTarget.y += responsiveIntroTargetYOffset;
-
     perspectiveCamera.position.copy(desiredCamera);
     perspectiveCamera.lookAt(cameraTarget);
     if (Math.abs(perspectiveCamera.fov - phaseState.camera.fov) > 0.0001) {
@@ -407,6 +416,33 @@ function PointCloudSystem({
       perspectiveCamera.updateProjectionMatrix();
     }
     perspectiveCamera.updateMatrixWorld();
+
+    cloud.position.set(...phaseState.cloud.position);
+    cloud.rotation.set(
+      phaseState.cloud.rotation[0],
+      phaseState.cloud.rotation[1],
+      phaseState.cloud.rotation[2],
+    );
+    cloud.scale.setScalar(phaseState.cloud.scale);
+    const layoutScaleMultiplier = applyViewportCloudLayout(
+      cloud,
+      perspectiveCamera,
+      phaseState,
+      blend,
+      morphTargetBounds[resolveMorphTargetId(phaseState.current.cloud)],
+      morphTargetBounds[resolveMorphTargetId(phaseState.next.cloud)],
+      size.width,
+      size.height,
+      introCopyFrameRef.current,
+      layoutResources,
+    );
+    cloud.rotation.x += pointerPitch;
+    cloud.rotation.y += pointerYaw;
+    cloud.updateMatrixWorld();
+
+    cloudMaterial.size =
+      phaseState.cloud.pointSize * layoutScaleMultiplier;
+    cloudMaterial.opacity = phaseState.cloud.opacity;
 
     cloud.updateMatrixWorld();
     cloud.getWorldPosition(cloudWorldPosition);
@@ -419,26 +455,17 @@ function PointCloudSystem({
       cloudWorldPosition,
     );
 
-    const cardExclusionState = resolveCardExclusionState({
-      currentShape: phaseState.current.cloud.shape,
-      nextShape: phaseState.next.cloud.shape,
-      blend,
-      exclusionSnapshot: exclusionSnapshotRef.current,
-      exclusionStrengthCurrent,
+    const obstacleExclusionFrame = resolveObstacleExclusionFrame({
+      obstacleRepulsion: phaseState.cloud.obstacleRepulsion,
+      obstacleSnapshots: obstacleSnapshotRef.current,
+      obstacleRuntimes,
+      activeObstacleFields,
       delta,
       perspectiveCamera,
       raycaster,
       interactionPlane,
-      cardNdcPoint,
+      obstacleNdcPoint,
       worldInteractionPoint,
-      localCardCenter,
-      localCardLeftMid,
-      localCardRightMid,
-      localCardTopMid,
-      localCardBottomMid,
-      localCardRightAxis,
-      localCardUpAxis,
-      localCardPlaneNormal,
       cloud,
     });
     const mouseRepulsionState = resolveMouseRepulsionState({
@@ -478,15 +505,12 @@ function PointCloudSystem({
         );
       }
 
-      if (cardExclusionState.active) {
-        applyCardExclusion(
+      if (obstacleExclusionFrame.fields.length) {
+        applyObstacleExclusions(
           particle,
-          cardExclusionState,
-          localCardCenter,
-          localCardRightAxis,
-          localCardUpAxis,
-          localCardPlaneNormal,
+          obstacleExclusionFrame.fields,
           localPointDelta,
+          obstacleDisplacement,
         );
       }
 
@@ -501,9 +525,7 @@ function PointCloudSystem({
       pointerCurrent.distanceToSquared(pointerTarget) > 0.00004 ||
       Math.abs(pointerPresenceCurrent.current - pointerPresenceTarget.current) >
         0.00004 ||
-      Math.abs(
-        exclusionStrengthCurrent.current - cardExclusionState.targetStrength,
-      ) > 0.00004
+      obstacleExclusionFrame.unsettled
     ) {
       invalidate();
     }
@@ -581,166 +603,241 @@ function resolveMouseRepulsionState({
   return { active: true, strength };
 }
 
-function resolveCardExclusionState({
-  currentShape,
-  nextShape,
-  blend,
-  exclusionSnapshot,
-  exclusionStrengthCurrent,
+function resolveObstacleExclusionFrame({
+  obstacleRepulsion,
+  obstacleSnapshots,
+  obstacleRuntimes,
+  activeObstacleFields,
   delta,
   perspectiveCamera,
   raycaster,
   interactionPlane,
-  cardNdcPoint,
+  obstacleNdcPoint,
   worldInteractionPoint,
-  localCardCenter,
-  localCardLeftMid,
-  localCardRightMid,
-  localCardTopMid,
-  localCardBottomMid,
-  localCardRightAxis,
-  localCardUpAxis,
-  localCardPlaneNormal,
   cloud,
 }: {
-  currentShape: PointCloudShape;
-  nextShape: PointCloudShape;
-  blend: number;
-  exclusionSnapshot: {
-    rect: ProjectCardExclusionRect;
-    strength: number;
-  } | null;
-  exclusionStrengthCurrent: { current: number };
+  obstacleRepulsion: number;
+  obstacleSnapshots: ParticleObstacleSnapshot;
+  obstacleRuntimes: Map<string, ObstacleExclusionRuntime>;
+  activeObstacleFields: ObstacleExclusionRuntime[];
   delta: number;
   perspectiveCamera: THREE.PerspectiveCamera;
   raycaster: THREE.Raycaster;
   interactionPlane: THREE.Plane;
-  cardNdcPoint: THREE.Vector2;
+  obstacleNdcPoint: THREE.Vector2;
   worldInteractionPoint: THREE.Vector3;
-  localCardCenter: THREE.Vector3;
-  localCardLeftMid: THREE.Vector3;
-  localCardRightMid: THREE.Vector3;
-  localCardTopMid: THREE.Vector3;
-  localCardBottomMid: THREE.Vector3;
-  localCardRightAxis: THREE.Vector3;
-  localCardUpAxis: THREE.Vector3;
-  localCardPlaneNormal: THREE.Vector3;
   cloud: THREE.Points;
-}): CardExclusionState {
-  const phaseWeight = getCardExclusionWeight(currentShape, nextShape, blend);
-  const targetStrength =
-    exclusionSnapshot && phaseWeight > 0.001
-      ? exclusionSnapshot.strength * phaseWeight
-      : 0;
-  const exclusionLerp = 1 - Math.exp(-delta * CARD_EXCLUSION_SMOOTHING);
-  exclusionStrengthCurrent.current = lerp(
-    exclusionStrengthCurrent.current,
-    targetStrength,
-    exclusionLerp,
-  );
+}): ObstacleExclusionFrame {
+  activeObstacleFields.length = 0;
 
-  if (!exclusionSnapshot || exclusionStrengthCurrent.current <= 0.001) {
-    return {
-      active: false,
-      halfWidth: 0,
-      halfHeight: 0,
-      strength: exclusionStrengthCurrent.current,
-      targetStrength,
-    };
+  for (const runtime of obstacleRuntimes.values()) {
+    runtime.present = false;
+    runtime.targetStrength = 0;
   }
 
-  const centerX =
-    exclusionSnapshot.rect.left + exclusionSnapshot.rect.width * 0.5;
-  const centerY =
-    exclusionSnapshot.rect.top + exclusionSnapshot.rect.height * 0.5;
+  for (const snapshot of obstacleSnapshots) {
+    const targetStrength = snapshot.strength * obstacleRepulsion;
+    const runtime = getObstacleRuntime(
+      obstacleRuntimes,
+      snapshot,
+      targetStrength,
+    );
+    runtime.present = true;
+    runtime.rect = snapshot.rect;
+    runtime.targetStrength = targetStrength;
+  }
 
-  const hasCardProjection =
+  const exclusionLerp =
+    1 - Math.exp(-delta * OBSTACLE_EXCLUSION_SMOOTHING);
+  let unsettled = false;
+
+  for (const [id, runtime] of obstacleRuntimes) {
+    runtime.strength = lerp(
+      runtime.strength,
+      runtime.targetStrength,
+      exclusionLerp,
+    );
+    unsettled ||=
+      Math.abs(runtime.strength - runtime.targetStrength) > 0.00004;
+
+    if (
+      !runtime.present &&
+      runtime.strength <= OBSTACLE_STRENGTH_EPSILON &&
+      runtime.targetStrength <= OBSTACLE_STRENGTH_EPSILON
+    ) {
+      obstacleRuntimes.delete(id);
+      continue;
+    }
+
+    if (
+      runtime.rect &&
+      runtime.strength > OBSTACLE_STRENGTH_EPSILON &&
+      projectObstacleIntoCloud({
+        runtime,
+        perspectiveCamera,
+        raycaster,
+        interactionPlane,
+        obstacleNdcPoint,
+        worldInteractionPoint,
+        cloud,
+      })
+    ) {
+      activeObstacleFields.push(runtime);
+    }
+  }
+
+  return { fields: activeObstacleFields, unsettled };
+}
+
+function getObstacleRuntime(
+  runtimes: Map<string, ObstacleExclusionRuntime>,
+  snapshot: ParticleObstacleEntry,
+  initialStrength: number,
+) {
+  const existing = runtimes.get(snapshot.id);
+
+  if (existing) {
+    return existing;
+  }
+
+  const runtime: ObstacleExclusionRuntime = {
+    id: snapshot.id,
+    present: true,
+    rect: snapshot.rect,
+    halfWidth: 0,
+    halfHeight: 0,
+    cornerRadius: 0,
+    strength: initialStrength,
+    targetStrength: initialStrength,
+    center: new THREE.Vector3(),
+    leftMid: new THREE.Vector3(),
+    rightMid: new THREE.Vector3(),
+    topMid: new THREE.Vector3(),
+    bottomMid: new THREE.Vector3(),
+    rightAxis: new THREE.Vector3(),
+    upAxis: new THREE.Vector3(),
+    planeNormal: new THREE.Vector3(),
+  };
+  runtimes.set(snapshot.id, runtime);
+
+  return runtime;
+}
+
+function projectObstacleIntoCloud({
+  runtime,
+  perspectiveCamera,
+  raycaster,
+  interactionPlane,
+  obstacleNdcPoint,
+  worldInteractionPoint,
+  cloud,
+}: {
+  runtime: ObstacleExclusionRuntime;
+  perspectiveCamera: THREE.PerspectiveCamera;
+  raycaster: THREE.Raycaster;
+  interactionPlane: THREE.Plane;
+  obstacleNdcPoint: THREE.Vector2;
+  worldInteractionPoint: THREE.Vector3;
+  cloud: THREE.Points;
+}) {
+  const rect = runtime.rect;
+
+  if (!rect) {
+    return false;
+  }
+
+  const centerX = rect.left + rect.width * 0.5;
+  const centerY = rect.top + rect.height * 0.5;
+  const projected =
     projectScreenPointToLocal(
       centerX,
       centerY,
       perspectiveCamera,
       raycaster,
       interactionPlane,
-      cardNdcPoint,
+      obstacleNdcPoint,
       worldInteractionPoint,
-      localCardCenter,
+      runtime.center,
       cloud,
     ) &&
     projectScreenPointToLocal(
-      exclusionSnapshot.rect.left,
+      rect.left,
       centerY,
       perspectiveCamera,
       raycaster,
       interactionPlane,
-      cardNdcPoint,
+      obstacleNdcPoint,
       worldInteractionPoint,
-      localCardLeftMid,
+      runtime.leftMid,
       cloud,
     ) &&
     projectScreenPointToLocal(
-      exclusionSnapshot.rect.right,
+      rect.right,
       centerY,
       perspectiveCamera,
       raycaster,
       interactionPlane,
-      cardNdcPoint,
+      obstacleNdcPoint,
       worldInteractionPoint,
-      localCardRightMid,
+      runtime.rightMid,
       cloud,
     ) &&
     projectScreenPointToLocal(
       centerX,
-      exclusionSnapshot.rect.top,
+      rect.top,
       perspectiveCamera,
       raycaster,
       interactionPlane,
-      cardNdcPoint,
+      obstacleNdcPoint,
       worldInteractionPoint,
-      localCardTopMid,
+      runtime.topMid,
       cloud,
     ) &&
     projectScreenPointToLocal(
       centerX,
-      exclusionSnapshot.rect.bottom,
+      rect.bottom,
       perspectiveCamera,
       raycaster,
       interactionPlane,
-      cardNdcPoint,
+      obstacleNdcPoint,
       worldInteractionPoint,
-      localCardBottomMid,
+      runtime.bottomMid,
       cloud,
     );
 
-  if (!hasCardProjection) {
-    return {
-      active: false,
-      halfWidth: 0,
-      halfHeight: 0,
-      strength: exclusionStrengthCurrent.current,
-      targetStrength,
-    };
+  if (!projected) {
+    return false;
   }
 
-  localCardRightAxis.copy(localCardRightMid).sub(localCardLeftMid).normalize();
-  localCardUpAxis.copy(localCardTopMid).sub(localCardBottomMid).normalize();
-  localCardPlaneNormal
-    .crossVectors(localCardRightAxis, localCardUpAxis)
+  runtime.rightAxis.copy(runtime.rightMid).sub(runtime.leftMid);
+  runtime.upAxis.copy(runtime.topMid).sub(runtime.bottomMid);
+  runtime.halfWidth = runtime.rightAxis.length() * 0.5;
+  runtime.halfHeight = runtime.upAxis.length() * 0.5;
+
+  if (runtime.halfWidth <= 0.001 || runtime.halfHeight <= 0.001) {
+    return false;
+  }
+
+  runtime.rightAxis.normalize();
+  runtime.upAxis.normalize();
+  runtime.planeNormal
+    .crossVectors(runtime.rightAxis, runtime.upAxis)
     .normalize();
-  localCardUpAxis
-    .crossVectors(localCardPlaneNormal, localCardRightAxis)
+  runtime.upAxis
+    .crossVectors(runtime.planeNormal, runtime.rightAxis)
     .normalize();
 
-  const halfWidth = localCardCenter.distanceTo(localCardRightMid);
-  const halfHeight = localCardCenter.distanceTo(localCardTopMid);
-  const active = halfWidth > 0.001 && halfHeight > 0.001;
+  const localRadiusX =
+    (rect.cornerRadius / Math.max(rect.width, 1)) * runtime.halfWidth * 2;
+  const localRadiusY =
+    (rect.cornerRadius / Math.max(rect.height, 1)) * runtime.halfHeight * 2;
+  runtime.cornerRadius = clamp(
+    Math.min(localRadiusX, localRadiusY),
+    0,
+    Math.min(runtime.halfWidth, runtime.halfHeight) * 0.92,
+  );
 
-  return {
-    active,
-    halfWidth,
-    halfHeight,
-    strength: exclusionStrengthCurrent.current,
-    targetStrength,
-  };
+  return true;
 }
 
 function sampleParticlePosition(
@@ -804,30 +901,72 @@ function applyMouseRepulsion(
     repelZ * inverseLength * displacement * MOUSE_REPULSION_DEPTH_BOOST;
 }
 
-function applyCardExclusion(
+function applyObstacleExclusions(
   particle: ParticleState,
-  cardExclusion: CardExclusionState,
-  localCardCenter: THREE.Vector3,
-  localCardRightAxis: THREE.Vector3,
-  localCardUpAxis: THREE.Vector3,
-  localCardPlaneNormal: THREE.Vector3,
+  fields: ObstacleExclusionRuntime[],
   localPointDelta: THREE.Vector3,
+  displacement: THREE.Vector3,
+) {
+  displacement.set(0, 0, 0);
+
+  for (const field of fields) {
+    accumulateObstacleExclusion(
+      particle,
+      field,
+      localPointDelta,
+      displacement,
+    );
+  }
+
+  const displacementLengthSq = displacement.lengthSq();
+  const maxDisplacementSq =
+    OBSTACLE_MAX_COMBINED_DISPLACEMENT *
+    OBSTACLE_MAX_COMBINED_DISPLACEMENT;
+
+  if (displacementLengthSq > maxDisplacementSq) {
+    displacement.multiplyScalar(
+      OBSTACLE_MAX_COMBINED_DISPLACEMENT /
+        Math.sqrt(displacementLengthSq),
+    );
+  }
+
+  particle.x += displacement.x;
+  particle.y += displacement.y;
+  particle.z += displacement.z;
+}
+
+function accumulateObstacleExclusion(
+  particle: ParticleState,
+  field: ObstacleExclusionRuntime,
+  localPointDelta: THREE.Vector3,
+  displacement: THREE.Vector3,
 ) {
   localPointDelta.set(
-    particle.x - localCardCenter.x,
-    particle.y - localCardCenter.y,
-    particle.z - localCardCenter.z,
+    particle.x - field.center.x,
+    particle.y - field.center.y,
+    particle.z - field.center.z,
   );
-  const planeX = localPointDelta.dot(localCardRightAxis);
-  const planeY = localPointDelta.dot(localCardUpAxis);
+  const planeX = localPointDelta.dot(field.rightAxis);
+  const planeY = localPointDelta.dot(field.upAxis);
   const absX = Math.abs(planeX);
   const absY = Math.abs(planeY);
-  const softPadX = cardExclusion.halfWidth * CARD_EXCLUSION_SOFT_PAD + 0.045;
-  const softPadY = cardExclusion.halfHeight * CARD_EXCLUSION_SOFT_PAD + 0.045;
-  const softHalfWidth = cardExclusion.halfWidth + softPadX;
-  const softHalfHeight = cardExclusion.halfHeight + softPadY;
+  const innerHalfWidth = Math.max(field.halfWidth - field.cornerRadius, 0);
+  const innerHalfHeight = Math.max(field.halfHeight - field.cornerRadius, 0);
+  const outsideX = Math.max(absX - innerHalfWidth, 0);
+  const outsideY = Math.max(absY - innerHalfHeight, 0);
+  const signedDistance =
+    Math.hypot(outsideX, outsideY) +
+    Math.min(
+      Math.max(absX - innerHalfWidth, absY - innerHalfHeight),
+      0,
+    ) -
+    field.cornerRadius;
+  const softRadius =
+    Math.min(field.halfWidth, field.halfHeight) *
+      OBSTACLE_EXCLUSION_SOFT_PAD +
+    0.045;
 
-  if (absX >= softHalfWidth || absY >= softHalfHeight) {
+  if (signedDistance >= softRadius) {
     return;
   }
 
@@ -835,31 +974,52 @@ function applyCardExclusion(
   let pushY = 0;
   let pushMagnitude = 0;
 
-  if (absX < cardExclusion.halfWidth && absY < cardExclusion.halfHeight) {
-    const xToEdge = cardExclusion.halfWidth - absX;
-    const yToEdge = cardExclusion.halfHeight - absY;
-    const overshoot =
-      Math.min(cardExclusion.halfWidth, cardExclusion.halfHeight) *
-        CARD_EXCLUSION_OVERSHOOT +
-      0.03;
+  if (signedDistance < 0) {
+    let routeX = planeX / Math.max(field.halfWidth, 0.0001);
+    let routeY = planeY / Math.max(field.halfHeight, 0.0001);
 
-    if (xToEdge < yToEdge) {
-      pushX = planeX >= 0 ? 1 : -1;
-      pushMagnitude = (xToEdge + overshoot) * CARD_EXCLUSION_HARD_STRENGTH;
-    } else {
-      pushY = planeY >= 0 ? 1 : -1;
-      pushMagnitude = (yToEdge + overshoot) * CARD_EXCLUSION_HARD_STRENGTH;
+    if (Math.abs(routeX) + Math.abs(routeY) < 0.015) {
+      routeX = particle.spreadX;
+      routeY = particle.spreadY;
     }
+
+    if (Math.abs(routeX) + Math.abs(routeY) < 0.0001) {
+      routeY = 1;
+    }
+
+    const routeNorm = Math.pow(
+      Math.pow(Math.abs(routeX), OBSTACLE_INTERIOR_ROUTE_EXPONENT) +
+        Math.pow(Math.abs(routeY), OBSTACLE_INTERIOR_ROUTE_EXPONENT),
+      1 / OBSTACLE_INTERIOR_ROUTE_EXPONENT,
+    );
+    const boundaryScale = 1 / Math.max(routeNorm, 0.0001);
+    const targetX = routeX * boundaryScale * field.halfWidth;
+    const targetY = routeY * boundaryScale * field.halfHeight;
+    const deltaX = targetX - planeX;
+    const deltaY = targetY - planeY;
+    const deltaLength = Math.hypot(deltaX, deltaY);
+
+    if (deltaLength > 0.0001) {
+      pushX = deltaX / deltaLength;
+      pushY = deltaY / deltaLength;
+    }
+
+    const overshoot =
+      Math.min(field.halfWidth, field.halfHeight) *
+        OBSTACLE_EXCLUSION_OVERSHOOT +
+      0.03;
+    pushMagnitude =
+      (deltaLength + overshoot) * OBSTACLE_EXCLUSION_HARD_STRENGTH;
   } else {
     const clampedX = clamp(
       planeX,
-      -cardExclusion.halfWidth,
-      cardExclusion.halfWidth,
+      -innerHalfWidth,
+      innerHalfWidth,
     );
     const clampedY = clamp(
       planeY,
-      -cardExclusion.halfHeight,
-      cardExclusion.halfHeight,
+      -innerHalfHeight,
+      innerHalfHeight,
     );
     const deltaX = planeX - clampedX;
     const deltaY = planeY - clampedY;
@@ -868,41 +1028,390 @@ function applyCardExclusion(
     if (deltaLength > 0.0001) {
       pushX = deltaX / deltaLength;
       pushY = deltaY / deltaLength;
-    } else if (softHalfWidth - absX < softHalfHeight - absY) {
+    } else if (field.halfWidth - absX < field.halfHeight - absY) {
       pushX = planeX >= 0 ? 1 : -1;
     } else {
       pushY = planeY >= 0 ? 1 : -1;
     }
 
-    const softRadius = Math.max(softPadX, softPadY);
-    const falloff = 1 - clamp(deltaLength / Math.max(softRadius, 0.0001), 0, 1);
-    pushMagnitude = falloff * falloff * CARD_EXCLUSION_SOFT_STRENGTH;
+    const falloff =
+      1 - clamp(signedDistance / Math.max(softRadius, 0.0001), 0, 1);
+    pushMagnitude =
+      falloff * falloff * OBSTACLE_EXCLUSION_SOFT_STRENGTH;
   }
 
-  pushMagnitude *= cardExclusion.strength;
+  pushMagnitude *= field.strength;
 
   if (pushMagnitude <= 0.0001) {
     return;
   }
 
-  particle.x +=
-    (localCardRightAxis.x * pushX + localCardUpAxis.x * pushY) * pushMagnitude +
-    localCardPlaneNormal.x *
+  displacement.x +=
+    (field.rightAxis.x * pushX + field.upAxis.x * pushY) *
+      pushMagnitude +
+    field.planeNormal.x *
       pushMagnitude *
-      CARD_EXCLUSION_DEPTH_FACTOR *
-      cardExclusion.strength;
-  particle.y +=
-    (localCardRightAxis.y * pushX + localCardUpAxis.y * pushY) * pushMagnitude +
-    localCardPlaneNormal.y *
+      OBSTACLE_EXCLUSION_DEPTH_FACTOR *
+      field.strength;
+  displacement.y +=
+    (field.rightAxis.y * pushX + field.upAxis.y * pushY) *
+      pushMagnitude +
+    field.planeNormal.y *
       pushMagnitude *
-      CARD_EXCLUSION_DEPTH_FACTOR *
-      cardExclusion.strength;
-  particle.z +=
-    (localCardRightAxis.z * pushX + localCardUpAxis.z * pushY) * pushMagnitude +
-    localCardPlaneNormal.z *
+      OBSTACLE_EXCLUSION_DEPTH_FACTOR *
+      field.strength;
+  displacement.z +=
+    (field.rightAxis.z * pushX + field.upAxis.z * pushY) *
+      pushMagnitude +
+    field.planeNormal.z *
       pushMagnitude *
-      CARD_EXCLUSION_DEPTH_FACTOR *
-      cardExclusion.strength;
+      OBSTACLE_EXCLUSION_DEPTH_FACTOR *
+      field.strength;
+}
+
+function createPositionBounds(positions: Float32Array) {
+  const bounds = new THREE.Box3();
+
+  if (!positions.length) {
+    return bounds.setFromCenterAndSize(
+      new THREE.Vector3(),
+      new THREE.Vector3(0.001, 0.001, 0.001),
+    );
+  }
+
+  bounds.min.set(
+    Number.POSITIVE_INFINITY,
+    Number.POSITIVE_INFINITY,
+    Number.POSITIVE_INFINITY,
+  );
+  bounds.max.set(
+    Number.NEGATIVE_INFINITY,
+    Number.NEGATIVE_INFINITY,
+    Number.NEGATIVE_INFINITY,
+  );
+
+  for (let index = 0; index < positions.length; index += 3) {
+    bounds.min.x = Math.min(bounds.min.x, positions[index]);
+    bounds.min.y = Math.min(bounds.min.y, positions[index + 1]);
+    bounds.min.z = Math.min(bounds.min.z, positions[index + 2]);
+    bounds.max.x = Math.max(bounds.max.x, positions[index]);
+    bounds.max.y = Math.max(bounds.max.y, positions[index + 1]);
+    bounds.max.z = Math.max(bounds.max.z, positions[index + 2]);
+  }
+
+  return bounds;
+}
+
+function createScreenFrame(): ScreenFrame {
+  return {
+    minX: 0,
+    maxX: 0,
+    minY: 0,
+    maxY: 0,
+    width: 0,
+    height: 0,
+    centerX: 0,
+    centerY: 0,
+  };
+}
+
+function applyViewportCloudLayout(
+  cloud: THREE.Points,
+  camera: THREE.PerspectiveCamera,
+  phaseState: ReturnType<typeof sampleSceneProgress>,
+  blend: number,
+  boundsFrom: THREE.Box3,
+  boundsTo: THREE.Box3,
+  viewportWidth: number,
+  viewportHeight: number,
+  introCopyFrame: IntroCopyFrame | null,
+  resources: CloudLayoutResources,
+) {
+  const frameWeight = lerp(
+    getViewportFrameWeight(phaseState.current.cloud.viewportFrame),
+    getViewportFrameWeight(phaseState.next.cloud.viewportFrame),
+    blend,
+  );
+
+  // Authored fields must not be reframed or their morph and obstacle geometry
+  // no longer share the coordinate system used by the project presets.
+  if (frameWeight <= 0.001) {
+    return 1;
+  }
+
+  resources.bounds.min.lerpVectors(boundsFrom.min, boundsTo.min, blend);
+  resources.bounds.max.lerpVectors(boundsFrom.max, boundsTo.max, blend);
+
+  configureReferenceCamera(
+    resources.referenceCamera,
+    phaseState.camera,
+    resources.referenceCameraTarget,
+  );
+  resources.referenceCloud.position.set(...phaseState.cloud.position);
+  resources.referenceCloud.rotation.set(...phaseState.cloud.rotation);
+  resources.referenceCloud.scale.setScalar(phaseState.cloud.scale);
+  resources.referenceCloud.updateMatrixWorld(true);
+  projectBoundsToScreenFrame(
+    resources.bounds,
+    resources.referenceCloud,
+    resources.referenceCamera,
+    resources.corner,
+    resources.referenceFrame,
+  );
+
+  cloud.updateMatrixWorld();
+  projectBoundsToScreenFrame(
+    resources.bounds,
+    cloud,
+    camera,
+    resources.corner,
+    resources.currentFrame,
+  );
+
+  const preservedFrameScale = clamp(
+    Math.min(
+      resources.referenceFrame.width /
+        Math.max(resources.currentFrame.width, 0.0001),
+      resources.referenceFrame.height /
+        Math.max(resources.currentFrame.height, 0.0001),
+    ),
+    MIN_LAYOUT_SCALE,
+    1,
+  );
+  let layoutScale = lerp(1, preservedFrameScale, frameWeight);
+
+  cloud.scale.multiplyScalar(layoutScale);
+  cloud.updateMatrixWorld();
+  projectBoundsToScreenFrame(
+    resources.bounds,
+    cloud,
+    camera,
+    resources.corner,
+    resources.currentFrame,
+  );
+
+  const introPhaseWeight = lerp(
+    phaseState.current.key === "intro" ? 1 : 0,
+    phaseState.next.key === "intro" ? 1 : 0,
+    blend,
+  );
+  let targetCenterX = lerp(
+    resources.currentFrame.centerX,
+    resources.referenceFrame.centerX,
+    frameWeight,
+  );
+  let targetCenterY = lerp(
+    resources.currentFrame.centerY,
+    resources.referenceFrame.centerY,
+    frameWeight,
+  );
+
+  if (introCopyFrame && introPhaseWeight > 0.001) {
+    const frameMargin = clamp(viewportWidth * 0.025, 16, 32);
+    const copyGap = clamp(viewportWidth * 0.03, 18, 36);
+    const safeLeft = introCopyFrame.centered
+      ? frameMargin
+      : introCopyFrame.right + copyGap;
+    const safeRight = viewportWidth - frameMargin;
+    const safeTop = introCopyFrame.centered
+      ? introCopyFrame.bottom + copyGap
+      : frameMargin;
+    const safeBottom = viewportHeight - Math.max(frameMargin, 52);
+    const safeWidth = Math.max(safeRight - safeLeft, 1);
+    const safeHeight = Math.max(safeBottom - safeTop, 1);
+    const currentWidth = resources.currentFrame.width * viewportWidth * 0.5;
+    const currentHeight = resources.currentFrame.height * viewportHeight * 0.5;
+    const needsIntroFrame =
+      introCopyFrame.centered || safeWidth < currentWidth * 0.88;
+
+    if (needsIntroFrame) {
+      const introFitScale = clamp(
+        Math.min(1, safeWidth / currentWidth, safeHeight / currentHeight),
+        MIN_LAYOUT_SCALE,
+        1,
+      );
+      const weightedIntroScale = lerp(1, introFitScale, introPhaseWeight);
+      cloud.scale.multiplyScalar(weightedIntroScale);
+      layoutScale *= weightedIntroScale;
+      cloud.updateMatrixWorld();
+      projectBoundsToScreenFrame(
+        resources.bounds,
+        cloud,
+        camera,
+        resources.corner,
+        resources.currentFrame,
+      );
+
+      const safeMinX = (safeLeft / viewportWidth) * 2 - 1;
+      const safeMaxX = (safeRight / viewportWidth) * 2 - 1;
+      const safeMinY = 1 - (safeBottom / viewportHeight) * 2;
+      const safeMaxY = 1 - (safeTop / viewportHeight) * 2;
+      const safeCenterX = introCopyFrame.centered
+        ? (safeMinX + safeMaxX) * 0.5
+        : clamp(
+            resources.referenceFrame.centerX,
+            safeMinX + resources.currentFrame.width * 0.5,
+            safeMaxX - resources.currentFrame.width * 0.5,
+          );
+      const safeCenterY = introCopyFrame.centered
+        ? (safeMinY + safeMaxY) * 0.5
+        : clamp(
+            resources.referenceFrame.centerY,
+            safeMinY + resources.currentFrame.height * 0.5,
+            safeMaxY - resources.currentFrame.height * 0.5,
+          );
+      targetCenterX = lerp(targetCenterX, safeCenterX, introPhaseWeight);
+      targetCenterY = lerp(targetCenterY, safeCenterY, introPhaseWeight);
+    }
+  }
+
+  resources.bounds.getCenter(resources.boundsCenter);
+  resources.boundsCenter.applyMatrix4(cloud.matrixWorld).project(camera);
+  resources.currentFramePoint
+    .set(
+      resources.currentFrame.centerX,
+      resources.currentFrame.centerY,
+      resources.boundsCenter.z,
+    )
+    .unproject(camera);
+  resources.targetFramePoint
+    .set(targetCenterX, targetCenterY, resources.boundsCenter.z)
+    .unproject(camera)
+    .sub(resources.currentFramePoint);
+  cloud.position.add(resources.targetFramePoint);
+  cloud.updateMatrixWorld();
+
+  return layoutScale;
+}
+
+function configureReferenceCamera(
+  camera: THREE.PerspectiveCamera,
+  state: ReturnType<typeof sampleSceneProgress>["camera"],
+  target: THREE.Vector3,
+) {
+  camera.position.set(...state.position);
+  target.set(...state.target);
+  camera.fov = state.fov;
+  camera.aspect = REFERENCE_VIEWPORT_ASPECT;
+  camera.near = 0.1;
+  camera.far = 100;
+  camera.lookAt(target);
+  camera.updateProjectionMatrix();
+  camera.updateMatrixWorld();
+}
+
+function projectBoundsToScreenFrame(
+  bounds: THREE.Box3,
+  object: THREE.Object3D,
+  camera: THREE.PerspectiveCamera,
+  corner: THREE.Vector3,
+  frame: ScreenFrame,
+) {
+  frame.minX = Number.POSITIVE_INFINITY;
+  frame.maxX = Number.NEGATIVE_INFINITY;
+  frame.minY = Number.POSITIVE_INFINITY;
+  frame.maxY = Number.NEGATIVE_INFINITY;
+
+  for (let xIndex = 0; xIndex < 2; xIndex += 1) {
+    for (let yIndex = 0; yIndex < 2; yIndex += 1) {
+      for (let zIndex = 0; zIndex < 2; zIndex += 1) {
+        corner
+          .set(
+            xIndex ? bounds.max.x : bounds.min.x,
+            yIndex ? bounds.max.y : bounds.min.y,
+            zIndex ? bounds.max.z : bounds.min.z,
+          )
+          .applyMatrix4(object.matrixWorld)
+          .project(camera);
+        frame.minX = Math.min(frame.minX, corner.x);
+        frame.maxX = Math.max(frame.maxX, corner.x);
+        frame.minY = Math.min(frame.minY, corner.y);
+        frame.maxY = Math.max(frame.maxY, corner.y);
+      }
+    }
+  }
+
+  frame.width = frame.maxX - frame.minX;
+  frame.height = frame.maxY - frame.minY;
+  frame.centerX = (frame.minX + frame.maxX) * 0.5;
+  frame.centerY = (frame.minY + frame.maxY) * 0.5;
+}
+
+function getViewportFrameWeight(
+  viewportFrame: SceneCloudState["viewportFrame"],
+) {
+  return viewportFrame === "preserve" ? 1 : 0;
+}
+
+function useIntroCopyFrame(invalidate: () => void) {
+  const frameRef = useRef<IntroCopyFrame | null>(null);
+
+  useEffect(() => {
+    let frameId = 0;
+    const resizeObserver = new ResizeObserver(() => scheduleSync());
+    const mutationObserver = new MutationObserver(() => scheduleSync());
+
+    const syncFrame = () => {
+      frameId = 0;
+      const stage = document.querySelector<HTMLElement>(".intro-stage");
+      const copy = stage?.querySelector<HTMLElement>(".intro-copy");
+      const shell = copy?.closest<HTMLElement>(".intro-copy-shell");
+      const copyBlocks = copy
+        ? Array.from(copy.querySelectorAll<HTMLElement>(".intro-copy-block"))
+        : [];
+
+      if (!stage || !copy || !shell || !copyBlocks.length) {
+        frameRef.current = null;
+        return;
+      }
+
+      const stageRect = stage.getBoundingClientRect();
+      const shellRect = shell.getBoundingClientRect();
+      const blockRects = copyBlocks.map((block) => block.getBoundingClientRect());
+      const visualLeft = Math.min(...blockRects.map((rect) => rect.left));
+      const visualRight = Math.max(...blockRects.map((rect) => rect.right));
+      const visualTop = Math.min(...blockRects.map((rect) => rect.top));
+      const visualBottom = Math.max(...blockRects.map((rect) => rect.bottom));
+      const shellLayoutLeft = stageRect.left + shell.offsetLeft;
+      const shellLayoutTop = stageRect.top + shell.offsetTop;
+      const left = visualLeft + shellLayoutLeft - shellRect.left;
+      const right = visualRight + shellLayoutLeft - shellRect.left;
+      const top = visualTop + shellLayoutTop - shellRect.top;
+      const bottom = visualBottom + shellLayoutTop - shellRect.top;
+
+      frameRef.current = {
+        left,
+        right,
+        top,
+        bottom,
+        centered: getComputedStyle(copy).textAlign === "center",
+      };
+      resizeObserver.observe(stage);
+      resizeObserver.observe(copy);
+      copyBlocks.forEach((block) => resizeObserver.observe(block));
+      invalidate();
+    };
+    const scheduleSync = () => {
+      if (frameId) {
+        return;
+      }
+
+      frameId = window.requestAnimationFrame(syncFrame);
+    };
+
+    scheduleSync();
+    window.addEventListener("resize", scheduleSync, { passive: true });
+    mutationObserver.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener("resize", scheduleSync);
+      mutationObserver.disconnect();
+      resizeObserver.disconnect();
+    };
+  }, [invalidate]);
+
+  return frameRef;
 }
 
 function usePointCloudSource(maxPoints: number) {
@@ -962,88 +1471,13 @@ function usePointCloudSource(maxPoints: number) {
 }
 
 function useQualityProfile(reducedMotion: boolean) {
-  const [profile, setProfile] = useState<QualityProfile>({
-    noiseMultiplier: reducedMotion ? 0.18 : 0.48,
-    textHaloMultiplier: reducedMotion ? 0.12 : 1,
-    textScaleMultiplier: 1,
-    faceScaleMultiplier: 1,
-    aboutTextScaleMultiplier: 1,
-    projectsTextScaleMultiplier: 1,
-    aboutTextYOffset: 0,
-    introFaceOffset: [0, 0],
-    introCameraYOffset: 0,
-    introTargetYOffset: 0,
-  });
-
-  useEffect(() => {
-    let frameId = 0;
-    const computeProfile = () => {
-      const width = window.innerWidth;
-      const mobileTextScale =
-        width >= 900
-          ? 1
-          : 0.42 +
-            Math.pow(THREE.MathUtils.clamp((width - 300) / 600, 0, 1), 1.35) *
-              0.58;
-      const mobileFaceScale = mobileTextScale;
-      const aboutDesktopScale = width >= 900 ? 0.84 : width <= 640 ? 1.32 : 1;
-      const projectsDesktopScale = width >= 1280 ? 0.86 : width <= 640 ? 1.42 : 1;
-      const aboutTextYOffset = width <= 640 ? 0.32 : width < 900 ? 0.14 : 0;
-      const introFaceOffset: [number, number] =
-        width <= 640 ? [-0.12, -0.15] : [0, 0];
-      const introCameraYOffset = width <= 640 ? 0.08 : 0;
-      const introTargetYOffset = width <= 640 ? 0.26 : 0;
-
-      if (reducedMotion) {
-        setProfile({
-          noiseMultiplier: 0.18,
-          textHaloMultiplier: 0.12,
-          textScaleMultiplier: mobileTextScale,
-          faceScaleMultiplier: mobileFaceScale,
-          aboutTextScaleMultiplier: aboutDesktopScale,
-          projectsTextScaleMultiplier: projectsDesktopScale,
-          aboutTextYOffset,
-          introFaceOffset,
-          introCameraYOffset,
-          introTargetYOffset,
-        });
-        return;
-      }
-
-      setProfile({
-        noiseMultiplier: 0.48,
-        textHaloMultiplier: 1,
-        textScaleMultiplier: mobileTextScale,
-        faceScaleMultiplier: mobileFaceScale,
-        aboutTextScaleMultiplier: aboutDesktopScale,
-        projectsTextScaleMultiplier: projectsDesktopScale,
-        aboutTextYOffset,
-        introFaceOffset,
-        introCameraYOffset,
-        introTargetYOffset,
-      });
-    };
-    const scheduleProfileUpdate = () => {
-      if (frameId) {
-        return;
-      }
-
-      frameId = window.requestAnimationFrame(() => {
-        frameId = 0;
-        computeProfile();
-      });
-    };
-
-    computeProfile();
-    window.addEventListener("resize", scheduleProfileUpdate, { passive: true });
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-      window.removeEventListener("resize", scheduleProfileUpdate);
-    };
-  }, [reducedMotion]);
-
-  return profile;
+  return useMemo<QualityProfile>(
+    () => ({
+      noiseMultiplier: reducedMotion ? 0.18 : 0.48,
+      textHaloMultiplier: reducedMotion ? 0.12 : 1,
+    }),
+    [reducedMotion],
+  );
 }
 
 function useDevicePixelRatio() {
@@ -1088,136 +1522,6 @@ function useDevicePixelRatio() {
   return devicePixelRatio;
 }
 
-function getResponsiveCloudScaleMultiplier(
-  currentCloud: {
-    shape: PointCloudShape;
-    textTargetId?: PointCloudTextTargetId;
-  },
-  nextCloud: {
-    shape: PointCloudShape;
-    textTargetId?: PointCloudTextTargetId;
-  },
-  mix: number,
-  profile: QualityProfile,
-) {
-  const currentMultiplier = getCloudScaleMultiplier(currentCloud, profile);
-  const nextMultiplier = getCloudScaleMultiplier(nextCloud, profile);
-
-  return lerp(currentMultiplier, nextMultiplier, mix);
-}
-
-function getResponsivePointSizeMultiplier(
-  currentCloud: {
-    shape: PointCloudShape;
-    textTargetId?: PointCloudTextTargetId;
-  },
-  nextCloud: {
-    shape: PointCloudShape;
-    textTargetId?: PointCloudTextTargetId;
-  },
-  mix: number,
-  profile: QualityProfile,
-) {
-  return lerp(
-    getCloudPointSizeMultiplier(currentCloud, profile),
-    getCloudPointSizeMultiplier(nextCloud, profile),
-    mix,
-  );
-}
-
-function getCloudPointSizeMultiplier(
-  cloud: {
-    shape: PointCloudShape;
-    textTargetId?: PointCloudTextTargetId;
-  },
-  profile: QualityProfile,
-) {
-  return (
-    getCloudScaleMultiplier(cloud, profile) *
-    (cloud.shape === "text" ? profile.textScaleMultiplier : 1)
-  );
-}
-
-function getCloudScaleMultiplier(
-  cloud: {
-    shape: PointCloudShape;
-    textTargetId?: PointCloudTextTargetId;
-  },
-  profile: QualityProfile,
-) {
-  if (cloud.shape === "face") {
-    return profile.faceScaleMultiplier;
-  }
-
-  if (cloud.shape !== "text") {
-    return 1;
-  }
-
-  const targetScaleMultiplier =
-    cloud.textTargetId === "projects"
-      ? profile.projectsTextScaleMultiplier
-      : cloud.textTargetId === "about-me"
-        ? profile.aboutTextScaleMultiplier
-        : 1;
-
-  return profile.textScaleMultiplier * targetScaleMultiplier;
-}
-
-function getResponsiveIntroFaceOffset(
-  currentPhaseKey: string,
-  nextPhaseKey: string,
-  mix: number,
-  profile: QualityProfile,
-) {
-  const currentOffset =
-    currentPhaseKey === "intro" ? profile.introFaceOffset : ([0, 0] as const);
-  const nextOffset =
-    nextPhaseKey === "intro" ? profile.introFaceOffset : ([0, 0] as const);
-
-  return [
-    lerp(currentOffset[0], nextOffset[0], mix),
-    lerp(currentOffset[1], nextOffset[1], mix),
-  ] as const;
-}
-
-function getResponsiveAboutTextYOffset(
-  currentCloud: Pick<SceneCloudState, "shape" | "textTargetId">,
-  nextCloud: Pick<SceneCloudState, "shape" | "textTargetId">,
-  mix: number,
-  profile: QualityProfile,
-) {
-  const getOffset = (cloud: Pick<SceneCloudState, "shape" | "textTargetId">) =>
-    cloud.shape === "text" && cloud.textTargetId === "about-me"
-      ? profile.aboutTextYOffset
-      : 0;
-
-  return lerp(getOffset(currentCloud), getOffset(nextCloud), mix);
-}
-
-function getResponsiveIntroCameraYOffset(
-  currentPhaseKey: string,
-  nextPhaseKey: string,
-  mix: number,
-  profile: QualityProfile,
-) {
-  const currentOffset = currentPhaseKey === "intro" ? profile.introCameraYOffset : 0;
-  const nextOffset = nextPhaseKey === "intro" ? profile.introCameraYOffset : 0;
-
-  return lerp(currentOffset, nextOffset, mix);
-}
-
-function getResponsiveIntroTargetYOffset(
-  currentPhaseKey: string,
-  nextPhaseKey: string,
-  mix: number,
-  profile: QualityProfile,
-) {
-  const currentOffset = currentPhaseKey === "intro" ? profile.introTargetYOffset : 0;
-  const nextOffset = nextPhaseKey === "intro" ? profile.introTargetYOffset : 0;
-
-  return lerp(currentOffset, nextOffset, mix);
-}
-
 function sampleSceneProgress(
   progress: number,
   phases: ScenePhase[],
@@ -1243,7 +1547,11 @@ function sampleSceneProgress(
   const next = phases[Math.min(activeIndex + 1, phases.length - 1)];
   const rangeSpan = Math.max(current.range[1] - current.range[0], 0.0001);
   const linearMix = (clampedProgress - current.range[0]) / rangeSpan;
-  const mix = smoothstep(THREE.MathUtils.clamp(linearMix, 0, 1));
+  const clampedMix = THREE.MathUtils.clamp(linearMix, 0, 1);
+  const mix =
+    current.transitionEasing === "direct"
+      ? directTransition(clampedMix)
+      : smoothstep(clampedMix);
 
   return {
     current,
@@ -1256,6 +1564,15 @@ function sampleSceneProgress(
     },
     cloud: {
       shape: blendShape(current.cloud.shape, next.cloud.shape, mix),
+      viewportFrame:
+        mix < 0.5
+          ? current.cloud.viewportFrame
+          : next.cloud.viewportFrame,
+      obstacleRepulsion: lerp(
+        current.cloud.obstacleRepulsion,
+        next.cloud.obstacleRepulsion,
+        mix,
+      ),
       textTargetId: blendTextTargetId(
         current.cloud.textTargetId,
         next.cloud.textTargetId,
@@ -1275,6 +1592,10 @@ function sampleSceneProgress(
       opacity: lerp(current.cloud.opacity, next.cloud.opacity, mix),
     },
   };
+}
+
+function directTransition(value: number) {
+  return -1.25 * value ** 3 + 1.5 * value ** 2 + 0.75 * value;
 }
 
 function blendShape(
@@ -1333,22 +1654,6 @@ function getFaceTrackingWeight(
   const currentWeight = current === "face" ? 1 : 0;
   const nextWeight = next === "face" ? 1 : 0;
   return lerp(currentWeight, nextWeight, mix);
-}
-
-function getCardExclusionShapeWeight(shape: PointCloudShape) {
-  return shape === "project-field" ? 1 : 0;
-}
-
-function getCardExclusionWeight(
-  current: PointCloudShape,
-  next: PointCloudShape,
-  mix: number,
-) {
-  return lerp(
-    getCardExclusionShapeWeight(current),
-    getCardExclusionShapeWeight(next),
-    mix,
-  );
 }
 
 function getMouseRepulsionShapeWeight(shape: PointCloudShape) {

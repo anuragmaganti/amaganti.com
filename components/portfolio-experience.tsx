@@ -13,7 +13,6 @@ import {
   motion,
   useMotionTemplate,
   useMotionValue,
-  useMotionValueEvent,
   useScroll,
   useSpring,
   useTransform,
@@ -36,6 +35,7 @@ import {
 } from "@/components/skills-technology-track";
 import { SkillsPrimaryList } from "@/components/skills-primary-list";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useParticleObstacle } from "@/hooks/use-particle-obstacle";
 import {
   contentSectionsById,
   projectsBySlug,
@@ -54,11 +54,6 @@ import {
   type SectionDomVariant,
   type SectionId,
 } from "@/lib/scene-config";
-import {
-  removeProjectCardExclusion,
-  type ProjectCardExclusionRect,
-  upsertProjectCardExclusion,
-} from "@/lib/project-card-exclusion-store";
 
 const SceneCanvas = dynamic(
   () => import("@/components/scene-canvas").then((module) => module.SceneCanvas),
@@ -395,95 +390,6 @@ function haveSameSectionRanges(current: SceneTimeline, next: SceneTimeline) {
       Math.abs(currentRange[0] - nextRange[0]) < 0.00001 &&
       Math.abs(currentRange[1] - nextRange[1]) < 0.00001
     );
-  });
-}
-
-function readProjectCardExclusionRect(element: HTMLElement): ProjectCardExclusionRect {
-  const rect = element.getBoundingClientRect();
-
-  return {
-    left: rect.left,
-    top: rect.top,
-    right: rect.right,
-    bottom: rect.bottom,
-    width: rect.width,
-    height: rect.height,
-  };
-}
-
-function syncProjectCardExclusion(
-  id: string,
-  element: HTMLElement | null,
-  strength: number,
-) {
-  if (!element) {
-    return;
-  }
-
-  upsertProjectCardExclusion(id, readProjectCardExclusionRect(element), strength);
-}
-
-function syncActiveProjectCardExclusion(
-  id: string,
-  element: HTMLElement | null,
-  strength: number,
-  isActive: { current: boolean },
-) {
-  if (strength <= 0.002) {
-    if (isActive.current) {
-      isActive.current = false;
-      removeProjectCardExclusion(id);
-    }
-    return;
-  }
-
-  isActive.current = true;
-  syncProjectCardExclusion(id, element, strength);
-}
-
-function useProjectCardExclusion(
-  id: string,
-  cardRef: RefObject<HTMLElement | null>,
-  exclusionStrength: MotionValue<number>,
-) {
-  const isActive = useRef(false);
-
-  useEffect(() => {
-    let frameId = 0;
-    let observer: ResizeObserver | null = null;
-
-    const syncCurrentRect = () => {
-      syncActiveProjectCardExclusion(
-        id,
-        cardRef.current,
-        exclusionStrength.get(),
-        isActive,
-      );
-    };
-
-    const scheduleSync = () => {
-      window.cancelAnimationFrame(frameId);
-      frameId = window.requestAnimationFrame(syncCurrentRect);
-    };
-
-    scheduleSync();
-    window.addEventListener("resize", scheduleSync, { passive: true });
-
-    if (cardRef.current) {
-      observer = new ResizeObserver(scheduleSync);
-      observer.observe(cardRef.current);
-    }
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-      window.removeEventListener("resize", scheduleSync);
-      observer?.disconnect();
-      removeProjectCardExclusion(id);
-    };
-  }, [cardRef, exclusionStrength, id]);
-
-  useMotionValueEvent(exclusionStrength, "change", (latest) => {
-    syncActiveProjectCardExclusion(id, cardRef.current, latest, isActive);
   });
 }
 
@@ -871,8 +777,8 @@ function OutroSection({
 }) {
   const headingId = `${section.id}-heading`;
   const revealStops = [
-    getTimelineProgressPoint(timeline, section.id, 0.62),
-    getTimelineProgressPoint(timeline, section.id, 0.8),
+    getTimelineProgressPoint(timeline, section.id, 0.7),
+    getTimelineProgressPoint(timeline, section.id, 0.84),
   ];
 
   return (
@@ -1408,18 +1314,6 @@ function ProjectCardSection({
       mass: 0.2,
     },
   );
-  const exclusionStrength = useSpring(
-    useTransform(
-      sectionProgress,
-      [0.04, 0.24, 0.86, 1],
-      [0, 1, 1, 0],
-    ),
-    {
-      stiffness: 150,
-      damping: 24,
-      mass: 0.24,
-    },
-  );
   const scale = useTransform(focus, [0, 1], [0.986, 1]);
   const y = useTransform(focus, [0, 1], [26, 0]);
   const copyOpacity = useTransform(focus, [0, 1], [0.84, 1]);
@@ -1429,7 +1323,7 @@ function ProjectCardSection({
   const borderColor = useMotionTemplate`rgba(var(--project-card-border-rgb), ${borderAlpha})`;
   const cardShadow = useMotionTemplate`0 30px 90px rgba(var(--project-card-shadow-rgb), 0.52), 0 0 48px rgba(var(--project-card-glow-rgb), ${glowAlpha})`;
   const titleId = `${project.slug}-title`;
-  useProjectCardExclusion(project.slug, cardRef, exclusionStrength);
+  useParticleObstacle(project.slug, cardRef, focus);
 
   return (
     <section

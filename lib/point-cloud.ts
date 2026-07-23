@@ -18,7 +18,6 @@ const IMPORT_SCAN_ORIENTATION = {
 type CreateMorphTargetsOptions = {
   textTargets?: PointCloudTextTarget[];
   haloDensityMultiplier?: number;
-  textScaleMultiplier?: number;
 };
 
 export function samplePositions(
@@ -175,7 +174,6 @@ export function createMorphTargets(
   const settle = new Float32Array(basePositions.length);
   const textTargets = options.textTargets ?? [];
   const haloDensityMultiplier = options.haloDensityMultiplier ?? 1;
-  const textScaleMultiplier = options.textScaleMultiplier ?? 1;
   const columns = Math.max(18, Math.round(Math.sqrt(pointCount * 1.45)));
   const rows = Math.ceil(pointCount / columns);
   const depthBands: number = 7;
@@ -218,17 +216,9 @@ export function createMorphTargets(
   };
 
   for (const textTarget of textTargets) {
-    const scaledTextTarget = {
-      ...textTarget,
-      width: textTarget.width * textScaleMultiplier,
-      height: textTarget.height * textScaleMultiplier,
-      depth: textTarget.depth * textScaleMultiplier,
-      haloRadius: textTarget.haloRadius * textScaleMultiplier,
-    };
-
     targets[textTarget.id] = createTextMorphTarget(
       pointCount,
-      scaledTextTarget,
+      textTarget,
       haloDensityMultiplier,
       settle,
     );

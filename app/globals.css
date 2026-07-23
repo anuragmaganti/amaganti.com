@@ -537,7 +537,7 @@ select {
 }
 
 .scroll-section--outro {
-  min-height: 150svh;
+  min-height: 190svh;
 }
 
 .scroll-section--skills {
@@ -1484,7 +1484,6 @@ select {
 
   .content-stage-overlay--top-overlay .content-stage-overlay__shell {
     width: min(100%, 34rem);
-    padding-top: clamp(16.5rem, 46vh, 22rem);
   }
 
   .content-stage-overlay--top-overlay .content-stage-overlay__copy {
@@ -1516,7 +1515,7 @@ select {
   }
 
   .scroll-section--outro {
-    min-height: 132svh;
+    min-height: 180svh;
   }
 
   .section-sticky {
@@ -1639,7 +1638,6 @@ select {
 
   .content-stage-overlay--top-overlay .content-stage-overlay__shell {
     width: min(100%, 22rem);
-    padding-top: clamp(8.75rem, 24vh, 10.75rem);
   }
 
   .content-stage-overlay--top-overlay .content-stage-overlay__copy {
