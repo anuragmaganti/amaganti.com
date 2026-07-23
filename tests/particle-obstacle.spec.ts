@@ -12,7 +12,7 @@ import { createParticleState } from "../lib/particle-motion";
 const field: ParticleObstacleRuntime = {
   id: "test-card",
   present: true,
-  rect: null,
+  geometry: null,
   motion: null,
   halfWidth: 0.8,
   halfHeight: 0.6,
@@ -29,9 +29,18 @@ const field: ParticleObstacleRuntime = {
   planeNormal: new THREE.Vector3(0, 0, 1),
   flowVelocity: new THREE.Vector2(),
   targetFlowVelocity: new THREE.Vector2(),
+  angularVelocity: 0,
+  targetAngularVelocity: 0,
 };
 
 test.describe("particle obstacle flow", () => {
+  test.beforeEach(() => {
+    field.flowVelocity.set(0, 0);
+    field.targetFlowVelocity.set(0, 0);
+    field.angularVelocity = 0;
+    field.targetAngularVelocity = 0;
+  });
+
   test("keeps particles outside the rounded card boundary", () => {
     for (const [x, y] of [
       [-0.55, 0],
@@ -46,7 +55,7 @@ test.describe("particle obstacle flow", () => {
     }
   });
 
-  test("pushes the leading edge, slips along the sides, and fills the wake", () => {
+  test("pushes the leading edge and slips along the sides without attracting the wake", () => {
     field.flowVelocity.set(0, 1);
 
     const leading = simulate(0, 0.72, 4);
@@ -55,7 +64,7 @@ test.describe("particle obstacle flow", () => {
 
     expect(leading.y).toBeGreaterThan(0.72);
     expect(side.y).toBeGreaterThan(0);
-    expect(trailing.y).toBeGreaterThan(-0.72);
+    expect(trailing.y).toBeCloseTo(-0.72, 5);
   });
 
   test("reverses the flow when card motion reverses", () => {
@@ -65,7 +74,15 @@ test.describe("particle obstacle flow", () => {
     const trailing = simulate(0, 0.72, 4);
 
     expect(leading.y).toBeLessThan(-0.72);
-    expect(trailing.y).toBeLessThan(0.72);
+    expect(trailing.y).toBeCloseTo(0.72, 5);
+  });
+
+  test("refills the trailing wake by releasing prior offsets", () => {
+    field.flowVelocity.set(0, 1);
+    const passiveOffset = simulateWakeReturn(false);
+    const wakeOffset = simulateWakeReturn(true);
+
+    expect(wakeOffset).toBeLessThan(passiveOffset);
   });
 
   test("keeps the leading flow continuous through the card centerline", () => {
@@ -171,4 +188,25 @@ function getRoundedRectDistance(x: number, y: number) {
     Math.min(Math.max(distanceX, distanceY), 0) -
     field.cornerRadius
   );
+}
+
+function simulateWakeReturn(withField: boolean) {
+  const particle = createParticleState();
+  const resources = createParticleObstacleResources();
+  const flowState = createParticleObstacleFlowState(1);
+
+  flowState.offsets[0] = 0.18;
+  flowState.offsets[1] = 0.12;
+  particle.x = 0;
+  particle.y = -0.72;
+  applyParticleObstacleFlow(
+    particle,
+    0,
+    withField ? [field] : [],
+    flowState,
+    resources,
+    1 / 60,
+  );
+
+  return Math.hypot(flowState.offsets[0], flowState.offsets[1]);
 }

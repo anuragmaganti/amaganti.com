@@ -4,15 +4,20 @@ import type { MotionValue } from "motion";
 import { type RefObject, useEffect } from "react";
 
 import {
+  batchParticleObstacleUpdates,
   removeParticleObstacle,
   type ParticleObstacleMotion,
-  type ParticleObstacleRect,
   upsertParticleObstacle,
 } from "@/lib/particle-obstacle-store";
+import {
+  measureParticleObstacleGeometry,
+  type ParticleObstacleGeometry,
+} from "@/lib/particle-obstacle-geometry";
 
 const PREWARM_VERTICAL_VIEWPORT_RATIO = 0.55;
 const PREWARM_HORIZONTAL_VIEWPORT_RATIO = 0.2;
 const MAX_SCREEN_VELOCITY = 2400;
+const MAX_ANGULAR_VELOCITY = Math.PI * 1.5;
 const MOTION_SMOOTHING = 12;
 const STICKY_SCROLL_COUPLING = 0.55;
 
@@ -46,15 +51,17 @@ export function useParticleObstacle(
     let cornerRadius = readCornerRadius(element);
     let previousCenterX = 0;
     let previousCenterY = 0;
+    let previousAngle = 0;
     let previousTimestamp = 0;
     let smoothedVelocityX = 0;
     let smoothedVelocityY = 0;
+    let smoothedAngularVelocity = 0;
 
     const syncObstacle = (frame: MeasurementFrame) => {
-      const rect = readParticleObstacleRect(element, cornerRadius);
-      const strength = getViewportApproachStrength(rect);
-      const centerX = rect.left + rect.width * 0.5;
-      const centerY = rect.top + rect.height * 0.5;
+      const geometry = measureParticleObstacleGeometry(element, cornerRadius);
+      const strength = getViewportApproachStrength(geometry);
+      const centerX = geometry.centerX;
+      const centerY = geometry.centerY;
       const deltaSeconds = previousTimestamp
         ? Math.max((frame.timestamp - previousTimestamp) / 1000, 0.001)
         : 0;
@@ -72,6 +79,13 @@ export function useParticleObstacle(
             MAX_SCREEN_VELOCITY,
           )
         : 0;
+      const rawAngularVelocity = deltaSeconds
+        ? clamp(
+            normalizeAngle(geometry.angle - previousAngle) / deltaSeconds,
+            -MAX_ANGULAR_VELOCITY,
+            MAX_ANGULAR_VELOCITY,
+          )
+        : 0;
       const velocityLerp = deltaSeconds
         ? 1 - Math.exp(-deltaSeconds * MOTION_SMOOTHING)
         : 1;
@@ -84,6 +98,11 @@ export function useParticleObstacle(
       smoothedVelocityY = lerp(
         smoothedVelocityY,
         rawVelocityY,
+        velocityLerp,
+      );
+      smoothedAngularVelocity = lerp(
+        smoothedAngularVelocity,
+        rawAngularVelocity,
         velocityLerp,
       );
 
@@ -107,15 +126,17 @@ export function useParticleObstacle(
           -MAX_SCREEN_VELOCITY,
           MAX_SCREEN_VELOCITY,
         ),
+        angularVelocity: smoothedAngularVelocity,
         sampledAt: frame.timestamp,
       };
 
       previousCenterX = centerX;
       previousCenterY = centerY;
+      previousAngle = geometry.angle;
       previousTimestamp = frame.timestamp;
 
       if (strength > 0.001) {
-        upsertParticleObstacle(id, rect, strength, motion);
+        upsertParticleObstacle(id, geometry, strength, motion);
       } else {
         removeParticleObstacle(id);
       }
@@ -244,20 +265,22 @@ function flushMeasurements(timestamp: number) {
     timestamp,
     scrollVelocityY: smoothedScrollVelocityY,
   };
-  listeners.forEach((listener) => listener(frame));
+  batchParticleObstacleUpdates(() => {
+    listeners.forEach((listener) => listener(frame));
+  });
 }
 
-function getViewportApproachStrength(rect: ParticleObstacleRect) {
+function getViewportApproachStrength(geometry: ParticleObstacleGeometry) {
   const viewportWidth = Math.max(window.innerWidth, 1);
   const viewportHeight = Math.max(window.innerHeight, 1);
   const horizontalDistance = getDistanceFromViewport(
-    rect.left,
-    rect.right,
+    geometry.bounds.left,
+    geometry.bounds.right,
     viewportWidth,
   );
   const verticalDistance = getDistanceFromViewport(
-    rect.top,
-    rect.bottom,
+    geometry.bounds.top,
+    geometry.bounds.bottom,
     viewportHeight,
   );
   const normalizedDistance = Math.max(
@@ -282,31 +305,15 @@ function getDistanceFromViewport(start: number, end: number, viewportSize: numbe
   return 0;
 }
 
-function readParticleObstacleRect(
-  element: HTMLElement,
-  cornerRadius: number,
-): ParticleObstacleRect {
-  const rect = element.getBoundingClientRect();
-  const transformScale = element.offsetWidth
-    ? rect.width / element.offsetWidth
-    : 1;
-
-  return {
-    left: rect.left,
-    top: rect.top,
-    right: rect.right,
-    bottom: rect.bottom,
-    width: rect.width,
-    height: rect.height,
-    cornerRadius: cornerRadius * transformScale,
-  };
-}
-
 function readCornerRadius(element: HTMLElement) {
   const value = window.getComputedStyle(element).borderTopLeftRadius;
   const radius = Number.parseFloat(value);
 
   return Number.isFinite(radius) ? radius : 0;
+}
+
+function normalizeAngle(angle: number) {
+  return Math.atan2(Math.sin(angle), Math.cos(angle));
 }
 
 function lerp(start: number, end: number, progress: number) {

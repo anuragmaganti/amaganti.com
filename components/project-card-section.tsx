@@ -24,47 +24,9 @@ import type { SectionDefinition } from "@/config/sections";
 import { useFloatingProjectPhysics } from "@/hooks/use-floating-project-physics";
 import { useParticleObstacle } from "@/hooks/use-particle-obstacle";
 import type { FloatingProjectCardRole } from "@/lib/floating-project-layout";
+import { createProjectImageSizingVariables } from "@/lib/project-card-presentation";
 import type { SceneTimeline } from "@/lib/scene-types";
 const PROJECT_ACTION_ORB_SIZE = 64;
-
-type ProjectImageSizingStyle = CSSProperties & {
-  "--project-image-aspect-ratio": string;
-  "--project-image-width-wide": string;
-  "--project-image-width-desktop": string;
-  "--project-image-width-tablet": string;
-  "--project-image-width-medium": string;
-  "--project-image-width-mobile": string;
-  "--project-image-width-compact": string;
-};
-
-function formatLength(value: number, unit: "rem" | "svh") {
-  return `${Number(value.toFixed(5))}${unit}`;
-}
-
-function createProjectImageSizingStyle(
-  width: number,
-  height: number,
-): ProjectImageSizingStyle {
-  const aspectRatio = width / height;
-  const widthForHeightCap = (
-    maxWidthRem: number,
-    viewportHeight: number,
-    maxHeightRem: number,
-  ) =>
-    `min(${maxWidthRem}rem, ${formatLength(viewportHeight * aspectRatio, "svh")}, ${formatLength(maxHeightRem * aspectRatio, "rem")})`;
-  const widthForDesktopHeightCap = (maxWidthRem: number) =>
-    `min(${maxWidthRem}rem, ${formatLength(70 * aspectRatio, "svh")}, calc(${formatLength(100 * aspectRatio, "svh")} - ${formatLength(9 * aspectRatio, "rem")}))`;
-
-  return {
-    "--project-image-aspect-ratio": `${width} / ${height}`,
-    "--project-image-width-wide": widthForDesktopHeightCap(36),
-    "--project-image-width-desktop": widthForDesktopHeightCap(31),
-    "--project-image-width-tablet": widthForHeightCap(40, 22, 14),
-    "--project-image-width-medium": widthForHeightCap(34, 24, 13),
-    "--project-image-width-mobile": widthForHeightCap(24, 20, 10),
-    "--project-image-width-compact": widthForHeightCap(24, 18, 7.5),
-  };
-}
 
 function ProjectActionOrb({
   state,
@@ -298,10 +260,10 @@ export function ProjectCardSection({
   const borderColor = useMotionTemplate`rgba(var(--project-card-border-rgb), ${borderAlpha})`;
   const cardShadow = useMotionTemplate`0 30px 90px rgba(var(--project-card-shadow-rgb), 0.52), 0 0 48px rgba(var(--project-card-glow-rgb), ${glowAlpha})`;
   const titleId = `${project.slug}-title`;
-  const imageSizingStyle = createProjectImageSizingStyle(
+  const imageSizingStyle = createProjectImageSizingVariables(
     project.imageSrc.width,
     project.imageSrc.height,
-  );
+  ) as CSSProperties;
   const physicsMeasurementDriver = useFloatingProjectPhysics({
     arenaRef,
     mediaCardRef,
@@ -353,7 +315,7 @@ export function ProjectCardSection({
                     alt={project.imageAlt}
                     className="project-card__image"
                     loading="eager"
-                    sizes="(max-width: 640px) min(78vw, 22rem), (max-width: 1024px) min(54vw, 28rem), min(38vw, 34rem)"
+                    sizes="(max-width: 380px) 86vw, (max-width: 700px) 90vw, (max-width: 1024px) 29rem, (max-width: 1400px) 31rem, 36rem"
                   />
                 </motion.div>
               </div>

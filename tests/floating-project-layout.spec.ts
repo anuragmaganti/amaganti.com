@@ -11,7 +11,7 @@ import {
 const desktopArena = { width: 1400, height: 840 };
 const desktopCards = {
   media: { width: 500, height: 560 },
-  copy: { width: 480, height: 470 },
+  copy: { width: 280, height: 620 },
   actions: { width: 340, height: 70 },
 };
 
@@ -33,7 +33,7 @@ test.describe("floating project layout", () => {
         arena: { width: 744, height: 840 },
         cards: {
           media: { width: 340, height: 210 },
-          copy: { width: 500, height: 420 },
+          copy: { width: 272, height: 560 },
           actions: { width: 336, height: 68 },
         },
       },
@@ -41,7 +41,7 @@ test.describe("floating project layout", () => {
         arena: { width: 374, height: 790 },
         cards: {
           media: { width: 250, height: 170 },
-          copy: { width: 356, height: 385 },
+          copy: { width: 256, height: 520 },
           actions: { width: 340, height: 60 },
         },
       },

@@ -104,6 +104,25 @@ Delete an entry or move it within the `projects` array. The DOM order, timeline,
 project-to-project morphs, Skills handoff, and outro source field update from the
 same order automatically. At least one project is currently required.
 
+### Floating project-card architecture
+
+Every project renders three independent cards for media, copy, and actions. The
+browser resets them to their authored positions on every load; drag state is
+deliberately not persisted.
+
+- `lib/floating-project-layout.ts` owns normalized default placement.
+- `lib/floating-project-simulation.ts` owns display-rate-independent physics
+  limits and substeps.
+- `lib/project-card-presentation.ts` normalizes screenshots by rendered area so
+  portrait, square, and landscape assets remain visually comparable.
+- `lib/particle-obstacle-geometry.ts` measures oriented card frames.
+- `lib/particle-obstacle-field.ts` owns leading pressure, side slip, passive wake
+  refill, and particle exclusion.
+
+Keep presentation tuning in those modules rather than adding project-specific
+branches to `ProjectCardSection`. This separation is what allows additional
+projects or a reusable template to share the same behavior.
+
 ## Skills
 
 In `config/portfolio.ts`:

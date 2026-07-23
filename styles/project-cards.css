@@ -90,7 +90,7 @@
 }
 
 .project-float-card--copy {
-  width: clamp(27rem, 31vw, 31rem);
+  width: clamp(16rem, 17vw, 17.5rem);
   padding: clamp(1.15rem, 1.5vw, 1.45rem);
 }
 
@@ -440,7 +440,7 @@
   }
 
   .project-float-card--copy {
-    width: clamp(24rem, 34vw, 28rem);
+    width: clamp(15.5rem, 18vw, 17rem);
   }
 
   .project-card__scroll {
@@ -460,7 +460,7 @@
 
 @media (max-width: 1024px) {
   .project-float-card--copy {
-    width: min(68vw, 32rem);
+    width: min(48vw, 17rem);
     padding: 1rem 1.1rem;
   }
 
@@ -484,7 +484,7 @@
   }
 
   .project-float-card--copy {
-    width: min(calc(100vw - 2rem), 27rem);
+    width: min(80vw, 17rem);
     padding: 0.8rem 0.85rem;
   }
 
@@ -566,7 +566,7 @@
 
 @media (max-width: 380px) {
   .project-float-card--copy {
-    width: calc(100vw - 1.5rem);
+    width: min(78vw, 16rem);
     padding: 0.7rem 0.72rem;
   }
 

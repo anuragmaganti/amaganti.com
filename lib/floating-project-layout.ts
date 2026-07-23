@@ -77,6 +77,16 @@ export function createFloatingProjectCardPlacements(
     cardSizes.media.width + cardSizes.copy.width + CARD_GAP * 3 <= arena.width;
 
   if (desktopLayout) {
+    const copyStackHeight =
+      cardSizes.copy.height + CARD_GAP + cardSizes.actions.height;
+    const requestedCopyTop =
+      arena.height * 0.43 - cardSizes.copy.height * 0.5;
+    const copyStackTop = clamp(
+      requestedCopyTop,
+      0,
+      Math.max(arena.height - copyStackHeight, 0),
+    );
+
     return {
       media: createBoundedPlacement(
         arena,
@@ -89,14 +99,18 @@ export function createFloatingProjectCardPlacements(
         arena,
         cardSizes.copy,
         0.69,
-        0.43,
+        (copyStackTop + cardSizes.copy.height * 0.5) / arena.height,
         defaultAngles.copy,
       ),
       actions: createBoundedPlacement(
         arena,
         cardSizes.actions,
         0.69,
-        0.82,
+        (copyStackTop +
+          cardSizes.copy.height +
+          CARD_GAP +
+          cardSizes.actions.height * 0.5) /
+          arena.height,
         defaultAngles.actions,
       ),
     };

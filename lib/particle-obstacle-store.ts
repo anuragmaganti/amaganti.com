@@ -1,24 +1,19 @@
 "use client";
 
-export type ParticleObstacleRect = {
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
-  width: number;
-  height: number;
-  cornerRadius: number;
-};
+import type { ParticleObstacleGeometry } from "@/lib/particle-obstacle-geometry";
+
+export type { ParticleObstacleGeometry } from "@/lib/particle-obstacle-geometry";
 
 export type ParticleObstacleMotion = {
   velocityX: number;
   velocityY: number;
+  angularVelocity: number;
   sampledAt: number;
 };
 
 export type ParticleObstacleEntry = {
   id: string;
-  rect: ParticleObstacleRect;
+  geometry: ParticleObstacleGeometry;
   strength: number;
   motion: ParticleObstacleMotion;
 };
@@ -29,14 +24,16 @@ const listeners = new Set<() => void>();
 const entries = new Map<string, ParticleObstacleEntry>();
 const emptySnapshot: ParticleObstacleSnapshot = [];
 let activeSnapshot: ParticleObstacleSnapshot = emptySnapshot;
+let batchDepth = 0;
+let snapshotDirty = false;
 
 export function upsertParticleObstacle(
   id: string,
-  rect: ParticleObstacleRect,
+  geometry: ParticleObstacleGeometry,
   strength: number,
   motion: ParticleObstacleMotion,
 ) {
-  const nextEntry = { id, rect, strength, motion };
+  const nextEntry = { id, geometry, strength, motion };
   const currentEntry = entries.get(id);
 
   if (currentEntry && areEntriesEqual(currentEntry, nextEntry)) {
@@ -44,12 +41,27 @@ export function upsertParticleObstacle(
   }
 
   entries.set(id, nextEntry);
-  emitSnapshot();
+  scheduleSnapshot();
 }
 
 export function removeParticleObstacle(id: string) {
   if (entries.delete(id)) {
-    emitSnapshot();
+    scheduleSnapshot();
+  }
+}
+
+export function batchParticleObstacleUpdates(update: () => void) {
+  batchDepth += 1;
+
+  try {
+    update();
+  } finally {
+    batchDepth -= 1;
+
+    if (!batchDepth && snapshotDirty) {
+      snapshotDirty = false;
+      emitSnapshot();
+    }
   }
 }
 
@@ -71,18 +83,30 @@ function emitSnapshot() {
     .sort((left, right) => left.id.localeCompare(right.id))
     .map((entry) => ({
       ...entry,
-      rect: { ...entry.rect },
+      geometry: {
+        ...entry.geometry,
+        bounds: { ...entry.geometry.bounds },
+      },
       motion: { ...entry.motion },
     }));
 
   listeners.forEach((listener) => listener());
 }
 
+function scheduleSnapshot() {
+  if (batchDepth) {
+    snapshotDirty = true;
+    return;
+  }
+
+  emitSnapshot();
+}
+
 function isActiveEntry(entry: ParticleObstacleEntry) {
   return (
     entry.strength > 0.001 &&
-    entry.rect.width > 0 &&
-    entry.rect.height > 0
+    entry.geometry.width > 0 &&
+    entry.geometry.height > 0
   );
 }
 
@@ -92,19 +116,25 @@ function areEntriesEqual(
 ) {
   const hasActiveMotion =
     Math.abs(next.motion.velocityX) > 0.75 ||
-    Math.abs(next.motion.velocityY) > 0.75;
+    Math.abs(next.motion.velocityY) > 0.75 ||
+    Math.abs(next.motion.angularVelocity) > 0.002;
 
   return (
     previous.id === next.id &&
     Math.abs(previous.strength - next.strength) < 0.002 &&
-    Math.abs(previous.rect.left - next.rect.left) < 0.25 &&
-    Math.abs(previous.rect.top - next.rect.top) < 0.25 &&
-    Math.abs(previous.rect.width - next.rect.width) < 0.25 &&
-    Math.abs(previous.rect.height - next.rect.height) < 0.25 &&
-    Math.abs(previous.rect.cornerRadius - next.rect.cornerRadius) < 0.25 &&
+    Math.abs(previous.geometry.centerX - next.geometry.centerX) < 0.25 &&
+    Math.abs(previous.geometry.centerY - next.geometry.centerY) < 0.25 &&
+    Math.abs(previous.geometry.width - next.geometry.width) < 0.25 &&
+    Math.abs(previous.geometry.height - next.geometry.height) < 0.25 &&
+    Math.abs(previous.geometry.angle - next.geometry.angle) < 0.0005 &&
+    Math.abs(
+      previous.geometry.cornerRadius - next.geometry.cornerRadius,
+    ) < 0.25 &&
     Math.abs(previous.motion.velocityX - next.motion.velocityX) < 1 &&
     Math.abs(previous.motion.velocityY - next.motion.velocityY) < 1 &&
-    (!hasActiveMotion ||
-      Math.abs(previous.motion.sampledAt - next.motion.sampledAt) < 8)
+    Math.abs(
+      previous.motion.angularVelocity - next.motion.angularVelocity,
+    ) < 0.002 &&
+    !hasActiveMotion
   );
 }

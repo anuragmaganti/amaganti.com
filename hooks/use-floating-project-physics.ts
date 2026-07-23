@@ -11,6 +11,10 @@ import {
   type FloatingProjectCardRole,
   type PreservedFloatingProjectPlacement,
 } from "@/lib/floating-project-layout";
+import {
+  FLOATING_PROJECT_SIMULATION,
+  resolveFloatingProjectPhysicsSteps,
+} from "@/lib/floating-project-simulation";
 
 const {
   Bodies,
@@ -44,11 +48,8 @@ type CardSize = {
 };
 
 const WALL_THICKNESS = 96;
-const PHYSICS_STEP = 1000 / 60;
-const MAX_FRAME_DELTA = PHYSICS_STEP * 3;
 const MAX_LINEAR_SPEED = 16;
 const MAX_ANGULAR_SPEED = 0.025;
-const MAX_CARD_ANGLE = Math.PI / 30;
 const AMBIENT_FORCE = 0.0000032;
 const CENTERING_FORCE = 0.0000024;
 const AMBIENT_TORQUE = 0.0000000025;
@@ -94,7 +95,6 @@ export function useFloatingProjectPhysics({
     let animationFrame = 0;
     let resizeFrame = 0;
     let lastTimestamp = 0;
-    let physicsAccumulator = 0;
     let isVisible = false;
     let isDestroyed = false;
     let zIndex = 3;
@@ -107,6 +107,7 @@ export function useFloatingProjectPhysics({
         record.element.style.transform = `translate3d(${x}px, ${y}px, 0) rotate(${record.body.angle}rad)`;
         record.element.dataset.physicsX = record.body.position.x.toFixed(2);
         record.element.dataset.physicsY = record.body.position.y.toFixed(2);
+        record.element.dataset.physicsAngle = record.body.angle.toFixed(6);
       }
 
       measurementDriver.set(timestamp);
@@ -116,10 +117,9 @@ export function useFloatingProjectPhysics({
       window.cancelAnimationFrame(animationFrame);
       animationFrame = 0;
       lastTimestamp = 0;
-      physicsAccumulator = 0;
     };
 
-    const applyAmbientMotion = (timestamp: number) => {
+    const applyAmbientMotion = (timestamp: number, deltaMs: number) => {
       if (prefersReducedMotion || activeDrag) {
         return;
       }
@@ -127,6 +127,8 @@ export function useFloatingProjectPhysics({
       const time = timestamp / 1000;
       const centerX = arenaSize.width * 0.5;
       const centerY = arenaSize.height * 0.5;
+      const forceCorrection =
+        FLOATING_PROJECT_SIMULATION.referenceStepMs / deltaMs;
 
       for (const record of records.values()) {
         const { body, driftPhase } = record;
@@ -139,15 +141,18 @@ export function useFloatingProjectPhysics({
         Body.applyForce(body, body.position, {
           x:
             body.mass *
-            (driftX * AMBIENT_FORCE + normalizedCenterX * CENTERING_FORCE),
+            (driftX * AMBIENT_FORCE + normalizedCenterX * CENTERING_FORCE) *
+            forceCorrection,
           y:
             body.mass *
-            (driftY * AMBIENT_FORCE + normalizedCenterY * CENTERING_FORCE),
+            (driftY * AMBIENT_FORCE + normalizedCenterY * CENTERING_FORCE) *
+            forceCorrection,
         });
         body.torque +=
           Math.sin(time * 0.34 + driftPhase) *
           body.inertia *
-          AMBIENT_TORQUE;
+          AMBIENT_TORQUE *
+          forceCorrection;
       }
     };
 
@@ -187,10 +192,16 @@ export function useFloatingProjectPhysics({
           );
         }
 
-        if (Math.abs(body.angle) > MAX_CARD_ANGLE) {
+        if (
+          Math.abs(body.angle) > FLOATING_PROJECT_SIMULATION.maxCardAngle
+        ) {
           Body.setAngle(
             body,
-            clamp(body.angle, -MAX_CARD_ANGLE, MAX_CARD_ANGLE),
+            clamp(
+              body.angle,
+              -FLOATING_PROJECT_SIMULATION.maxCardAngle,
+              FLOATING_PROJECT_SIMULATION.maxCardAngle,
+            ),
           );
           Body.setAngularVelocity(body, body.angularVelocity * -0.24);
         }
@@ -205,18 +216,16 @@ export function useFloatingProjectPhysics({
         return;
       }
 
-      const frameDelta = lastTimestamp
-        ? Math.min(timestamp - lastTimestamp, MAX_FRAME_DELTA)
-        : PHYSICS_STEP;
+      const frameDelta = lastTimestamp ? timestamp - lastTimestamp : 0;
       lastTimestamp = timestamp;
-      physicsAccumulator += frameDelta;
 
-      let physicsSteps = 0;
-      while (physicsAccumulator >= PHYSICS_STEP && physicsSteps < 3) {
-        applyAmbientMotion(timestamp - physicsAccumulator + PHYSICS_STEP);
-        Engine.update(engine, PHYSICS_STEP);
-        physicsAccumulator -= PHYSICS_STEP;
-        physicsSteps += 1;
+      const physicsSteps = resolveFloatingProjectPhysicsSteps(frameDelta);
+      for (let step = 0; step < physicsSteps.count; step += 1) {
+        const stepTimestamp =
+          timestamp -
+          physicsSteps.deltaMs * (physicsSteps.count - step - 1);
+        applyAmbientMotion(stepTimestamp, physicsSteps.deltaMs);
+        Engine.update(engine, physicsSteps.deltaMs);
       }
 
       stabilizeBodies();
@@ -232,7 +241,6 @@ export function useFloatingProjectPhysics({
         animationFrame = window.requestAnimationFrame(runFrame);
       } else {
         lastTimestamp = 0;
-        physicsAccumulator = 0;
       }
     };
 
@@ -249,6 +257,11 @@ export function useFloatingProjectPhysics({
 
       Composite.remove(engine.world, activeDrag.constraint);
       activeDrag.record.element.removeAttribute("data-dragging");
+      if (
+        activeDrag.record.element.hasPointerCapture(activeDrag.pointerId)
+      ) {
+        activeDrag.record.element.releasePointerCapture(activeDrag.pointerId);
+      }
       document.documentElement.style.userSelect = activeDrag.previousUserSelect;
 
       if (prefersReducedMotion) {
@@ -334,7 +347,10 @@ export function useFloatingProjectPhysics({
 
       // Resolve any tight responsive placement before the first painted frame.
       for (let step = 0; step < 12; step += 1) {
-        Engine.update(engine, PHYSICS_STEP);
+        Engine.update(
+          engine,
+          FLOATING_PROJECT_SIMULATION.referenceStepMs,
+        );
       }
 
       for (const { body } of records.values()) {

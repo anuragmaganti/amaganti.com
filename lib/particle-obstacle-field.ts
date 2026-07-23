@@ -1,10 +1,11 @@
 import * as THREE from "three";
 
 import type { ParticleState } from "@/lib/particle-motion";
+import { createParticleObstacleScreenFrame } from "@/lib/particle-obstacle-geometry";
 import type {
   ParticleObstacleEntry,
+  ParticleObstacleGeometry,
   ParticleObstacleMotion,
-  ParticleObstacleRect,
   ParticleObstacleSnapshot,
 } from "@/lib/particle-obstacle-store";
 
@@ -20,10 +21,7 @@ const LEADING_PRESSURE = 0.82;
 const LEADING_SPLIT = 0.68;
 const LEADING_SPLIT_BLEND_RATIO = 0.34;
 const EDGE_SLIP = 0.5;
-const TRAILING_PULL = 0.72;
-const WAKE_PULL = 0.94;
-const WAKE_CENTERING = 0.46;
-const WAKE_CURL = 0.18;
+const TRAILING_REFILL_RESPONSE = 11;
 const FLOW_DEPTH = 0.08;
 const FLOW_RESPONSE = 15;
 const FLOW_RETURN = 6;
@@ -34,7 +32,7 @@ const PARTICLE_MOTION_EPSILON = 0.0005;
 export type ParticleObstacleRuntime = {
   id: string;
   present: boolean;
-  rect: ParticleObstacleRect | null;
+  geometry: ParticleObstacleGeometry | null;
   motion: ParticleObstacleMotion | null;
   halfWidth: number;
   halfHeight: number;
@@ -51,6 +49,8 @@ export type ParticleObstacleRuntime = {
   planeNormal: THREE.Vector3;
   flowVelocity: THREE.Vector2;
   targetFlowVelocity: THREE.Vector2;
+  angularVelocity: number;
+  targetAngularVelocity: number;
 };
 
 export type ParticleObstacleFrame = {
@@ -65,6 +65,7 @@ type ParticleFlowAccumulator = {
   correctionX: number;
   correctionY: number;
   correctionZ: number;
+  refillWeight: number;
 };
 
 export type ParticleObstacleResources = {
@@ -92,6 +93,7 @@ export function createParticleObstacleResources(): ParticleObstacleResources {
       correctionX: 0,
       correctionY: 0,
       correctionZ: 0,
+      refillWeight: 0,
     },
   };
 }
@@ -141,7 +143,7 @@ export function resolveParticleObstacleFrame({
     const runtime = getObstacleRuntime(runtimes, snapshot, targetStrength);
 
     runtime.present = true;
-    runtime.rect = snapshot.rect;
+    runtime.geometry = snapshot.geometry;
     runtime.motion = snapshot.motion;
     runtime.targetStrength = targetStrength;
   }
@@ -154,7 +156,7 @@ export function resolveParticleObstacleFrame({
     );
 
     const projected =
-      runtime.rect &&
+      runtime.geometry &&
       projectObstacleIntoCloud({
         runtime,
         perspectiveCamera,
@@ -170,6 +172,12 @@ export function resolveParticleObstacleFrame({
     } else {
       runtime.targetFlowVelocity.set(0, 0);
       runtime.flowVelocity.lerp(runtime.targetFlowVelocity, velocityLerp);
+      runtime.targetAngularVelocity = 0;
+      runtime.angularVelocity = lerp(
+        runtime.angularVelocity,
+        runtime.targetAngularVelocity,
+        velocityLerp,
+      );
     }
 
     const strengthUnsettled =
@@ -177,7 +185,10 @@ export function resolveParticleObstacleFrame({
     const velocityUnsettled =
       runtime.flowVelocity.distanceToSquared(runtime.targetFlowVelocity) >
         0.00001 ||
-      runtime.flowVelocity.lengthSq() > MIN_FLOW_SPEED * MIN_FLOW_SPEED;
+      runtime.flowVelocity.lengthSq() > MIN_FLOW_SPEED * MIN_FLOW_SPEED ||
+      Math.abs(runtime.angularVelocity - runtime.targetAngularVelocity) >
+        0.0001 ||
+      Math.abs(runtime.angularVelocity) > 0.0001;
 
     frame.unsettled ||= strengthUnsettled || velocityUnsettled;
 
@@ -221,6 +232,7 @@ export function applyParticleObstacleFlow(
   accumulator.correctionX = 0;
   accumulator.correctionY = 0;
   accumulator.correctionZ = 0;
+  accumulator.refillWeight = 0;
 
   // The authored morph target stays immutable. The card contributes a
   // temporary viscous offset plus an immediate collision correction.
@@ -252,7 +264,13 @@ export function applyParticleObstacleFlow(
   }
 
   const responseRate =
-    targetLength > PARTICLE_MOTION_EPSILON ? FLOW_RESPONSE : FLOW_RETURN;
+    targetLength > PARTICLE_MOTION_EPSILON
+      ? FLOW_RESPONSE
+      : lerp(
+          FLOW_RETURN,
+          TRAILING_REFILL_RESPONSE,
+          accumulator.refillWeight,
+        );
   const response = 1 - Math.exp(-Math.min(delta, 1 / 30) * responseRate);
   offsetX = lerp(offsetX, accumulator.targetX, response);
   offsetY = lerp(offsetY, accumulator.targetY, response);
@@ -299,7 +317,7 @@ function getObstacleRuntime(
   const runtime: ParticleObstacleRuntime = {
     id: snapshot.id,
     present: true,
-    rect: snapshot.rect,
+    geometry: snapshot.geometry,
     motion: snapshot.motion,
     halfWidth: 0,
     halfHeight: 0,
@@ -316,6 +334,8 @@ function getObstacleRuntime(
     planeNormal: new THREE.Vector3(),
     flowVelocity: new THREE.Vector2(),
     targetFlowVelocity: new THREE.Vector2(),
+    angularVelocity: 0,
+    targetAngularVelocity: 0,
   };
 
   runtimes.set(snapshot.id, runtime);
@@ -327,27 +347,45 @@ function updateRuntimeFlowVelocity(
   now: number,
   velocityLerp: number,
 ) {
-  const rect = runtime.rect;
+  const geometry = runtime.geometry;
   const motion = runtime.motion;
 
-  if (!rect || !motion) {
+  if (!geometry || !motion) {
     runtime.targetFlowVelocity.set(0, 0);
     runtime.flowVelocity.lerp(runtime.targetFlowVelocity, velocityLerp);
+    runtime.targetAngularVelocity = 0;
+    runtime.angularVelocity = lerp(
+      runtime.angularVelocity,
+      runtime.targetAngularVelocity,
+      velocityLerp,
+    );
     return;
   }
 
   const motionAge = Math.max((now - motion.sampledAt) / 1000, 0);
   const motionDecay = Math.exp(-motionAge / MOTION_DECAY_SECONDS);
   const localUnitsPerPixelX =
-    (runtime.halfWidth * 2) / Math.max(rect.width, 1);
+    (runtime.halfWidth * 2) / Math.max(geometry.width, 1);
   const localUnitsPerPixelY =
-    (runtime.halfHeight * 2) / Math.max(rect.height, 1);
+    (runtime.halfHeight * 2) / Math.max(geometry.height, 1);
+  const cosine = Math.cos(geometry.angle);
+  const sine = Math.sin(geometry.angle);
+  const localVelocityX =
+    motion.velocityX * cosine + motion.velocityY * sine;
+  const localVelocityY =
+    motion.velocityX * sine - motion.velocityY * cosine;
 
   runtime.targetFlowVelocity.set(
-    motion.velocityX * localUnitsPerPixelX * motionDecay,
-    -motion.velocityY * localUnitsPerPixelY * motionDecay,
+    localVelocityX * localUnitsPerPixelX * motionDecay,
+    localVelocityY * localUnitsPerPixelY * motionDecay,
   );
   runtime.flowVelocity.lerp(runtime.targetFlowVelocity, velocityLerp);
+  runtime.targetAngularVelocity = motion.angularVelocity * motionDecay;
+  runtime.angularVelocity = lerp(
+    runtime.angularVelocity,
+    runtime.targetAngularVelocity,
+    velocityLerp,
+  );
 }
 
 function projectObstacleIntoCloud({
@@ -367,18 +405,17 @@ function projectObstacleIntoCloud({
   worldInteractionPoint: THREE.Vector3;
   cloud: THREE.Points;
 }) {
-  const rect = runtime.rect;
+  const geometry = runtime.geometry;
 
-  if (!rect) {
+  if (!geometry) {
     return false;
   }
 
-  const centerX = rect.left + rect.width * 0.5;
-  const centerY = rect.top + rect.height * 0.5;
+  const screenFrame = createParticleObstacleScreenFrame(geometry);
   const projected =
     projectScreenPointToLocal(
-      centerX,
-      centerY,
+      screenFrame.center.x,
+      screenFrame.center.y,
       perspectiveCamera,
       raycaster,
       interactionPlane,
@@ -388,8 +425,8 @@ function projectObstacleIntoCloud({
       cloud,
     ) &&
     projectScreenPointToLocal(
-      rect.left,
-      centerY,
+      screenFrame.leftMid.x,
+      screenFrame.leftMid.y,
       perspectiveCamera,
       raycaster,
       interactionPlane,
@@ -399,8 +436,8 @@ function projectObstacleIntoCloud({
       cloud,
     ) &&
     projectScreenPointToLocal(
-      rect.right,
-      centerY,
+      screenFrame.rightMid.x,
+      screenFrame.rightMid.y,
       perspectiveCamera,
       raycaster,
       interactionPlane,
@@ -410,8 +447,8 @@ function projectObstacleIntoCloud({
       cloud,
     ) &&
     projectScreenPointToLocal(
-      centerX,
-      rect.top,
+      screenFrame.topMid.x,
+      screenFrame.topMid.y,
       perspectiveCamera,
       raycaster,
       interactionPlane,
@@ -421,8 +458,8 @@ function projectObstacleIntoCloud({
       cloud,
     ) &&
     projectScreenPointToLocal(
-      centerX,
-      rect.bottom,
+      screenFrame.bottomMid.x,
+      screenFrame.bottomMid.y,
       perspectiveCamera,
       raycaster,
       interactionPlane,
@@ -455,9 +492,13 @@ function projectObstacleIntoCloud({
     .normalize();
 
   const localRadiusX =
-    (rect.cornerRadius / Math.max(rect.width, 1)) * runtime.halfWidth * 2;
+    (geometry.cornerRadius / Math.max(geometry.width, 1)) *
+    runtime.halfWidth *
+    2;
   const localRadiusY =
-    (rect.cornerRadius / Math.max(rect.height, 1)) * runtime.halfHeight * 2;
+    (geometry.cornerRadius / Math.max(geometry.height, 1)) *
+    runtime.halfHeight *
+    2;
   runtime.cornerRadius = clamp(
     Math.min(localRadiusX, localRadiusY),
     0,
@@ -511,27 +552,61 @@ function accumulateObstacleFlow(
     normalY = signY;
   }
 
+  // Card translation and rotation both contribute to the local surface flow.
+  // CSS angles increase clockwise, so their local Cartesian rotation is
+  // (angularVelocity * y, -angularVelocity * x).
+  const flowX =
+    field.flowVelocity.x + field.angularVelocity * planeY;
+  const flowY =
+    field.flowVelocity.y - field.angularVelocity * planeX;
+  const flowSpeed = Math.hypot(flowX, flowY);
+  const hasFlow = flowSpeed > MIN_FLOW_SPEED;
+  const motionX = hasFlow ? flowX / flowSpeed : 0;
+  const motionY = hasFlow ? flowY / flowSpeed : 0;
+  const normalMotion = normalX * motionX + normalY * motionY;
+
   if (signedDistance < 0) {
-    const correction =
+    const nearestCorrection =
       (-signedDistance + COLLISION_MARGIN) * field.strength;
 
-    addPlaneVector(
-      accumulator,
-      field,
-      normalX * correction,
-      normalY * correction,
-      0,
-      true,
-    );
+    if (hasFlow && normalMotion < -0.05) {
+      const alongCoordinate = planeX * motionX + planeY * motionY;
+      const alongExtent =
+        Math.abs(motionX) * field.halfWidth +
+        Math.abs(motionY) * field.halfHeight;
+      const leadingCorrection =
+        Math.max(
+          alongExtent - alongCoordinate + COLLISION_MARGIN,
+          -signedDistance + COLLISION_MARGIN,
+        ) * field.strength;
+
+      // A moving obstacle carries particles out through its leading face. It
+      // never ejects them onto the trailing face, which would create a second
+      // magnetic-looking particle line behind the card.
+      addPlaneVector(
+        accumulator,
+        field,
+        motionX * leadingCorrection,
+        motionY * leadingCorrection,
+        0,
+        true,
+      );
+    } else {
+      addPlaneVector(
+        accumulator,
+        field,
+        normalX * nearestCorrection,
+        normalY * nearestCorrection,
+        0,
+        true,
+      );
+    }
   }
 
-  const flowSpeed = field.flowVelocity.length();
-  if (flowSpeed <= MIN_FLOW_SPEED) {
+  if (!hasFlow) {
     return;
   }
 
-  const motionX = field.flowVelocity.x / flowSpeed;
-  const motionY = field.flowVelocity.y / flowSpeed;
   const sideX = -motionY;
   const sideY = motionX;
   const minHalfSize = Math.min(field.halfWidth, field.halfHeight);
@@ -547,9 +622,7 @@ function accumulateObstacleFlow(
     FLOW_DISPLACEMENT_RATIO *
     field.strength *
     speedWeight;
-  const normalMotion = normalX * motionX + normalY * motionY;
   const leadingWeight = Math.max(normalMotion, 0) * surfaceWeight;
-  const trailingWeight = Math.max(-normalMotion, 0) * surfaceWeight;
   const tangentX = motionX - normalX * normalMotion;
   const tangentY = motionY - normalY * normalMotion;
   const sideCoordinate = planeX * sideX + planeY * sideY;
@@ -566,16 +639,14 @@ function accumulateObstacleFlow(
   const splitWeight =
     leadingWeight *
     (1 - clamp(Math.abs(sideCoordinate) / Math.max(sideExtent, 0.001), 0, 1));
-  let targetX =
+  const targetX =
     normalX * leadingWeight * LEADING_PRESSURE +
     sideX * splitDirection * splitWeight * LEADING_SPLIT +
-    tangentX * surfaceWeight * EDGE_SLIP +
-    motionX * trailingWeight * TRAILING_PULL;
-  let targetY =
+    tangentX * surfaceWeight * EDGE_SLIP;
+  const targetY =
     normalY * leadingWeight * LEADING_PRESSURE +
     sideY * splitDirection * splitWeight * LEADING_SPLIT +
-    tangentY * surfaceWeight * EDGE_SLIP +
-    motionY * trailingWeight * TRAILING_PULL;
+    tangentY * surfaceWeight * EDGE_SLIP;
 
   const alongCoordinate = planeX * motionX + planeY * motionY;
   const alongExtent =
@@ -596,24 +667,20 @@ function accumulateObstacleFlow(
       );
     const wakeWeight =
       longitudinalWeight * longitudinalWeight * smoothstep01(lateralWeight);
-    const normalizedSide = sideCoordinate / Math.max(sideExtent, 0.001);
-    const curl =
-      particle.spreadZ *
-      Math.sin(longitudinalWeight * Math.PI) *
-      WAKE_CURL;
-
-    targetX +=
-      motionX * wakeWeight * WAKE_PULL -
-      sideX * normalizedSide * wakeWeight * WAKE_CENTERING +
-      sideX * curl * wakeWeight;
-    targetY +=
-      motionY * wakeWeight * WAKE_PULL -
-      sideY * normalizedSide * wakeWeight * WAKE_CENTERING +
-      sideY * curl * wakeWeight;
+    // The wake only accelerates each particle's return to its authored field.
+    // It does not pull particles toward either the card or its centerline.
+    accumulator.refillWeight = Math.max(
+      accumulator.refillWeight,
+      wakeWeight * field.strength,
+    );
   }
 
+  const sideSurfaceWeight =
+    (1 - Math.abs(normalMotion)) * surfaceWeight;
   const depthFlow =
-    (particle.spreadZ * surfaceWeight + trailingWeight * 0.35) * FLOW_DEPTH;
+    particle.spreadZ *
+    Math.max(leadingWeight, sideSurfaceWeight) *
+    FLOW_DEPTH;
 
   addPlaneVector(
     accumulator,
