@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 
-import { projects, type ProjectEntry } from "../config/portfolio";
+import {
+  outroLinks,
+  projects,
+  type ProjectEntry,
+} from "../config/portfolio";
 import { portfolioSections } from "../config/sections";
 import { themeConfig } from "../config/visual";
 import {
@@ -28,7 +32,9 @@ test.describe("portfolio behavior contract", () => {
     );
   });
 
-  test("defaults to dark and persists an explicit light theme", async ({ page }) => {
+  test("uses the configured default and persists explicit themes", async ({ page }) => {
+    const alternateTheme = themeConfig.defaultTheme === "dark" ? "light" : "dark";
+
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
     await page.evaluate(
@@ -37,9 +43,15 @@ test.describe("portfolio behavior contract", () => {
     );
     await page.reload();
 
-    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+    await expect(page.locator("html")).toHaveAttribute(
+      "data-theme",
+      themeConfig.defaultTheme,
+    );
     await page.getByRole("button", { name: "Toggle color theme" }).click();
-    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+    await expect(page.locator("html")).toHaveAttribute(
+      "data-theme",
+      alternateTheme,
+    );
     await expect
       .poll(() =>
         page.evaluate(
@@ -47,10 +59,24 @@ test.describe("portfolio behavior contract", () => {
           themeConfig.storageKey,
         ),
       )
-      .toBe("light");
+      .toBe(alternateTheme);
 
     await page.reload();
-    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+    await expect(page.locator("html")).toHaveAttribute(
+      "data-theme",
+      alternateTheme,
+    );
+
+    await page.getByRole("button", { name: "Toggle color theme" }).click();
+    await expect(page.locator("html")).toHaveAttribute(
+      "data-theme",
+      themeConfig.defaultTheme,
+    );
+    await page.reload();
+    await expect(page.locator("html")).toHaveAttribute(
+      "data-theme",
+      themeConfig.defaultTheme,
+    );
   });
 
   test("keeps project and contact destinations explicit", async ({ page }) => {
@@ -75,18 +101,12 @@ test.describe("portfolio behavior contract", () => {
     }
 
     await scrollToSection(page, "outro", 0.9);
-    await expect(page.getByRole("link", { name: "GitHub" })).toHaveAttribute(
-      "href",
-      "https://github.com/anuragmaganti",
-    );
-    await expect(page.getByRole("link", { name: "LinkedIn" })).toHaveAttribute(
-      "href",
-      "https://www.linkedin.com/in/anuragmaganti/",
-    );
-    await expect(page.getByRole("link", { name: "Email me" })).toHaveAttribute(
-      "href",
-      "mailto:amaganti.dev@gmail.com",
-    );
+    for (const link of outroLinks) {
+      await expect(page.getByRole("link", { name: link.label })).toHaveAttribute(
+        "href",
+        link.href,
+      );
+    }
   });
 
   test("fits every project card without a nested scroll trap", async ({ page }) => {

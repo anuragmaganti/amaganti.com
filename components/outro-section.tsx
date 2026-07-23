@@ -65,9 +65,7 @@ function OutroContactOverlay({
         {outroLinks.map((item) => (
           <div
             key={item.label}
-            className={`outro-contact-overlay__item${
-              " outro-contact-overlay__item--interactive"
-            }`}
+            className="outro-contact-overlay__item outro-contact-overlay__item--interactive"
           >
             <a
               className="outro-contact-label outro-contact-label--link"

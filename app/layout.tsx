@@ -15,7 +15,9 @@ const themeBootstrapScript = `
   (() => {
     try {
       const savedTheme = window.localStorage.getItem(${JSON.stringify(themeConfig.storageKey)});
-      const theme = savedTheme === "light" ? "light" : ${JSON.stringify(themeConfig.defaultTheme)};
+      const theme = savedTheme === "light" || savedTheme === "dark"
+        ? savedTheme
+        : ${JSON.stringify(themeConfig.defaultTheme)};
       document.documentElement.dataset.theme = theme;
       document.documentElement.style.colorScheme = theme;
     } catch {

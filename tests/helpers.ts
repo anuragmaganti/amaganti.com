@@ -1,6 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 
-import type { PortfolioTheme } from "../config/visual";
+import { projects } from "../config/portfolio";
+import { themeConfig, type PortfolioTheme } from "../config/visual";
 
 export type { PortfolioTheme } from "../config/visual";
 
@@ -8,7 +9,7 @@ export const stableCheckpoints = [
   { id: "intro", progress: 0 },
   { id: "about-stage", progress: 0.3 },
   { id: "projects-stage", progress: 0.45 },
-  { id: "project-05", progress: 0 },
+  { id: projects[0].slug, progress: 0 },
   { id: "skills-stage", progress: 0.42 },
   { id: "outro", progress: 0.78 },
 ] as const;
@@ -26,9 +27,12 @@ export async function openPortfolio(
     colorScheme: theme,
     reducedMotion: options.reducedMotion ?? "reduce",
   });
-  await page.addInitScript((initialTheme) => {
-    window.localStorage.setItem("portfolio-theme", initialTheme);
-  }, theme);
+  await page.addInitScript(
+    ({ initialTheme, storageKey }) => {
+      window.localStorage.setItem(storageKey, initialTheme);
+    },
+    { initialTheme: theme, storageKey: themeConfig.storageKey },
+  );
 
   const pointCloudResponse = page.waitForResponse(
     (response) =>

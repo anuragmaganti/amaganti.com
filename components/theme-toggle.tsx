@@ -70,9 +70,10 @@ export function ThemeToggle() {
       return;
     }
 
-    const currentTheme =
-      document.documentElement.dataset.theme === "light"
-        ? "light"
+    const documentTheme = document.documentElement.dataset.theme;
+    const currentTheme: PortfolioTheme =
+      documentTheme === "light" || documentTheme === "dark"
+        ? documentTheme
         : themeConfig.defaultTheme;
     const nextTheme: PortfolioTheme =
       currentTheme === "dark" ? "light" : "dark";
