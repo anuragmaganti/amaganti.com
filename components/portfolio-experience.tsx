@@ -61,8 +61,8 @@ import {
 import {
   createSceneTimeline,
   getTimelineProgressPoint,
-  type SceneTimeline,
-} from "@/lib/scene-config";
+} from "@/lib/scene-timeline";
+import type { SceneTimeline } from "@/lib/scene-types";
 
 const SceneCanvas = dynamic(
   () => import("@/components/scene-canvas").then((module) => module.SceneCanvas),

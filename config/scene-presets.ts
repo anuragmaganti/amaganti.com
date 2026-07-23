@@ -1,46 +1,10 @@
 import { projects } from "@/config/portfolio";
-import {
-  portfolioSections,
-  type SectionId,
-} from "@/config/sections";
-import type { PointCloudTextTargetId } from "@/config/visual";
 import type { ProjectFieldPresetId } from "@/lib/project-field-presets";
-
-export type PointCloudShape = "face" | "text" | "project-field" | "settle";
-export type SceneViewportFrame = "preserve" | "authored";
-export type SceneTransitionEasing = "smooth" | "direct";
-
-export type PointCloudTargetId =
-  | "face"
-  | "settle"
-  | PointCloudTextTargetId
-  | ProjectFieldPresetId;
-
-type SceneCameraState = {
-  position: [number, number, number];
-  target: [number, number, number];
-  fov: number;
-};
-
-export type SceneCloudState = {
-  shape: PointCloudShape;
-  textTargetId?: PointCloudTextTargetId;
-  projectFieldPresetId?: ProjectFieldPresetId;
-  viewportFrame: SceneViewportFrame;
-  obstacleRepulsion: number;
-  position: [number, number, number];
-  rotation: [number, number, number];
-  scale: number;
-  pointSize: number;
-  noise: number;
-  intensity: number;
-  opacity: number;
-};
-
-type ScenePreset = {
-  camera: SceneCameraState;
-  cloud: SceneCloudState;
-};
+import type {
+  SceneCameraState,
+  SceneCloudState,
+  ScenePreset,
+} from "@/lib/scene-types";
 
 type ScenePresetOverrides = {
   camera?: Partial<SceneCameraState>;
@@ -65,19 +29,6 @@ type StaticScenePresetId =
 type ProjectScenePresetId = `project-${ProjectFieldPresetId}`;
 export type ScenePresetId = StaticScenePresetId | ProjectScenePresetId;
 
-export type ScenePhase = {
-  key: string;
-  range: [number, number];
-  transitionEasing: SceneTransitionEasing;
-  camera: SceneCameraState;
-  cloud: SceneCloudState;
-};
-
-export type SceneTimeline = {
-  sectionRanges: Record<string, [number, number]>;
-  phases: ScenePhase[];
-};
-
 const ABOUT_TEXT_COMPOSITION_SCALE = 0.84;
 const PROJECTS_TEXT_COMPOSITION_SCALE = 0.86;
 
@@ -90,8 +41,8 @@ function createScenePreset(
   return {
     camera,
     cloud: {
-      // Foreground subjects preserve their desktop frame; fields keep their
-      // authored world-space composition and can flow around live obstacles.
+      // Fields retain authored world space so obstacle projection and preset
+      // geometry use one coordinate system. Foreground subjects preserve frame.
       viewportFrame: isProjectField ? "authored" : "preserve",
       obstacleRepulsion: isProjectField ? 1 : 0,
       ...cloud,
@@ -109,7 +60,7 @@ function extendScenePreset(
   };
 }
 
-const INTRO_FACE_PRESET = createScenePreset(
+const introFacePreset = createScenePreset(
   {
     position: [-0.04, 0.02, 4.72],
     target: [0.05, 0.02, 0],
@@ -127,7 +78,7 @@ const INTRO_FACE_PRESET = createScenePreset(
   },
 );
 
-const ABOUT_TITLE_PRESET = createScenePreset(
+const aboutTitlePreset = createScenePreset(
   {
     position: [0, 0.12, 4.46],
     target: [0, 0.14, 0],
@@ -146,7 +97,7 @@ const ABOUT_TITLE_PRESET = createScenePreset(
   },
 );
 
-const PROJECTS_HERO_PRESET = createScenePreset(
+const projectsHeroPreset = createScenePreset(
   {
     position: [0.02, 0.04, 4.24],
     target: [0.01, 0.03, 0],
@@ -165,7 +116,7 @@ const PROJECTS_HERO_PRESET = createScenePreset(
   },
 );
 
-const PROJECT_SCENE_PRESETS: Record<ProjectFieldPresetId, ScenePreset> = {
+export const projectScenePresets: Record<ProjectFieldPresetId, ScenePreset> = {
   "contour-sheet": createScenePreset(
     { position: [0.02, 0.02, 4.62], target: [0, 0.03, 0], fov: 36 },
     {
@@ -213,11 +164,11 @@ const PROJECT_SCENE_PRESETS: Record<ProjectFieldPresetId, ScenePreset> = {
 const finalProject = projects.at(-1);
 
 if (!finalProject) {
-  throw new Error("At least one project is required to build the scene timeline.");
+  throw new Error("At least one project is required to build the scene presets.");
 }
 
-const SKILLS_AMBIENT_PRESET = extendScenePreset(
-  PROJECT_SCENE_PRESETS[finalProject.particlePreset],
+const skillsAmbientPreset = extendScenePreset(
+  projectScenePresets[finalProject.particlePreset],
   {
     camera: { position: [0.01, 0.04, 4.84], target: [0, 0.03, 0], fov: 37 },
     cloud: {
@@ -232,8 +183,8 @@ const SKILLS_AMBIENT_PRESET = extendScenePreset(
 );
 
 const staticPresets: Record<StaticScenePresetId, ScenePreset> = {
-  "intro-face": INTRO_FACE_PRESET,
-  "about-transform": extendScenePreset(ABOUT_TITLE_PRESET, {
+  "intro-face": introFacePreset,
+  "about-transform": extendScenePreset(aboutTitlePreset, {
     camera: { position: [0, 0.12, 4.5], fov: 30 },
     cloud: {
       position: [0, 0.96, 0],
@@ -245,8 +196,8 @@ const staticPresets: Record<StaticScenePresetId, ScenePreset> = {
       opacity: 0.97,
     },
   }),
-  "about-title": ABOUT_TITLE_PRESET,
-  "projects-transform": extendScenePreset(PROJECTS_HERO_PRESET, {
+  "about-title": aboutTitlePreset,
+  "projects-transform": extendScenePreset(projectsHeroPreset, {
     camera: { position: [0.01, 0.03, 4.26], target: [0.01, 0.03, 0] },
     cloud: {
       position: [0.02, 0.04, 0],
@@ -258,8 +209,8 @@ const staticPresets: Record<StaticScenePresetId, ScenePreset> = {
       opacity: 0.96,
     },
   }),
-  "projects-hero": PROJECTS_HERO_PRESET,
-  "projects-reveal": extendScenePreset(PROJECTS_HERO_PRESET, {
+  "projects-hero": projectsHeroPreset,
+  "projects-reveal": extendScenePreset(projectsHeroPreset, {
     camera: { position: [0.02, 0.04, 4.38], fov: 31 },
     cloud: {
       scale: 1.01 * PROJECTS_TEXT_COMPOSITION_SCALE,
@@ -268,7 +219,7 @@ const staticPresets: Record<StaticScenePresetId, ScenePreset> = {
       intensity: 0.24,
     },
   }),
-  "skills-ambient": SKILLS_AMBIENT_PRESET,
+  "skills-ambient": skillsAmbientPreset,
   "outro-face": createScenePreset(
     { position: [0, 0.02, 4.62], target: [0, 0.02, 0], fov: 29 },
     {
@@ -285,82 +236,13 @@ const staticPresets: Record<StaticScenePresetId, ScenePreset> = {
 };
 
 const projectPresets = Object.fromEntries(
-  Object.entries(PROJECT_SCENE_PRESETS).map(([id, preset]) => [`project-${id}`, preset]),
+  Object.entries(projectScenePresets).map(([id, preset]) => [
+    `project-${id}`,
+    preset,
+  ]),
 ) as Record<ProjectScenePresetId, ScenePreset>;
 
-const SCENE_PRESETS: Record<ScenePresetId, ScenePreset> = {
+export const scenePresets: Record<ScenePresetId, ScenePreset> = {
   ...staticPresets,
   ...projectPresets,
 };
-
-export function createSceneTimeline(
-  measuredRanges: Partial<Record<SectionId, [number, number]>> = {},
-): SceneTimeline {
-  const fallbackSize = 1 / portfolioSections.length;
-  const sectionRanges: Record<string, [number, number]> = {};
-  const phases: ScenePhase[] = [];
-
-  portfolioSections.forEach((section, sectionIndex) => {
-    const fallbackRange: [number, number] = [
-      roundProgress(sectionIndex * fallbackSize),
-      sectionIndex === portfolioSections.length - 1
-        ? 1
-        : roundProgress((sectionIndex + 1) * fallbackSize),
-    ];
-    const sectionRange = measuredRanges[section.id] ?? fallbackRange;
-    sectionRanges[section.id] = sectionRange;
-
-    const totalBeatWeight = section.sceneBeats.reduce(
-      (total, beat) => total + beat.durationWeight,
-      0,
-    );
-    let beatWeight = 0;
-
-    section.sceneBeats.forEach((beat, beatIndex) => {
-      const beatStart = getRangePoint(
-        sectionRange,
-        beatWeight / totalBeatWeight,
-      );
-      beatWeight += beat.durationWeight;
-      const beatEnd =
-        sectionIndex === portfolioSections.length - 1 &&
-        beatIndex === section.sceneBeats.length - 1
-          ? 1
-          : getRangePoint(sectionRange, beatWeight / totalBeatWeight);
-      const preset = SCENE_PRESETS[beat.presetId];
-
-      phases.push({
-        key: beat.key,
-        range: [beatStart, beatEnd],
-        transitionEasing: beat.transitionEasing,
-        camera: preset.camera,
-        cloud: preset.cloud,
-      });
-    });
-  });
-
-  return { sectionRanges, phases };
-}
-
-export function getTimelineProgressPoint(
-  timeline: SceneTimeline,
-  sectionId: string,
-  localProgress: number,
-) {
-  return getRangePoint(
-    timeline.sectionRanges[sectionId],
-    clamp(localProgress, 0, 1),
-  );
-}
-
-function getRangePoint(range: [number, number], localProgress: number) {
-  return roundProgress(range[0] + (range[1] - range[0]) * localProgress);
-}
-
-function roundProgress(value: number) {
-  return Number(value.toFixed(6));
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
-}

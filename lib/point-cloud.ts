@@ -3,12 +3,12 @@ import {
   type PointCloudTextTarget,
   type PointCloudTextTargetId,
 } from "@/config/visual";
-import type { PointCloudTargetId } from "@/lib/scene-config";
 import {
   PROJECT_FIELD_PRESETS,
   type ProjectFieldPreset,
   type ProjectFieldPresetId,
 } from "@/lib/project-field-presets";
+import type { PointCloudTargetId } from "@/lib/scene-types";
 
 const TWO_PI = Math.PI * 2;
 const IMPORT_SCAN_ORIENTATION = particleVisualConfig.headAsset.orientation;

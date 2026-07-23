@@ -2,7 +2,7 @@ import type { MotionValue } from "motion";
 import type { ComponentType } from "react";
 
 import type { SectionDefinition } from "@/config/sections";
-import type { SceneTimeline } from "@/lib/scene-config";
+import type { SceneTimeline } from "@/lib/scene-types";
 
 export type CustomSectionRendererProps = {
   section: SectionDefinition;

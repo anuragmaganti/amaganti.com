@@ -4,10 +4,8 @@ import {
   type ProjectEntry,
   type ProjectSlug,
 } from "@/config/portfolio";
-import type {
-  ScenePresetId,
-  SceneTransitionEasing,
-} from "@/lib/scene-config";
+import type { ScenePresetId } from "@/config/scene-presets";
+import type { SceneTransitionEasing } from "@/lib/scene-types";
 
 export type SectionLayout =
   | "intro"
