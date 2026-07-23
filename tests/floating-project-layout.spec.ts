@@ -16,15 +16,45 @@ const desktopCards = {
 };
 
 test.describe("floating project layout", () => {
-  test("keeps the desktop defaults contained and separated", () => {
+  test("places copy left with media and actions stacked on the right", () => {
     const placements = createFloatingProjectCardPlacements(
       desktopArena,
       desktopCards,
       null,
+      "project-01",
     );
 
     expectContained(desktopArena, desktopCards, placements);
     expectSeparated(desktopCards, placements);
+    expect(placements.copy.x).toBeLessThan(placements.media.x);
+    expect(placements.actions.x).toBeGreaterThan(placements.copy.x);
+    expect(placements.actions.y - desktopCards.actions.height * 0.5).toBe(
+      placements.media.y + desktopCards.media.height * 0.5 + 18,
+    );
+  });
+
+  test("gives each project a distinct collision-safe default", () => {
+    const placements = Array.from({ length: 5 }, (_, index) =>
+      createFloatingProjectCardPlacements(
+        desktopArena,
+        desktopCards,
+        null,
+        `project-0${index + 1}`,
+      ),
+    );
+    const signatures = placements.map(({ media, copy, actions }) =>
+      [media.x, media.y, media.angle, copy.y, actions.angle].join(":"),
+    );
+
+    expect(new Set(signatures).size).toBe(placements.length);
+
+    for (const placement of placements) {
+      expectContained(desktopArena, desktopCards, placement);
+      expectSeparated(desktopCards, placement);
+      expect(placement.copy.x).toBeLessThan(placement.media.x);
+      expect(placement.actions.x).toBeGreaterThan(placement.copy.x);
+      expect(placement.actions.y).toBeGreaterThan(placement.media.y);
+    }
   });
 
   test("stacks tablet and mobile defaults inside their arenas", () => {

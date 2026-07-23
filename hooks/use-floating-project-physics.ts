@@ -55,11 +55,13 @@ const CENTERING_FORCE = 0.0000024;
 const AMBIENT_TORQUE = 0.0000000025;
 
 export function useFloatingProjectPhysics({
+  layoutKey,
   arenaRef,
   mediaCardRef,
   copyCardRef,
   actionsCardRef,
 }: {
+  layoutKey: string;
   arenaRef: RefObject<HTMLDivElement | null>;
   mediaCardRef: RefObject<HTMLElement | null>;
   copyCardRef: RefObject<HTMLElement | null>;
@@ -304,6 +306,7 @@ export function useFloatingProjectPhysics({
         arenaSize,
         cardSizes,
         preserved,
+        layoutKey,
       );
 
       const walls = createArenaWalls(width, height);
@@ -558,6 +561,7 @@ export function useFloatingProjectPhysics({
     actionsCardRef,
     arenaRef,
     copyCardRef,
+    layoutKey,
     mediaCardRef,
     measurementDriver,
     prefersReducedMotion,

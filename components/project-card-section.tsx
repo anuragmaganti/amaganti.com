@@ -265,6 +265,7 @@ export function ProjectCardSection({
     project.imageSrc.height,
   ) as CSSProperties;
   const physicsMeasurementDriver = useFloatingProjectPhysics({
+    layoutKey: project.slug,
     arenaRef,
     mediaCardRef,
     copyCardRef,
