@@ -13,12 +13,12 @@ import type { SkillEntry } from "@/lib/content";
 
 const VISIBLE_SLOTS = 8;
 const EDGE_SLOTS = 1.5;
-const BASELINE_ITEM_COUNT = 12;
-const SCROLL_VH_PER_EXTRA_ITEM = 8;
+const PRIMARY_SKILL_STEP_VH = 56;
+const TECHNOLOGY_STEP_VH = 14;
+const MINIMUM_SCROLL_TRAVEL_VH = 280;
 
 type TrackGeometry = {
   arcLength: number;
-  focusProgress: number;
   horizontalLength: number;
   pathLength: number;
   radius: number;
@@ -33,15 +33,21 @@ type ViewportSize = {
   width: number;
 };
 
-export function getTechnologyTrackGapExtraVh(
+export function getSkillsScrollHeightVh(
   technologyCount: number,
   primarySkillCount: number,
 ) {
-  const extraScrollVh =
-    Math.max(technologyCount - BASELINE_ITEM_COUNT, 0) *
-    SCROLL_VH_PER_EXTRA_ITEM;
+  const primaryTravel =
+    Math.max(primarySkillCount - 1, 0) * PRIMARY_SKILL_STEP_VH;
+  const technologyTravel =
+    Math.max(technologyCount - 1, 0) * TECHNOLOGY_STEP_VH;
+  const scrollTravel = Math.max(
+    MINIMUM_SCROLL_TRAVEL_VH,
+    primaryTravel,
+    technologyTravel,
+  );
 
-  return primarySkillCount > 1 ? extraScrollVh / (primarySkillCount - 1) : 0;
+  return 100 + scrollTravel;
 }
 
 export function SkillsTechnologyTrack({
@@ -104,9 +110,8 @@ function TechnologyTrackItem({
   );
   const transform = useTransform(itemProgress, (value) => {
     const point = getTrackPoint(geometry, value);
-    const scale = 0.985 + getItemFocus(value, geometry) * 0.035;
 
-    return `translate3d(${point.x}px, ${point.y}px, 0) rotate(${point.rotate}deg) scale(${scale})`;
+    return `translate3d(${point.x}px, ${point.y}px, 0) rotate(${point.rotate}deg)`;
   });
   const opacity = useTransform(progress, (value) => {
     const itemValue = getItemProgress(value, index, itemCount);
@@ -162,7 +167,6 @@ function createTrackGeometry({ height, width }: ViewportSize): TrackGeometry {
   if (height <= 0 || width <= 0) {
     return {
       arcLength: 0,
-      focusProgress: 0.5,
       horizontalLength: 0,
       pathLength: 0,
       radius: 0,
@@ -182,7 +186,9 @@ function createTrackGeometry({ height, width }: ViewportSize): TrackGeometry {
   const rightX =
     width -
     clamp(width * 0.034, isMobile ? 16 : 28, isMobile ? 24 : 56);
-  const startX = isMobile ? width * 0.12 : Math.max(width * 0.28, 240);
+  const startX = isMobile
+    ? width * 0.12
+    : clamp(width * 0.1, 72, 128);
   const radius = clamp(
     Math.min(width, height) * (isMobile ? 0.07 : 0.085),
     isMobile ? 28 : 48,
@@ -198,7 +204,6 @@ function createTrackGeometry({ height, width }: ViewportSize): TrackGeometry {
 
   return {
     arcLength,
-    focusProgress: (horizontalLength + arcLength * 0.55) / pathLength,
     horizontalLength,
     pathLength,
     radius,
@@ -264,19 +269,20 @@ function getItemProgress(
   );
 }
 
-function getItemFocus(itemProgress: number, geometry: TrackGeometry) {
-  const distance =
-    (itemProgress - geometry.focusProgress) / (geometry.pathLength > 0 ? 0.085 : 1);
-
-  return Math.exp(-0.5 * distance * distance);
-}
-
 function getItemOpacity(itemProgress: number, geometry: TrackGeometry) {
-  const edgeOpacity =
-    smoothstep(0, 0.1, itemProgress) *
-    (1 - smoothstep(0.9, 1, itemProgress));
+  if (geometry.pathLength <= 0) {
+    return 0;
+  }
 
-  return edgeOpacity * (0.17 + getItemFocus(itemProgress, geometry) * 0.68);
+  const verticalStart =
+    (geometry.horizontalLength + geometry.arcLength) / geometry.pathLength;
+  const verticalProgress = clamp01(
+    (itemProgress - verticalStart) / Math.max(1 - verticalStart, 0.0001),
+  );
+  const entranceOpacity = smoothstep(0, 0.035, itemProgress);
+  const bottomFade = 1 - smoothstep(0.5, 1, verticalProgress);
+
+  return entranceOpacity * bottomFade;
 }
 
 function smoothstep(min: number, max: number, value: number) {

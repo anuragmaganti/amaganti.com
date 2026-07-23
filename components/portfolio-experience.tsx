@@ -31,9 +31,10 @@ import {
 } from "react";
 
 import {
-  getTechnologyTrackGapExtraVh,
+  getSkillsScrollHeightVh,
   SkillsTechnologyTrack,
 } from "@/components/skills-technology-track";
+import { SkillsPrimaryList } from "@/components/skills-primary-list";
 import {
   contentSectionsById,
   projectsBySlug,
@@ -42,7 +43,6 @@ import {
   type ContentParagraph,
   type ContentSectionEntry,
   type ProjectEntry,
-  type SkillEntry,
 } from "@/lib/content";
 import {
   createSceneTimeline,
@@ -934,38 +934,36 @@ function SkillsSection({
   section: SectionDefinition;
   timeline: SceneTimeline;
 }) {
-  const listRef = useRef<HTMLUListElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
   const headingId = `${section.id}-heading`;
   const { scrollYProgress } = useScroll({
-    target: listRef,
-    offset: ["start 50%", "end 50%"],
+    target: sectionRef,
+    offset: ["start start", "end end"],
   });
-  const itemGapExtraVh = getTechnologyTrackGapExtraVh(
+  const skillsProgress = useTransform(scrollYProgress, [0.06, 0.94], [0, 1]);
+  const scrollHeightVh = getSkillsScrollHeightVh(
     technologySkills.length,
     skills.length,
   );
   const sectionStyle = {
-    "--skills-item-gap": `calc(20px + ${itemGapExtraVh}svh)`,
+    "--skills-scroll-height": `${scrollHeightVh}svh`,
   } as CSSProperties;
 
   return (
     <section
+      ref={sectionRef}
       id={section.id}
       className={`scroll-section ${getScrollSectionClassName(section.domVariant)}`.trim()}
       aria-labelledby={headingId}
       style={sectionStyle}
       {...getSectionTimelineAttributes(section, timeline)}
     >
-      <SkillsTechnologyTrack items={technologySkills} progress={scrollYProgress} />
+      <SkillsTechnologyTrack items={technologySkills} progress={skillsProgress} />
       <div className="skills-stage">
         <h2 className="skills-stage__title" id={headingId}>
           Skills
         </h2>
-        <ul ref={listRef} className="skills-stage__list">
-          {skills.map((skill) => (
-            <SkillHighlightItem key={skill.id} skill={skill} />
-          ))}
-        </ul>
+        <SkillsPrimaryList items={skills} progress={skillsProgress} />
       </div>
       <div className="sr-only">
         <h3>Technologies</h3>
@@ -976,34 +974,6 @@ function SkillsSection({
         </ul>
       </div>
     </section>
-  );
-}
-
-function SkillHighlightItem({ skill }: { skill: SkillEntry }) {
-  const itemRef = useRef<HTMLLIElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: itemRef,
-    offset: ["start 88%", "end 12%"],
-  });
-  const opacity = useTransform(
-    scrollYProgress,
-    [0, 0.3, 0.42, 0.66, 0.78, 1],
-    [0.3, 0.3, 1, 1, 0.3, 0.3],
-  );
-  const scale = useTransform(
-    scrollYProgress,
-    [0, 0.3, 0.42, 0.66, 0.78, 1],
-    [1, 1, 1.02, 1.02, 1, 1],
-  );
-
-  return (
-    <motion.li
-      ref={itemRef}
-      className="skills-stage__item"
-      style={{ opacity, scale }}
-    >
-      {skill.label}
-    </motion.li>
   );
 }
 
