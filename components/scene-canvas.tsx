@@ -50,8 +50,6 @@ type SceneCanvasProps = {
 };
 
 type QualityProfile = {
-  maxPoints: number;
-  sizeMultiplier: number;
   noiseMultiplier: number;
   textHaloMultiplier: number;
   textScaleMultiplier: number;
@@ -98,7 +96,7 @@ export function SceneCanvas({ progress, timeline }: SceneCanvasProps) {
   const reducedMotion = Boolean(useReducedMotion());
   const devicePixelRatio = useDevicePixelRatio();
   const profile = useQualityProfile(reducedMotion);
-  const basePositions = usePointCloudSource(profile.maxPoints);
+  const basePositions = usePointCloudSource(RENDER_DEFAULTS.maxPoints);
 
   return (
     <Canvas
@@ -348,6 +346,12 @@ function PointCloudSystem({
       blend,
       profile,
     );
+    const responsivePointSizeMultiplier = getResponsivePointSizeMultiplier(
+      phaseState.current.cloud,
+      phaseState.next.cloud,
+      blend,
+      profile,
+    );
     const responsiveIntroFaceOffset = getResponsiveIntroFaceOffset(
       phaseState.current.key,
       phaseState.next.key,
@@ -375,7 +379,8 @@ function PointCloudSystem({
     cloud.scale.setScalar(
       phaseState.cloud.scale * responsiveCloudScaleMultiplier,
     );
-    cloudMaterial.size = phaseState.cloud.pointSize * profile.sizeMultiplier;
+    cloudMaterial.size =
+      phaseState.cloud.pointSize * responsivePointSizeMultiplier;
     cloudMaterial.opacity = phaseState.cloud.opacity;
 
     const responsiveIntroCameraYOffset = getResponsiveIntroCameraYOffset(
@@ -958,12 +963,8 @@ function usePointCloudSource(maxPoints: number) {
 
 function useQualityProfile(reducedMotion: boolean) {
   const [profile, setProfile] = useState<QualityProfile>({
-    maxPoints: reducedMotion
-      ? RENDER_DEFAULTS.reducedMaxPoints
-      : RENDER_DEFAULTS.desktopMaxPoints,
-    sizeMultiplier: reducedMotion ? 1.2 : 1,
-    noiseMultiplier: reducedMotion ? 0.5 : 1,
-    textHaloMultiplier: reducedMotion ? 0.2 : 1,
+    noiseMultiplier: reducedMotion ? 0.18 : 0.48,
+    textHaloMultiplier: reducedMotion ? 0.12 : 1,
     textScaleMultiplier: 1,
     faceScaleMultiplier: 1,
     aboutTextScaleMultiplier: 1,
@@ -978,7 +979,6 @@ function useQualityProfile(reducedMotion: boolean) {
     let frameId = 0;
     const computeProfile = () => {
       const width = window.innerWidth;
-      const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
       const mobileTextScale =
         width >= 900
           ? 1
@@ -993,19 +993,9 @@ function useQualityProfile(reducedMotion: boolean) {
         width <= 640 ? [-0.12, -0.15] : [0, 0];
       const introCameraYOffset = width <= 640 ? 0.08 : 0;
       const introTargetYOffset = width <= 640 ? 0.26 : 0;
-      const memory =
-        "deviceMemory" in navigator
-          ? ((navigator as Navigator & { deviceMemory?: number })
-              .deviceMemory ?? 8)
-          : 8;
-      const cores = navigator.hardwareConcurrency ?? 8;
-      const constrainedDevice =
-        coarsePointer || width < 900 || memory <= 4 || cores <= 4;
 
       if (reducedMotion) {
         setProfile({
-          maxPoints: RENDER_DEFAULTS.reducedMaxPoints,
-          sizeMultiplier: 1.18,
           noiseMultiplier: 0.18,
           textHaloMultiplier: 0.12,
           textScaleMultiplier: mobileTextScale,
@@ -1021,12 +1011,8 @@ function useQualityProfile(reducedMotion: boolean) {
       }
 
       setProfile({
-        maxPoints: constrainedDevice
-          ? RENDER_DEFAULTS.mobileMaxPoints
-          : RENDER_DEFAULTS.desktopMaxPoints,
-        sizeMultiplier: constrainedDevice ? 1.12 : 1,
-        noiseMultiplier: constrainedDevice ? 0.3 : 0.48,
-        textHaloMultiplier: constrainedDevice ? 0.42 : 1,
+        noiseMultiplier: 0.48,
+        textHaloMultiplier: 1,
         textScaleMultiplier: mobileTextScale,
         faceScaleMultiplier: mobileFaceScale,
         aboutTextScaleMultiplier: aboutDesktopScale,
@@ -1114,30 +1100,67 @@ function getResponsiveCloudScaleMultiplier(
   mix: number,
   profile: QualityProfile,
 ) {
-  const currentMultiplier =
-    currentCloud.shape === "face"
-      ? profile.faceScaleMultiplier
-      : currentCloud.shape === "text"
-        ? profile.textScaleMultiplier *
-          (currentCloud.textTargetId === "projects"
-            ? profile.projectsTextScaleMultiplier
-            : currentCloud.textTargetId === "about-me"
-              ? profile.aboutTextScaleMultiplier
-              : 1)
-        : 1;
-  const nextMultiplier =
-    nextCloud.shape === "face"
-      ? profile.faceScaleMultiplier
-      : nextCloud.shape === "text"
-        ? profile.textScaleMultiplier *
-          (nextCloud.textTargetId === "projects"
-            ? profile.projectsTextScaleMultiplier
-            : nextCloud.textTargetId === "about-me"
-              ? profile.aboutTextScaleMultiplier
-              : 1)
-        : 1;
+  const currentMultiplier = getCloudScaleMultiplier(currentCloud, profile);
+  const nextMultiplier = getCloudScaleMultiplier(nextCloud, profile);
 
   return lerp(currentMultiplier, nextMultiplier, mix);
+}
+
+function getResponsivePointSizeMultiplier(
+  currentCloud: {
+    shape: PointCloudShape;
+    textTargetId?: PointCloudTextTargetId;
+  },
+  nextCloud: {
+    shape: PointCloudShape;
+    textTargetId?: PointCloudTextTargetId;
+  },
+  mix: number,
+  profile: QualityProfile,
+) {
+  return lerp(
+    getCloudPointSizeMultiplier(currentCloud, profile),
+    getCloudPointSizeMultiplier(nextCloud, profile),
+    mix,
+  );
+}
+
+function getCloudPointSizeMultiplier(
+  cloud: {
+    shape: PointCloudShape;
+    textTargetId?: PointCloudTextTargetId;
+  },
+  profile: QualityProfile,
+) {
+  return (
+    getCloudScaleMultiplier(cloud, profile) *
+    (cloud.shape === "text" ? profile.textScaleMultiplier : 1)
+  );
+}
+
+function getCloudScaleMultiplier(
+  cloud: {
+    shape: PointCloudShape;
+    textTargetId?: PointCloudTextTargetId;
+  },
+  profile: QualityProfile,
+) {
+  if (cloud.shape === "face") {
+    return profile.faceScaleMultiplier;
+  }
+
+  if (cloud.shape !== "text") {
+    return 1;
+  }
+
+  const targetScaleMultiplier =
+    cloud.textTargetId === "projects"
+      ? profile.projectsTextScaleMultiplier
+      : cloud.textTargetId === "about-me"
+        ? profile.aboutTextScaleMultiplier
+        : 1;
+
+  return profile.textScaleMultiplier * targetScaleMultiplier;
 }
 
 function getResponsiveIntroFaceOffset(

@@ -155,9 +155,7 @@ export const POINT_CLOUD_TEXT_TARGETS: Record<
 };
 
 export const RENDER_DEFAULTS = {
-  desktopMaxPoints: 8000,
-  mobileMaxPoints: 3200,
-  reducedMaxPoints: 1600,
+  maxPoints: 8000,
 };
 
 function createScenePreset(
