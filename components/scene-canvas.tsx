@@ -12,6 +12,23 @@ import {
   type PointCloudTextTargetId,
 } from "@/config/visual";
 import { usePointCloudSource } from "@/hooks/use-point-cloud-source";
+import {
+  applyObstacleExclusions,
+  createObstacleExclusionResources,
+  resolveObstacleExclusionFrame,
+} from "@/lib/particle-obstacle-field";
+import {
+  createParticleSeeds,
+  createParticleState,
+  sampleParticlePosition,
+} from "@/lib/particle-motion";
+import {
+  applyMouseRepulsion,
+  createMouseRepulsionResources,
+  getFaceTrackingWeight,
+  resolveMouseRepulsionFrame,
+  updatePointerState,
+} from "@/lib/pointer-particle-interaction";
 import { createMorphTargets } from "@/lib/point-cloud-targets";
 import {
   getProjectCardPhaseWeight,
@@ -27,27 +44,9 @@ import type {
 import {
   getParticleObstacleSnapshot,
   subscribeParticleObstacle,
-  type ParticleObstacleEntry,
-  type ParticleObstacleRect,
   type ParticleObstacleSnapshot,
 } from "@/lib/particle-obstacle-store";
 
-const POINTER_SMOOTHING = 14;
-const POINTER_PRESENCE_SMOOTHING = 10;
-const MOUSE_REPULSION_RADIUS = 0.34;
-const MOUSE_REPULSION_RADIUS_SQ =
-  MOUSE_REPULSION_RADIUS * MOUSE_REPULSION_RADIUS;
-const MOUSE_REPULSION_DISPLACEMENT = 0.14;
-const MOUSE_REPULSION_DEPTH_BOOST = 1.14;
-const OBSTACLE_EXCLUSION_SMOOTHING = 13;
-const OBSTACLE_EXCLUSION_SOFT_PAD = 0.22;
-const OBSTACLE_EXCLUSION_SOFT_STRENGTH = 0.14;
-const OBSTACLE_EXCLUSION_HARD_STRENGTH = 1;
-const OBSTACLE_EXCLUSION_OVERSHOOT = 0.1;
-const OBSTACLE_EXCLUSION_DEPTH_FACTOR = 0.16;
-const OBSTACLE_INTERIOR_ROUTE_EXPONENT = 6;
-const OBSTACLE_MAX_COMBINED_DISPLACEMENT = 0.9;
-const OBSTACLE_STRENGTH_EPSILON = 0.001;
 const REFERENCE_VIEWPORT_ASPECT = 1440 / 900;
 const MIN_LAYOUT_SCALE = 0.2;
 
@@ -68,44 +67,6 @@ type PointCloudSystemProps = {
   isDarkTheme: boolean;
   profile: QualityProfile;
   phases: ScenePhase[];
-};
-
-type ParticleState = {
-  x: number;
-  y: number;
-  z: number;
-  spreadX: number;
-  spreadY: number;
-  spreadZ: number;
-};
-
-type MouseRepulsionState = {
-  active: boolean;
-  strength: number;
-};
-
-type ObstacleExclusionRuntime = {
-  id: string;
-  present: boolean;
-  rect: ParticleObstacleRect | null;
-  halfWidth: number;
-  halfHeight: number;
-  cornerRadius: number;
-  strength: number;
-  targetStrength: number;
-  center: THREE.Vector3;
-  leftMid: THREE.Vector3;
-  rightMid: THREE.Vector3;
-  topMid: THREE.Vector3;
-  bottomMid: THREE.Vector3;
-  rightAxis: THREE.Vector3;
-  upAxis: THREE.Vector3;
-  planeNormal: THREE.Vector3;
-};
-
-type ObstacleExclusionFrame = {
-  fields: ObstacleExclusionRuntime[];
-  unsettled: boolean;
 };
 
 type ScreenFrame = {
@@ -205,16 +166,7 @@ function PointCloudSystem({
     nextGeometry.computeBoundingSphere();
     return nextGeometry;
   }, [renderPositions]);
-  const seeds = useMemo(() => {
-    const values = new Float32Array(pointCount * 2);
-
-    for (let index = 0; index < pointCount; index += 1) {
-      values[index * 2] = hash(index, 0.13);
-      values[index * 2 + 1] = hash(index, 0.79);
-    }
-
-    return values;
-  }, [pointCount]);
+  const seeds = useMemo(() => createParticleSeeds(pointCount), [pointCount]);
   const morphTargets = useMemo(() => {
     void typographyVersion;
 
@@ -259,26 +211,23 @@ function PointCloudSystem({
   const desiredCamera = useMemo(() => new THREE.Vector3(0, 0, 4.9), []);
   const pointerTarget = useMemo(() => new THREE.Vector2(0, 0), []);
   const pointerCurrent = useMemo(() => new THREE.Vector2(0, 0), []);
-  const pointerRayCurrent = useMemo(() => new THREE.Vector2(0, 0), []);
   const pointerPresenceTarget = useRef(0);
   const pointerPresenceCurrent = useRef(0);
+  const mouseRepulsionResources = useMemo(
+    () => createMouseRepulsionResources(),
+    [],
+  );
   const raycaster = useMemo(() => new THREE.Raycaster(), []);
   const interactionPlane = useMemo(() => new THREE.Plane(), []);
   const interactionPlaneNormal = useMemo(() => new THREE.Vector3(), []);
   const cloudWorldPosition = useMemo(() => new THREE.Vector3(), []);
-  const worldInteractionPoint = useMemo(() => new THREE.Vector3(), []);
-  const localInteractionPoint = useMemo(() => new THREE.Vector3(), []);
   const obstacleSnapshotRef = useRef<ParticleObstacleSnapshot>(
     getParticleObstacleSnapshot(),
   );
-  const obstacleRuntimes = useMemo(
-    () => new Map<string, ObstacleExclusionRuntime>(),
+  const obstacleResources = useMemo(
+    () => createObstacleExclusionResources(),
     [],
   );
-  const activeObstacleFields = useMemo<ObstacleExclusionRuntime[]>(() => [], []);
-  const obstacleNdcPoint = useMemo(() => new THREE.Vector2(), []);
-  const localPointDelta = useMemo(() => new THREE.Vector3(), []);
-  const obstacleDisplacement = useMemo(() => new THREE.Vector3(), []);
   const introCopyFrameRef = useIntroCopyFrame(invalidate);
   const layoutResources = useMemo<CloudLayoutResources>(
     () => ({
@@ -297,10 +246,7 @@ function PointCloudSystem({
   );
   const elapsedTimeRef = useRef(0);
   const phaseIndexRef = useRef(0);
-  const particle = useMemo<ParticleState>(
-    () => ({ x: 0, y: 0, z: 0, spreadX: 0, spreadY: 0, spreadZ: 0 }),
-    [],
-  );
+  const particle = useMemo(() => createParticleState(), []);
 
   useEffect(() => {
     const unsubscribe = progress.on("change", () => {
@@ -488,29 +434,24 @@ function PointCloudSystem({
         phaseState.cloud.obstacleRepulsion *
         particleVisualConfig.interaction.cardRepulsionStrength,
       obstacleSnapshots: obstacleSnapshotRef.current,
-      obstacleRuntimes,
-      activeObstacleFields,
       delta,
       perspectiveCamera,
       raycaster,
       interactionPlane,
-      obstacleNdcPoint,
-      worldInteractionPoint,
       cloud,
+      resources: obstacleResources,
     });
-    const mouseRepulsionState = resolveMouseRepulsionState({
+    const mouseRepulsionState = resolveMouseRepulsionFrame({
       pointerPresence: pointerPresenceCurrent.current,
       pointerCurrent,
-      pointerRayCurrent,
       currentShape: phaseState.current.cloud.shape,
       nextShape: phaseState.next.cloud.shape,
       blend,
       perspectiveCamera,
       raycaster,
       interactionPlane,
-      worldInteractionPoint,
-      localInteractionPoint,
       cloud,
+      resources: mouseRepulsionResources,
     });
     for (let index = 0; index < pointCount; index += 1) {
       const offset = index * 3;
@@ -530,7 +471,7 @@ function PointCloudSystem({
       if (mouseRepulsionState.active) {
         applyMouseRepulsion(
           particle,
-          localInteractionPoint,
+          mouseRepulsionState.localPoint,
           mouseRepulsionState.strength *
             particleVisualConfig.interaction.pointerRepulsionStrength,
         );
@@ -540,8 +481,7 @@ function PointCloudSystem({
         applyObstacleExclusions(
           particle,
           obstacleExclusionFrame.fields,
-          localPointDelta,
-          obstacleDisplacement,
+          obstacleResources,
         );
       }
 
@@ -563,541 +503,6 @@ function PointCloudSystem({
   });
 
   return <primitive object={cloud} />;
-}
-
-function updatePointerState(
-  pointerCurrent: THREE.Vector2,
-  pointerTarget: THREE.Vector2,
-  pointerPresenceCurrent: { current: number },
-  pointerPresenceTarget: number,
-  delta: number,
-) {
-  const pointerLerp = 1 - Math.exp(-delta * POINTER_SMOOTHING);
-  const pointerPresenceLerp = 1 - Math.exp(-delta * POINTER_PRESENCE_SMOOTHING);
-
-  pointerCurrent.lerp(pointerTarget, pointerLerp);
-  pointerPresenceCurrent.current = lerp(
-    pointerPresenceCurrent.current,
-    pointerPresenceTarget,
-    pointerPresenceLerp,
-  );
-}
-
-function resolveMouseRepulsionState({
-  pointerPresence,
-  pointerCurrent,
-  pointerRayCurrent,
-  currentShape,
-  nextShape,
-  blend,
-  perspectiveCamera,
-  raycaster,
-  interactionPlane,
-  worldInteractionPoint,
-  localInteractionPoint,
-  cloud,
-}: {
-  pointerPresence: number;
-  pointerCurrent: THREE.Vector2;
-  pointerRayCurrent: THREE.Vector2;
-  currentShape: PointCloudShape;
-  nextShape: PointCloudShape;
-  blend: number;
-  perspectiveCamera: THREE.PerspectiveCamera;
-  raycaster: THREE.Raycaster;
-  interactionPlane: THREE.Plane;
-  worldInteractionPoint: THREE.Vector3;
-  localInteractionPoint: THREE.Vector3;
-  cloud: THREE.Points;
-}): MouseRepulsionState {
-  if (pointerPresence <= 0.001) {
-    return { active: false, strength: 0 };
-  }
-
-  const strength =
-    pointerPresence * getMouseRepulsionWeight(currentShape, nextShape, blend);
-
-  if (strength <= 0.001) {
-    return { active: false, strength };
-  }
-
-  pointerRayCurrent.set(pointerCurrent.x, -pointerCurrent.y);
-  raycaster.setFromCamera(pointerRayCurrent, perspectiveCamera);
-
-  if (!raycaster.ray.intersectPlane(interactionPlane, worldInteractionPoint)) {
-    return { active: false, strength };
-  }
-
-  localInteractionPoint.copy(worldInteractionPoint);
-  cloud.worldToLocal(localInteractionPoint);
-
-  return { active: true, strength };
-}
-
-function resolveObstacleExclusionFrame({
-  obstacleRepulsion,
-  obstacleSnapshots,
-  obstacleRuntimes,
-  activeObstacleFields,
-  delta,
-  perspectiveCamera,
-  raycaster,
-  interactionPlane,
-  obstacleNdcPoint,
-  worldInteractionPoint,
-  cloud,
-}: {
-  obstacleRepulsion: number;
-  obstacleSnapshots: ParticleObstacleSnapshot;
-  obstacleRuntimes: Map<string, ObstacleExclusionRuntime>;
-  activeObstacleFields: ObstacleExclusionRuntime[];
-  delta: number;
-  perspectiveCamera: THREE.PerspectiveCamera;
-  raycaster: THREE.Raycaster;
-  interactionPlane: THREE.Plane;
-  obstacleNdcPoint: THREE.Vector2;
-  worldInteractionPoint: THREE.Vector3;
-  cloud: THREE.Points;
-}): ObstacleExclusionFrame {
-  activeObstacleFields.length = 0;
-
-  for (const runtime of obstacleRuntimes.values()) {
-    runtime.present = false;
-    runtime.targetStrength = 0;
-  }
-
-  for (const snapshot of obstacleSnapshots) {
-    const targetStrength = snapshot.strength * obstacleRepulsion;
-    const runtime = getObstacleRuntime(
-      obstacleRuntimes,
-      snapshot,
-      targetStrength,
-    );
-    runtime.present = true;
-    runtime.rect = snapshot.rect;
-    runtime.targetStrength = targetStrength;
-  }
-
-  const exclusionLerp =
-    1 - Math.exp(-delta * OBSTACLE_EXCLUSION_SMOOTHING);
-  let unsettled = false;
-
-  for (const [id, runtime] of obstacleRuntimes) {
-    runtime.strength = lerp(
-      runtime.strength,
-      runtime.targetStrength,
-      exclusionLerp,
-    );
-    unsettled ||=
-      Math.abs(runtime.strength - runtime.targetStrength) > 0.00004;
-
-    if (
-      !runtime.present &&
-      runtime.strength <= OBSTACLE_STRENGTH_EPSILON &&
-      runtime.targetStrength <= OBSTACLE_STRENGTH_EPSILON
-    ) {
-      obstacleRuntimes.delete(id);
-      continue;
-    }
-
-    if (
-      runtime.rect &&
-      runtime.strength > OBSTACLE_STRENGTH_EPSILON &&
-      projectObstacleIntoCloud({
-        runtime,
-        perspectiveCamera,
-        raycaster,
-        interactionPlane,
-        obstacleNdcPoint,
-        worldInteractionPoint,
-        cloud,
-      })
-    ) {
-      activeObstacleFields.push(runtime);
-    }
-  }
-
-  return { fields: activeObstacleFields, unsettled };
-}
-
-function getObstacleRuntime(
-  runtimes: Map<string, ObstacleExclusionRuntime>,
-  snapshot: ParticleObstacleEntry,
-  initialStrength: number,
-) {
-  const existing = runtimes.get(snapshot.id);
-
-  if (existing) {
-    return existing;
-  }
-
-  const runtime: ObstacleExclusionRuntime = {
-    id: snapshot.id,
-    present: true,
-    rect: snapshot.rect,
-    halfWidth: 0,
-    halfHeight: 0,
-    cornerRadius: 0,
-    strength: initialStrength,
-    targetStrength: initialStrength,
-    center: new THREE.Vector3(),
-    leftMid: new THREE.Vector3(),
-    rightMid: new THREE.Vector3(),
-    topMid: new THREE.Vector3(),
-    bottomMid: new THREE.Vector3(),
-    rightAxis: new THREE.Vector3(),
-    upAxis: new THREE.Vector3(),
-    planeNormal: new THREE.Vector3(),
-  };
-  runtimes.set(snapshot.id, runtime);
-
-  return runtime;
-}
-
-function projectObstacleIntoCloud({
-  runtime,
-  perspectiveCamera,
-  raycaster,
-  interactionPlane,
-  obstacleNdcPoint,
-  worldInteractionPoint,
-  cloud,
-}: {
-  runtime: ObstacleExclusionRuntime;
-  perspectiveCamera: THREE.PerspectiveCamera;
-  raycaster: THREE.Raycaster;
-  interactionPlane: THREE.Plane;
-  obstacleNdcPoint: THREE.Vector2;
-  worldInteractionPoint: THREE.Vector3;
-  cloud: THREE.Points;
-}) {
-  const rect = runtime.rect;
-
-  if (!rect) {
-    return false;
-  }
-
-  const centerX = rect.left + rect.width * 0.5;
-  const centerY = rect.top + rect.height * 0.5;
-  const projected =
-    projectScreenPointToLocal(
-      centerX,
-      centerY,
-      perspectiveCamera,
-      raycaster,
-      interactionPlane,
-      obstacleNdcPoint,
-      worldInteractionPoint,
-      runtime.center,
-      cloud,
-    ) &&
-    projectScreenPointToLocal(
-      rect.left,
-      centerY,
-      perspectiveCamera,
-      raycaster,
-      interactionPlane,
-      obstacleNdcPoint,
-      worldInteractionPoint,
-      runtime.leftMid,
-      cloud,
-    ) &&
-    projectScreenPointToLocal(
-      rect.right,
-      centerY,
-      perspectiveCamera,
-      raycaster,
-      interactionPlane,
-      obstacleNdcPoint,
-      worldInteractionPoint,
-      runtime.rightMid,
-      cloud,
-    ) &&
-    projectScreenPointToLocal(
-      centerX,
-      rect.top,
-      perspectiveCamera,
-      raycaster,
-      interactionPlane,
-      obstacleNdcPoint,
-      worldInteractionPoint,
-      runtime.topMid,
-      cloud,
-    ) &&
-    projectScreenPointToLocal(
-      centerX,
-      rect.bottom,
-      perspectiveCamera,
-      raycaster,
-      interactionPlane,
-      obstacleNdcPoint,
-      worldInteractionPoint,
-      runtime.bottomMid,
-      cloud,
-    );
-
-  if (!projected) {
-    return false;
-  }
-
-  runtime.rightAxis.copy(runtime.rightMid).sub(runtime.leftMid);
-  runtime.upAxis.copy(runtime.topMid).sub(runtime.bottomMid);
-  runtime.halfWidth = runtime.rightAxis.length() * 0.5;
-  runtime.halfHeight = runtime.upAxis.length() * 0.5;
-
-  if (runtime.halfWidth <= 0.001 || runtime.halfHeight <= 0.001) {
-    return false;
-  }
-
-  runtime.rightAxis.normalize();
-  runtime.upAxis.normalize();
-  runtime.planeNormal
-    .crossVectors(runtime.rightAxis, runtime.upAxis)
-    .normalize();
-  runtime.upAxis
-    .crossVectors(runtime.planeNormal, runtime.rightAxis)
-    .normalize();
-
-  const localRadiusX =
-    (rect.cornerRadius / Math.max(rect.width, 1)) * runtime.halfWidth * 2;
-  const localRadiusY =
-    (rect.cornerRadius / Math.max(rect.height, 1)) * runtime.halfHeight * 2;
-  runtime.cornerRadius = clamp(
-    Math.min(localRadiusX, localRadiusY),
-    0,
-    Math.min(runtime.halfWidth, runtime.halfHeight) * 0.92,
-  );
-
-  return true;
-}
-
-function sampleParticlePosition(
-  particle: ParticleState,
-  index: number,
-  offset: number,
-  shapeFrom: Float32Array,
-  shapeTo: Float32Array,
-  blend: number,
-  noise: number,
-  intensity: number,
-  pulse: number,
-  seeds: Float32Array,
-) {
-  particle.x = lerp(shapeFrom[offset], shapeTo[offset], blend);
-  particle.y = lerp(shapeFrom[offset + 1], shapeTo[offset + 1], blend);
-  particle.z = lerp(shapeFrom[offset + 2], shapeTo[offset + 2], blend);
-
-  const drift = noise * (0.01 + (index % 5) * 0.0012) * intensity * pulse;
-  const seedA = seeds[index * 2];
-  const seedB = seeds[index * 2 + 1];
-
-  particle.spreadX = seedA - 0.5;
-  particle.spreadY = seedB - 0.5;
-  particle.spreadZ = (seedA + seedB) * 0.5 - 0.5;
-  particle.x += particle.spreadX * drift;
-  particle.y += particle.spreadY * drift * 0.8;
-  particle.z += particle.spreadZ * drift * 1.15;
-}
-
-function applyMouseRepulsion(
-  particle: ParticleState,
-  localInteractionPoint: THREE.Vector3,
-  interactionStrength: number,
-) {
-  let repelX = particle.x - localInteractionPoint.x;
-  let repelY = particle.y - localInteractionPoint.y;
-  let repelZ = particle.z - localInteractionPoint.z;
-  let repelLengthSq = repelX * repelX + repelY * repelY + repelZ * repelZ;
-
-  if (repelLengthSq >= MOUSE_REPULSION_RADIUS_SQ) {
-    return;
-  }
-
-  if (repelLengthSq < 0.000001) {
-    repelX = particle.spreadX || 0.001;
-    repelY = particle.spreadY || 0.001;
-    repelZ = particle.spreadZ || 0.001;
-    repelLengthSq = repelX * repelX + repelY * repelY + repelZ * repelZ;
-  }
-
-  const repelLength = Math.sqrt(repelLengthSq);
-  const falloff = 1 - repelLength / MOUSE_REPULSION_RADIUS;
-  const displacement =
-    MOUSE_REPULSION_DISPLACEMENT * falloff * falloff * interactionStrength;
-  const inverseLength = 1 / repelLength;
-
-  particle.x += repelX * inverseLength * displacement;
-  particle.y += repelY * inverseLength * displacement;
-  particle.z +=
-    repelZ * inverseLength * displacement * MOUSE_REPULSION_DEPTH_BOOST;
-}
-
-function applyObstacleExclusions(
-  particle: ParticleState,
-  fields: ObstacleExclusionRuntime[],
-  localPointDelta: THREE.Vector3,
-  displacement: THREE.Vector3,
-) {
-  displacement.set(0, 0, 0);
-
-  for (const field of fields) {
-    accumulateObstacleExclusion(
-      particle,
-      field,
-      localPointDelta,
-      displacement,
-    );
-  }
-
-  const displacementLengthSq = displacement.lengthSq();
-  const maxDisplacementSq =
-    OBSTACLE_MAX_COMBINED_DISPLACEMENT *
-    OBSTACLE_MAX_COMBINED_DISPLACEMENT;
-
-  if (displacementLengthSq > maxDisplacementSq) {
-    displacement.multiplyScalar(
-      OBSTACLE_MAX_COMBINED_DISPLACEMENT /
-        Math.sqrt(displacementLengthSq),
-    );
-  }
-
-  particle.x += displacement.x;
-  particle.y += displacement.y;
-  particle.z += displacement.z;
-}
-
-function accumulateObstacleExclusion(
-  particle: ParticleState,
-  field: ObstacleExclusionRuntime,
-  localPointDelta: THREE.Vector3,
-  displacement: THREE.Vector3,
-) {
-  localPointDelta.set(
-    particle.x - field.center.x,
-    particle.y - field.center.y,
-    particle.z - field.center.z,
-  );
-  const planeX = localPointDelta.dot(field.rightAxis);
-  const planeY = localPointDelta.dot(field.upAxis);
-  const absX = Math.abs(planeX);
-  const absY = Math.abs(planeY);
-  const innerHalfWidth = Math.max(field.halfWidth - field.cornerRadius, 0);
-  const innerHalfHeight = Math.max(field.halfHeight - field.cornerRadius, 0);
-  const outsideX = Math.max(absX - innerHalfWidth, 0);
-  const outsideY = Math.max(absY - innerHalfHeight, 0);
-  const signedDistance =
-    Math.hypot(outsideX, outsideY) +
-    Math.min(
-      Math.max(absX - innerHalfWidth, absY - innerHalfHeight),
-      0,
-    ) -
-    field.cornerRadius;
-  const softRadius =
-    Math.min(field.halfWidth, field.halfHeight) *
-      OBSTACLE_EXCLUSION_SOFT_PAD +
-    0.045;
-
-  if (signedDistance >= softRadius) {
-    return;
-  }
-
-  let pushX = 0;
-  let pushY = 0;
-  let pushMagnitude = 0;
-
-  if (signedDistance < 0) {
-    let routeX = planeX / Math.max(field.halfWidth, 0.0001);
-    let routeY = planeY / Math.max(field.halfHeight, 0.0001);
-
-    if (Math.abs(routeX) + Math.abs(routeY) < 0.015) {
-      routeX = particle.spreadX;
-      routeY = particle.spreadY;
-    }
-
-    if (Math.abs(routeX) + Math.abs(routeY) < 0.0001) {
-      routeY = 1;
-    }
-
-    const routeNorm = Math.pow(
-      Math.pow(Math.abs(routeX), OBSTACLE_INTERIOR_ROUTE_EXPONENT) +
-        Math.pow(Math.abs(routeY), OBSTACLE_INTERIOR_ROUTE_EXPONENT),
-      1 / OBSTACLE_INTERIOR_ROUTE_EXPONENT,
-    );
-    const boundaryScale = 1 / Math.max(routeNorm, 0.0001);
-    const targetX = routeX * boundaryScale * field.halfWidth;
-    const targetY = routeY * boundaryScale * field.halfHeight;
-    const deltaX = targetX - planeX;
-    const deltaY = targetY - planeY;
-    const deltaLength = Math.hypot(deltaX, deltaY);
-
-    if (deltaLength > 0.0001) {
-      pushX = deltaX / deltaLength;
-      pushY = deltaY / deltaLength;
-    }
-
-    const overshoot =
-      Math.min(field.halfWidth, field.halfHeight) *
-        OBSTACLE_EXCLUSION_OVERSHOOT +
-      0.03;
-    pushMagnitude =
-      (deltaLength + overshoot) * OBSTACLE_EXCLUSION_HARD_STRENGTH;
-  } else {
-    const clampedX = clamp(
-      planeX,
-      -innerHalfWidth,
-      innerHalfWidth,
-    );
-    const clampedY = clamp(
-      planeY,
-      -innerHalfHeight,
-      innerHalfHeight,
-    );
-    const deltaX = planeX - clampedX;
-    const deltaY = planeY - clampedY;
-    const deltaLength = Math.hypot(deltaX, deltaY);
-
-    if (deltaLength > 0.0001) {
-      pushX = deltaX / deltaLength;
-      pushY = deltaY / deltaLength;
-    } else if (field.halfWidth - absX < field.halfHeight - absY) {
-      pushX = planeX >= 0 ? 1 : -1;
-    } else {
-      pushY = planeY >= 0 ? 1 : -1;
-    }
-
-    const falloff =
-      1 - clamp(signedDistance / Math.max(softRadius, 0.0001), 0, 1);
-    pushMagnitude =
-      falloff * falloff * OBSTACLE_EXCLUSION_SOFT_STRENGTH;
-  }
-
-  pushMagnitude *= field.strength;
-
-  if (pushMagnitude <= 0.0001) {
-    return;
-  }
-
-  displacement.x +=
-    (field.rightAxis.x * pushX + field.upAxis.x * pushY) *
-      pushMagnitude +
-    field.planeNormal.x *
-      pushMagnitude *
-      OBSTACLE_EXCLUSION_DEPTH_FACTOR *
-      field.strength;
-  displacement.y +=
-    (field.rightAxis.y * pushX + field.upAxis.y * pushY) *
-      pushMagnitude +
-    field.planeNormal.y *
-      pushMagnitude *
-      OBSTACLE_EXCLUSION_DEPTH_FACTOR *
-      field.strength;
-  displacement.z +=
-    (field.rightAxis.z * pushX + field.upAxis.z * pushY) *
-      pushMagnitude +
-    field.planeNormal.z *
-      pushMagnitude *
-      OBSTACLE_EXCLUSION_DEPTH_FACTOR *
-      field.strength;
 }
 
 function createPositionBounds(positions: Float32Array) {
@@ -1531,76 +936,6 @@ function lerp(start: number, end: number, progress: number) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
-}
-
-function getFaceTrackingWeight(
-  current: PointCloudShape,
-  next: PointCloudShape,
-  mix: number,
-) {
-  const currentWeight = current === "face" ? 1 : 0;
-  const nextWeight = next === "face" ? 1 : 0;
-  return lerp(currentWeight, nextWeight, mix);
-}
-
-function getMouseRepulsionShapeWeight(shape: PointCloudShape) {
-  switch (shape) {
-    case "face":
-      return 1;
-    case "text":
-      return 0.18;
-    case "project-field":
-      return 0.48;
-    case "settle":
-      return 0.3;
-    default:
-      return 0.4;
-  }
-}
-
-function getMouseRepulsionWeight(
-  current: PointCloudShape,
-  next: PointCloudShape,
-  mix: number,
-) {
-  return lerp(
-    getMouseRepulsionShapeWeight(current),
-    getMouseRepulsionShapeWeight(next),
-    mix,
-  );
-}
-
-function hash(index: number, seed: number) {
-  const value = Math.sin(index * 12.9898 + seed * 78.233) * 43758.5453123;
-  return value - Math.floor(value);
-}
-
-function projectScreenPointToLocal(
-  clientX: number,
-  clientY: number,
-  camera: THREE.PerspectiveCamera,
-  raycaster: THREE.Raycaster,
-  plane: THREE.Plane,
-  ndcPoint: THREE.Vector2,
-  worldPoint: THREE.Vector3,
-  localPoint: THREE.Vector3,
-  cloud: THREE.Points,
-) {
-  const viewportWidth = Math.max(window.innerWidth, 1);
-  const viewportHeight = Math.max(window.innerHeight, 1);
-  ndcPoint.set(
-    (clientX / viewportWidth) * 2 - 1,
-    1 - (clientY / viewportHeight) * 2,
-  );
-  raycaster.setFromCamera(ndcPoint, camera);
-
-  if (!raycaster.ray.intersectPlane(plane, worldPoint)) {
-    return false;
-  }
-
-  localPoint.copy(worldPoint);
-  cloud.worldToLocal(localPoint);
-  return true;
 }
 
 function resolveMorphTargetId(cloud: {
