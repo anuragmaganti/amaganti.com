@@ -1,7 +1,11 @@
 import * as THREE from "three";
 
 import type { ParticleState } from "@/lib/particle-motion";
-import { createParticleObstacleScreenFrame } from "@/lib/particle-obstacle-geometry";
+import {
+  createParticleObstacleScreenFrame,
+  writeParticleObstacleScreenFrame,
+  type ParticleObstacleScreenFrame,
+} from "@/lib/particle-obstacle-geometry";
 import type {
   ParticleObstacleEntry,
   ParticleObstacleGeometry,
@@ -39,6 +43,7 @@ export type ParticleObstacleRuntime = {
   cornerRadius: number;
   strength: number;
   targetStrength: number;
+  screenFrame: ParticleObstacleScreenFrame;
   center: THREE.Vector3;
   leftMid: THREE.Vector3;
   rightMid: THREE.Vector3;
@@ -139,6 +144,10 @@ export function resolveParticleObstacleFrame({
   }
 
   for (const snapshot of obstacleSnapshots) {
+    if (!snapshot.active) {
+      continue;
+    }
+
     const targetStrength = snapshot.strength * obstacleFlow;
     const runtime = getObstacleRuntime(runtimes, snapshot, targetStrength);
 
@@ -324,6 +333,7 @@ function getObstacleRuntime(
     cornerRadius: 0,
     strength: initialStrength,
     targetStrength: initialStrength,
+    screenFrame: createParticleObstacleScreenFrame(snapshot.geometry),
     center: new THREE.Vector3(),
     leftMid: new THREE.Vector3(),
     rightMid: new THREE.Vector3(),
@@ -411,7 +421,10 @@ function projectObstacleIntoCloud({
     return false;
   }
 
-  const screenFrame = createParticleObstacleScreenFrame(geometry);
+  const screenFrame = writeParticleObstacleScreenFrame(
+    geometry,
+    runtime.screenFrame,
+  );
   const projected =
     projectScreenPointToLocal(
       screenFrame.center.x,
@@ -570,19 +583,24 @@ function accumulateObstacleFlow(
       (-signedDistance + COLLISION_MARGIN) * field.strength;
 
     if (hasFlow && normalMotion < -0.05) {
-      const alongCoordinate = planeX * motionX + planeY * motionY;
-      const alongExtent =
-        Math.abs(motionX) * field.halfWidth +
-        Math.abs(motionY) * field.halfHeight;
+      const exitDistance = getRoundedRectExitDistance(
+        planeX,
+        planeY,
+        motionX,
+        motionY,
+        field.halfWidth,
+        field.halfHeight,
+        field.cornerRadius,
+      );
       const leadingCorrection =
         Math.max(
-          alongExtent - alongCoordinate + COLLISION_MARGIN,
+          exitDistance + COLLISION_MARGIN,
           -signedDistance + COLLISION_MARGIN,
         ) * field.strength;
 
-      // A moving obstacle carries particles out through its leading face. It
-      // never ejects them onto the trailing face, which would create a second
-      // magnetic-looking particle line behind the card.
+      // Resolve along the swept path so each particle exits through the actual
+      // flat or rounded surface it reaches. Projecting everything onto a box
+      // support plane collapses diagonal motion into a line at the corner.
       addPlaneVector(
         accumulator,
         field,
@@ -626,9 +644,13 @@ function accumulateObstacleFlow(
   const tangentX = motionX - normalX * normalMotion;
   const tangentY = motionY - normalY * normalMotion;
   const sideCoordinate = planeX * sideX + planeY * sideY;
-  const sideExtent =
-    Math.abs(sideX) * field.halfWidth +
-    Math.abs(sideY) * field.halfHeight;
+  const sideExtent = getRoundedRectSupportExtent(
+    sideX,
+    sideY,
+    field.halfWidth,
+    field.halfHeight,
+    field.cornerRadius,
+  );
   // Ease the flow through its centerline instead of sending each half of the
   // leading edge in an immediately opposite direction. The old binary split
   // created a visible slit through the particles directly in front of a card.
@@ -649,9 +671,13 @@ function accumulateObstacleFlow(
     tangentY * surfaceWeight * EDGE_SLIP;
 
   const alongCoordinate = planeX * motionX + planeY * motionY;
-  const alongExtent =
-    Math.abs(motionX) * field.halfWidth +
-    Math.abs(motionY) * field.halfHeight;
+  const alongExtent = getRoundedRectSupportExtent(
+    motionX,
+    motionY,
+    field.halfWidth,
+    field.halfHeight,
+    field.cornerRadius,
+  );
   const behindDistance = -(alongCoordinate + alongExtent);
   const wakeLength = alongExtent * 0.9 + minHalfSize * 0.72;
 
@@ -689,6 +715,116 @@ function accumulateObstacleFlow(
     targetY * displacement,
     depthFlow * displacement,
     false,
+  );
+}
+
+function getRoundedRectExitDistance(
+  originX: number,
+  originY: number,
+  directionX: number,
+  directionY: number,
+  halfWidth: number,
+  halfHeight: number,
+  cornerRadius: number,
+) {
+  const epsilon = 0.00001;
+  const radius = clamp(
+    cornerRadius,
+    0,
+    Math.min(halfWidth, halfHeight),
+  );
+  const innerHalfWidth = Math.max(halfWidth - radius, 0);
+  const innerHalfHeight = Math.max(halfHeight - radius, 0);
+  let nearestExit = Number.POSITIVE_INFINITY;
+
+  if (Math.abs(directionX) > epsilon) {
+    const boundaryX = directionX > 0 ? halfWidth : -halfWidth;
+    const distance = (boundaryX - originX) / directionX;
+    const intersectionY = originY + directionY * distance;
+
+    if (
+      distance >= 0 &&
+      Math.abs(intersectionY) <= innerHalfHeight + epsilon
+    ) {
+      nearestExit = Math.min(nearestExit, distance);
+    }
+  }
+
+  if (Math.abs(directionY) > epsilon) {
+    const boundaryY = directionY > 0 ? halfHeight : -halfHeight;
+    const distance = (boundaryY - originY) / directionY;
+    const intersectionX = originX + directionX * distance;
+
+    if (
+      distance >= 0 &&
+      Math.abs(intersectionX) <= innerHalfWidth + epsilon
+    ) {
+      nearestExit = Math.min(nearestExit, distance);
+    }
+  }
+
+  if (radius > epsilon) {
+    for (let cornerX = -1; cornerX <= 1; cornerX += 2) {
+      for (let cornerY = -1; cornerY <= 1; cornerY += 2) {
+        const centerX = cornerX * innerHalfWidth;
+        const centerY = cornerY * innerHalfHeight;
+        const offsetX = originX - centerX;
+        const offsetY = originY - centerY;
+        const projection =
+          offsetX * directionX + offsetY * directionY;
+        const discriminant =
+          projection * projection -
+          (offsetX * offsetX + offsetY * offsetY - radius * radius);
+
+        if (discriminant < 0) {
+          continue;
+        }
+
+        const distance = -projection + Math.sqrt(discriminant);
+        if (distance < 0 || distance >= nearestExit) {
+          continue;
+        }
+
+        const intersectionX = originX + directionX * distance;
+        const intersectionY = originY + directionY * distance;
+        if (
+          (intersectionX - centerX) * cornerX >= -epsilon &&
+          (intersectionY - centerY) * cornerY >= -epsilon
+        ) {
+          nearestExit = distance;
+        }
+      }
+    }
+  }
+
+  if (Number.isFinite(nearestExit)) {
+    return nearestExit;
+  }
+
+  // A valid interior point always intersects one segment. Retain a bounded
+  // fallback for floating-point edge cases instead of emitting a large offset.
+  return 0;
+}
+
+function getRoundedRectSupportExtent(
+  directionX: number,
+  directionY: number,
+  halfWidth: number,
+  halfHeight: number,
+  cornerRadius: number,
+) {
+  const radius = clamp(
+    cornerRadius,
+    0,
+    Math.min(halfWidth, halfHeight),
+  );
+  const innerHalfWidth = Math.max(halfWidth - radius, 0);
+  const innerHalfHeight = Math.max(halfHeight - radius, 0);
+
+  return (
+    Math.abs(directionX) * innerHalfWidth +
+    Math.abs(directionY) * innerHalfHeight +
+    Math.hypot(directionX, directionY) * radius
   );
 }
 

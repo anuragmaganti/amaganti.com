@@ -7,6 +7,7 @@ import {
   createParticleObstacleResources,
   type ParticleObstacleRuntime,
 } from "../lib/particle-obstacle-field";
+import { createParticleObstacleScreenFrame } from "../lib/particle-obstacle-geometry";
 import { createParticleState } from "../lib/particle-motion";
 
 const field: ParticleObstacleRuntime = {
@@ -19,6 +20,15 @@ const field: ParticleObstacleRuntime = {
   cornerRadius: 0.12,
   strength: 1,
   targetStrength: 1,
+  screenFrame: createParticleObstacleScreenFrame({
+    centerX: 0,
+    centerY: 0,
+    width: 0,
+    height: 0,
+    angle: 0,
+    cornerRadius: 0,
+    bounds: { left: 0, top: 0, right: 0, bottom: 0 },
+  }),
   center: new THREE.Vector3(),
   leftMid: new THREE.Vector3(-0.8, 0, 0),
   rightMid: new THREE.Vector3(0.8, 0, 0),
@@ -96,6 +106,23 @@ test.describe("particle obstacle flow", () => {
     expect(nearRight.x - nearLeft.x).toBeLessThan(0.01);
     expect(outerLeft.x).toBeLessThan(-0.25);
     expect(outerRight.x).toBeGreaterThan(0.25);
+  });
+
+  test("routes diagonal sweeps through the rounded corner without a particle ridge", () => {
+    field.flowVelocity.set(1, 1);
+
+    const cornerExit = simulate(-0.3, -0.5);
+    const topExit = simulate(-0.4, 0);
+    const rightExit = simulate(0, -0.4);
+    const topProjection = (topExit.x + topExit.y) * Math.SQRT1_2;
+    const rightProjection = (rightExit.x + rightExit.y) * Math.SQRT1_2;
+
+    // A sharp-box support plane would put all three particles on one diagonal
+    // and eject the corner particle through the rectangle's imaginary corner.
+    expect(cornerExit.x).toBeLessThan(field.halfWidth - 0.01);
+    expect(cornerExit.y).toBeLessThan(field.halfHeight - 0.01);
+    expect(Math.abs(topProjection - rightProjection)).toBeGreaterThan(0.1);
+    expect(getRoundedRectDistance(cornerExit.x, cornerExit.y)).toBeGreaterThan(0);
   });
 
   test("leaves distant particles unchanged and settles offsets after exit", () => {

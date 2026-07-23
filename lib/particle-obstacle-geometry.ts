@@ -21,78 +21,77 @@ export type ParticleObstacleScreenFrame = {
   bottomMid: { x: number; y: number };
 };
 
-export function measureParticleObstacleGeometry(
-  element: HTMLElement,
-  cornerRadius: number,
-): ParticleObstacleGeometry {
-  const bounds = element.getBoundingClientRect();
-  const transform = readElementTransform(element);
-  const width = element.offsetWidth * transform.scaleX;
-  const height = element.offsetHeight * transform.scaleY;
-
+export function createParticleObstacleGeometry(): ParticleObstacleGeometry {
   return {
-    centerX: bounds.left + bounds.width * 0.5,
-    centerY: bounds.top + bounds.height * 0.5,
-    width,
-    height,
-    angle: transform.angle,
-    cornerRadius: cornerRadius * Math.min(transform.scaleX, transform.scaleY),
-    bounds: {
-      left: bounds.left,
-      top: bounds.top,
-      right: bounds.right,
-      bottom: bounds.bottom,
-    },
+    centerX: 0,
+    centerY: 0,
+    width: 0,
+    height: 0,
+    angle: 0,
+    cornerRadius: 0,
+    bounds: { left: 0, top: 0, right: 0, bottom: 0 },
   };
+}
+
+export function writeParticleObstacleGeometry(
+  target: ParticleObstacleGeometry,
+  centerX: number,
+  centerY: number,
+  width: number,
+  height: number,
+  angle: number,
+  cornerRadius: number,
+) {
+  const cosine = Math.abs(Math.cos(angle));
+  const sine = Math.abs(Math.sin(angle));
+  const halfBoundsWidth = cosine * width * 0.5 + sine * height * 0.5;
+  const halfBoundsHeight = sine * width * 0.5 + cosine * height * 0.5;
+
+  target.centerX = centerX;
+  target.centerY = centerY;
+  target.width = width;
+  target.height = height;
+  target.angle = angle;
+  target.cornerRadius = cornerRadius;
+  target.bounds.left = centerX - halfBoundsWidth;
+  target.bounds.top = centerY - halfBoundsHeight;
+  target.bounds.right = centerX + halfBoundsWidth;
+  target.bounds.bottom = centerY + halfBoundsHeight;
+
+  return target;
 }
 
 export function createParticleObstacleScreenFrame(
   geometry: ParticleObstacleGeometry,
 ): ParticleObstacleScreenFrame {
+  return writeParticleObstacleScreenFrame(geometry, {
+    center: { x: 0, y: 0 },
+    leftMid: { x: 0, y: 0 },
+    rightMid: { x: 0, y: 0 },
+    topMid: { x: 0, y: 0 },
+    bottomMid: { x: 0, y: 0 },
+  });
+}
+
+export function writeParticleObstacleScreenFrame(
+  geometry: ParticleObstacleGeometry,
+  target: ParticleObstacleScreenFrame,
+) {
   const cosine = Math.cos(geometry.angle);
   const sine = Math.sin(geometry.angle);
-  const rightX = cosine;
-  const rightY = sine;
-  const upX = sine;
-  const upY = -cosine;
   const halfWidth = geometry.width * 0.5;
   const halfHeight = geometry.height * 0.5;
 
-  return {
-    center: { x: geometry.centerX, y: geometry.centerY },
-    leftMid: {
-      x: geometry.centerX - rightX * halfWidth,
-      y: geometry.centerY - rightY * halfWidth,
-    },
-    rightMid: {
-      x: geometry.centerX + rightX * halfWidth,
-      y: geometry.centerY + rightY * halfWidth,
-    },
-    topMid: {
-      x: geometry.centerX + upX * halfHeight,
-      y: geometry.centerY + upY * halfHeight,
-    },
-    bottomMid: {
-      x: geometry.centerX - upX * halfHeight,
-      y: geometry.centerY - upY * halfHeight,
-    },
-  };
-}
+  target.center.x = geometry.centerX;
+  target.center.y = geometry.centerY;
+  target.leftMid.x = geometry.centerX - cosine * halfWidth;
+  target.leftMid.y = geometry.centerY - sine * halfWidth;
+  target.rightMid.x = geometry.centerX + cosine * halfWidth;
+  target.rightMid.y = geometry.centerY + sine * halfWidth;
+  target.topMid.x = geometry.centerX + sine * halfHeight;
+  target.topMid.y = geometry.centerY - cosine * halfHeight;
+  target.bottomMid.x = geometry.centerX - sine * halfHeight;
+  target.bottomMid.y = geometry.centerY + cosine * halfHeight;
 
-function readElementTransform(element: HTMLElement) {
-  const transformValue = window.getComputedStyle(element).transform;
-
-  if (!transformValue || transformValue === "none") {
-    return { angle: 0, scaleX: 1, scaleY: 1 };
-  }
-
-  const matrix = new DOMMatrixReadOnly(transformValue);
-  const measuredAngle = Math.atan2(matrix.b, matrix.a);
-  const physicsAngle = Number.parseFloat(element.dataset.physicsAngle ?? "");
-
-  return {
-    angle: Number.isFinite(physicsAngle) ? physicsAngle : measuredAngle,
-    scaleX: Math.max(Math.hypot(matrix.a, matrix.b), 0.0001),
-    scaleY: Math.max(Math.hypot(matrix.c, matrix.d), 0.0001),
-  };
+  return target;
 }

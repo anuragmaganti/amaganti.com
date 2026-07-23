@@ -22,9 +22,12 @@ import {
 import type { ProjectEntry } from "@/config/portfolio";
 import type { SectionDefinition } from "@/config/sections";
 import { useFloatingProjectPhysics } from "@/hooks/use-floating-project-physics";
-import { useParticleObstacle } from "@/hooks/use-particle-obstacle";
 import type { FloatingProjectCardRole } from "@/lib/floating-project-layout";
 import { createProjectImageSizingVariables } from "@/lib/project-card-presentation";
+import {
+  registerSceneFrameTask,
+  SCENE_FRAME_PRIORITY,
+} from "@/lib/scene-frame-scheduler";
 import type { SceneTimeline } from "@/lib/scene-types";
 const PROJECT_ACTION_ORB_SIZE = 64;
 
@@ -57,11 +60,7 @@ function ProjectActionOrb({
     let reducedMotion = reducedMotionQuery.matches;
     let speedMultiplier = 1;
     let isIntersecting = true;
-    let isDocumentVisible = document.visibilityState !== "hidden";
-    let frameId = 0;
-    let running = false;
-    let lastTimestamp = performance.now();
-    let phase = (lastTimestamp / 1000) * preset.speed;
+    let phase = (performance.now() / 1000) * preset.speed;
 
     const paint = (time: number) => {
       context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
@@ -80,57 +79,31 @@ function ProjectActionOrb({
       );
     };
 
-    const advancePhase = (timestamp: number) => {
+    const frameTask = registerSceneFrameTask((frame) => {
       phase +=
-        ((timestamp - lastTimestamp) / 1000) *
-        preset.speed *
-        speedMultiplier;
-      lastTimestamp = timestamp;
-    };
-
-    const frame = (timestamp: number) => {
-      advancePhase(timestamp);
+        (frame.deltaMs / 1000) * preset.speed * speedMultiplier;
       paint(phase);
-      if (running) frameId = requestAnimationFrame(frame);
-    };
-
-    const stop = () => {
-      running = false;
-      cancelAnimationFrame(frameId);
-    };
-
-    const start = () => {
-      if (running || reducedMotion || !isIntersecting || !isDocumentVisible) {
-        return;
-      }
-
-      advancePhase(performance.now());
-      running = true;
-      frameId = requestAnimationFrame(frame);
-    };
+    }, { priority: SCENE_FRAME_PRIORITY.actionOrb });
 
     const syncPlayback = () => {
       if (reducedMotion) {
-        stop();
+        frameTask.setContinuous(false);
         paint(0.6);
         return;
       }
 
-      if (isIntersecting && isDocumentVisible) start();
-      else stop();
+      frameTask.setContinuous(isIntersecting);
+      if (isIntersecting) {
+        frameTask.request();
+      }
     };
 
     const observer = new IntersectionObserver(([entry]) => {
       isIntersecting = entry.isIntersecting;
       syncPlayback();
     });
-    const handleVisibilityChange = () => {
-      isDocumentVisible = document.visibilityState !== "hidden";
-      syncPlayback();
-    };
     const handleReducedMotionChange = (event: MediaQueryListEvent) => {
       reducedMotion = event.matches;
-      lastTimestamp = performance.now();
       syncPlayback();
     };
     const handlePointerEnter = (event: PointerEvent) => {
@@ -147,16 +120,14 @@ function ProjectActionOrb({
     observer.observe(canvas);
     action?.addEventListener("pointerenter", handlePointerEnter);
     action?.addEventListener("pointerleave", handlePointerLeave);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
     reducedMotionQuery.addEventListener("change", handleReducedMotionChange);
     syncPlayback();
 
     return () => {
-      stop();
+      frameTask.dispose();
       observer.disconnect();
       action?.removeEventListener("pointerenter", handlePointerEnter);
       action?.removeEventListener("pointerleave", handlePointerLeave);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
       reducedMotionQuery.removeEventListener(
         "change",
         handleReducedMotionChange,
@@ -264,29 +235,13 @@ export function ProjectCardSection({
     project.imageSrc.width,
     project.imageSrc.height,
   ) as CSSProperties;
-  const physicsMeasurementDriver = useFloatingProjectPhysics({
+  useFloatingProjectPhysics({
     layoutKey: project.slug,
     arenaRef,
     mediaCardRef,
     copyCardRef,
     actionsCardRef,
   });
-
-  useParticleObstacle(
-    `${project.slug}:media`,
-    mediaCardRef,
-    physicsMeasurementDriver,
-  );
-  useParticleObstacle(
-    `${project.slug}:copy`,
-    copyCardRef,
-    physicsMeasurementDriver,
-  );
-  useParticleObstacle(
-    `${project.slug}:actions`,
-    actionsCardRef,
-    physicsMeasurementDriver,
-  );
 
   return (
     <section

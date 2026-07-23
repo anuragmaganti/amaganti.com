@@ -66,6 +66,10 @@ import {
   subscribeParticleObstacle,
   type ParticleObstacleSnapshot,
 } from "@/lib/particle-obstacle-store";
+import {
+  registerSceneFrameTask,
+  SCENE_FRAME_PRIORITY,
+} from "@/lib/scene-frame-scheduler";
 
 type SceneCanvasProps = {
   progress: MotionValue<number>;
@@ -251,13 +255,16 @@ function PointCloudSystem({
   }, [geometry, invalidate, morphTargets, renderPositions]);
 
   useEffect(() => {
-    const unsubscribe = subscribeParticleObstacle(() => {
-      obstacleSnapshotRef.current = getParticleObstacleSnapshot();
+    const invalidationTask = registerSceneFrameTask(() => {
       invalidate();
+    }, { priority: SCENE_FRAME_PRIORITY.particleInvalidation });
+    const unsubscribe = subscribeParticleObstacle(() => {
+      invalidationTask.request();
     });
 
     return () => {
       unsubscribe();
+      invalidationTask.dispose();
     };
   }, [invalidate]);
 

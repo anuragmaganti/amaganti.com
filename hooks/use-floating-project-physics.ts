@@ -1,7 +1,7 @@
 "use client";
 
 import Matter from "matter-js";
-import { type MotionValue, useMotionValue, useReducedMotion } from "motion/react";
+import { useReducedMotion } from "motion/react";
 import { type RefObject, useLayoutEffect } from "react";
 
 import {
@@ -15,6 +15,20 @@ import {
   FLOATING_PROJECT_SIMULATION,
   resolveFloatingProjectPhysicsSteps,
 } from "@/lib/floating-project-simulation";
+import { writeParticleObstacleGeometry } from "@/lib/particle-obstacle-geometry";
+import {
+  batchParticleObstacleUpdates,
+  publishParticleObstacle,
+  registerParticleObstacle,
+  unregisterParticleObstacle,
+  type ParticleObstacleEntry,
+} from "@/lib/particle-obstacle-store";
+import {
+  registerSceneFrameTask,
+  SCENE_FRAME_PRIORITY,
+  type SceneFrameState,
+  type SceneFrameTaskController,
+} from "@/lib/scene-frame-scheduler";
 
 const {
   Bodies,
@@ -35,6 +49,18 @@ type CardBodyRecord = {
   driftPhase: number;
 };
 
+type CardObstacleState = {
+  entry: ParticleObstacleEntry;
+  cornerRadius: number;
+  previousCenterX: number;
+  previousCenterY: number;
+  previousAngle: number;
+  previousTimestamp: number;
+  smoothedVelocityX: number;
+  smoothedVelocityY: number;
+  smoothedAngularVelocity: number;
+};
+
 type ActiveDrag = {
   pointerId: number;
   record: CardBodyRecord;
@@ -53,6 +79,12 @@ const MAX_ANGULAR_SPEED = 0.025;
 const AMBIENT_FORCE = 0.0000032;
 const CENTERING_FORCE = 0.0000024;
 const AMBIENT_TORQUE = 0.0000000025;
+const PREWARM_VERTICAL_VIEWPORT_RATIO = 0.55;
+const PREWARM_HORIZONTAL_VIEWPORT_RATIO = 0.2;
+const MAX_SCREEN_VELOCITY = 2400;
+const MAX_SCREEN_ANGULAR_VELOCITY = Math.PI * 1.5;
+const MOTION_SMOOTHING = 12;
+const STICKY_SCROLL_COUPLING = 0.55;
 
 export function useFloatingProjectPhysics({
   layoutKey,
@@ -66,8 +98,7 @@ export function useFloatingProjectPhysics({
   mediaCardRef: RefObject<HTMLElement | null>;
   copyCardRef: RefObject<HTMLElement | null>;
   actionsCardRef: RefObject<HTMLElement | null>;
-}): MotionValue<number> {
-  const measurementDriver = useMotionValue(0);
+}) {
   const prefersReducedMotion = Boolean(useReducedMotion());
 
   useLayoutEffect(() => {
@@ -92,33 +123,83 @@ export function useFloatingProjectPhysics({
     engine.constraintIterations = 4;
 
     const records = new Map<FloatingProjectCardRole, CardBodyRecord>();
+    const obstacleStates = new Map<
+      FloatingProjectCardRole,
+      CardObstacleState
+    >();
+
+    for (const role of floatingProjectCardRoles) {
+      obstacleStates.set(role, {
+        entry: registerParticleObstacle(`${layoutKey}:${role}`),
+        cornerRadius: readCornerRadius(cardElements[role]!),
+        previousCenterX: 0,
+        previousCenterY: 0,
+        previousAngle: 0,
+        previousTimestamp: 0,
+        smoothedVelocityX: 0,
+        smoothedVelocityY: 0,
+        smoothedAngularVelocity: 0,
+      });
+    }
+
     let arenaSize: FloatingProjectArenaSize = { width: 0, height: 0 };
     let activeDrag: ActiveDrag | null = null;
-    let animationFrame = 0;
-    let resizeFrame = 0;
-    let lastTimestamp = 0;
+    let frameTask: SceneFrameTaskController | null = null;
+    let buildPending = false;
+    let preserveReducedMotionKeyboardFrame = false;
     let isVisible = false;
     let isDestroyed = false;
     let zIndex = 3;
 
-    const renderBodies = (timestamp = performance.now()) => {
-      for (const record of records.values()) {
-        const x = record.body.position.x - record.width * 0.5;
-        const y = record.body.position.y - record.height * 0.5;
-
-        record.element.style.transform = `translate3d(${x}px, ${y}px, 0) rotate(${record.body.angle}rad)`;
-        record.element.dataset.physicsX = record.body.position.x.toFixed(2);
-        record.element.dataset.physicsY = record.body.position.y.toFixed(2);
-        record.element.dataset.physicsAngle = record.body.angle.toFixed(6);
+    const publishBodies = (frame: SceneFrameState) => {
+      if (!records.size) {
+        return;
       }
 
-      measurementDriver.set(timestamp);
-    };
+      const arenaBounds = arena.getBoundingClientRect();
+      const scaleX = arena.clientWidth
+        ? arenaBounds.width / arena.clientWidth
+        : 1;
+      const scaleY = arena.clientHeight
+        ? arenaBounds.height / arena.clientHeight
+        : 1;
+      const cornerScale = Math.min(scaleX, scaleY);
 
-    const stopLoop = () => {
-      window.cancelAnimationFrame(animationFrame);
-      animationFrame = 0;
-      lastTimestamp = 0;
+      batchParticleObstacleUpdates(() => {
+        for (const record of records.values()) {
+          const x = record.body.position.x - record.width * 0.5;
+          const y = record.body.position.y - record.height * 0.5;
+          const centerX = arenaBounds.left + record.body.position.x * scaleX;
+          const centerY = arenaBounds.top + record.body.position.y * scaleY;
+          const obstacleState = obstacleStates.get(record.role)!;
+
+          record.element.style.transform = `translate3d(${x}px, ${y}px, 0) rotate(${record.body.angle}rad)`;
+          record.element.dataset.physicsX = record.body.position.x.toFixed(2);
+          record.element.dataset.physicsY = record.body.position.y.toFixed(2);
+          record.element.dataset.physicsAngle = record.body.angle.toFixed(6);
+
+          writeParticleObstacleGeometry(
+            obstacleState.entry.geometry,
+            centerX,
+            centerY,
+            record.width * scaleX,
+            record.height * scaleY,
+            record.body.angle,
+            obstacleState.cornerRadius * cornerScale,
+          );
+          updateObstacleMotion(
+            obstacleState,
+            frame,
+            centerX,
+            centerY,
+            record.body.angle,
+          );
+          publishParticleObstacle(
+            obstacleState.entry,
+            getViewportApproachStrength(obstacleState.entry),
+          );
+        }
+      });
     };
 
     const applyAmbientMotion = (timestamp: number, deltaMs: number) => {
@@ -194,9 +275,7 @@ export function useFloatingProjectPhysics({
           );
         }
 
-        if (
-          Math.abs(body.angle) > FLOATING_PROJECT_SIMULATION.maxCardAngle
-        ) {
+        if (Math.abs(body.angle) > FLOATING_PROJECT_SIMULATION.maxCardAngle) {
           Body.setAngle(
             body,
             clamp(
@@ -210,48 +289,6 @@ export function useFloatingProjectPhysics({
       }
     };
 
-    const runFrame = (timestamp: number) => {
-      animationFrame = 0;
-
-      if (!isVisible || isDestroyed) {
-        lastTimestamp = 0;
-        return;
-      }
-
-      const frameDelta = lastTimestamp ? timestamp - lastTimestamp : 0;
-      lastTimestamp = timestamp;
-
-      const physicsSteps = resolveFloatingProjectPhysicsSteps(frameDelta);
-      for (let step = 0; step < physicsSteps.count; step += 1) {
-        const stepTimestamp =
-          timestamp -
-          physicsSteps.deltaMs * (physicsSteps.count - step - 1);
-        applyAmbientMotion(stepTimestamp, physicsSteps.deltaMs);
-        Engine.update(engine, physicsSteps.deltaMs);
-      }
-
-      stabilizeBodies();
-      renderBodies(timestamp);
-
-      const hasActiveBody = Array.from(records.values()).some(
-        ({ body }) =>
-          !body.isSleeping &&
-          (body.speed > 0.015 || Math.abs(body.angularSpeed) > 0.0001),
-      );
-
-      if (!prefersReducedMotion || activeDrag || hasActiveBody) {
-        animationFrame = window.requestAnimationFrame(runFrame);
-      } else {
-        lastTimestamp = 0;
-      }
-    };
-
-    const startLoop = () => {
-      if (!animationFrame && isVisible && !isDestroyed) {
-        animationFrame = window.requestAnimationFrame(runFrame);
-      }
-    };
-
     const cancelDrag = () => {
       if (!activeDrag) {
         return;
@@ -259,9 +296,7 @@ export function useFloatingProjectPhysics({
 
       Composite.remove(engine.world, activeDrag.constraint);
       activeDrag.record.element.removeAttribute("data-dragging");
-      if (
-        activeDrag.record.element.hasPointerCapture(activeDrag.pointerId)
-      ) {
+      if (activeDrag.record.element.hasPointerCapture(activeDrag.pointerId)) {
         activeDrag.record.element.releasePointerCapture(activeDrag.pointerId);
       }
       document.documentElement.style.userSelect = activeDrag.previousUserSelect;
@@ -293,6 +328,9 @@ export function useFloatingProjectPhysics({
       const cardSizes = Object.fromEntries(
         floatingProjectCardRoles.map((role) => {
           const element = cardElements[role]!;
+          const obstacleState = obstacleStates.get(role)!;
+          obstacleState.cornerRadius = readCornerRadius(element);
+
           return [
             role,
             {
@@ -309,8 +347,7 @@ export function useFloatingProjectPhysics({
         layoutKey,
       );
 
-      const walls = createArenaWalls(width, height);
-      Composite.add(engine.world, walls);
+      Composite.add(engine.world, createArenaWalls(width, height));
 
       floatingProjectCardRoles.forEach((role, index) => {
         const element = cardElements[role]!;
@@ -335,25 +372,21 @@ export function useFloatingProjectPhysics({
             sleepThreshold: prefersReducedMotion ? 8 : 180,
           },
         );
-        const record = {
+
+        records.set(role, {
           role,
           element,
           body,
           width: size.width,
           height: size.height,
           driftPhase: index * 2.17 + 0.63,
-        } satisfies CardBodyRecord;
-
-        records.set(role, record);
+        });
         Composite.add(engine.world, body);
       });
 
-      // Resolve any tight responsive placement before the first painted frame.
+      // Resolve tight responsive placements before the first painted frame.
       for (let step = 0; step < 12; step += 1) {
-        Engine.update(
-          engine,
-          FLOATING_PROJECT_SIMULATION.referenceStepMs,
-        );
+        Engine.update(engine, FLOATING_PROJECT_SIMULATION.referenceStepMs);
       }
 
       for (const { body } of records.values()) {
@@ -366,13 +399,72 @@ export function useFloatingProjectPhysics({
       }
 
       stabilizeBodies();
-      renderBodies();
-      startLoop();
+    };
+
+    const runFrame = (frame: SceneFrameState) => {
+      if (isDestroyed) {
+        return;
+      }
+
+      if (buildPending) {
+        buildPending = false;
+        buildWorld();
+      }
+
+      if (!records.size) {
+        frameTask?.setContinuous(false);
+        return;
+      }
+
+      if (isVisible && !preserveReducedMotionKeyboardFrame) {
+        const physicsSteps = resolveFloatingProjectPhysicsSteps(frame.deltaMs);
+        for (let step = 0; step < physicsSteps.count; step += 1) {
+          const stepTimestamp =
+            frame.timestamp -
+            physicsSteps.deltaMs * (physicsSteps.count - step - 1);
+          applyAmbientMotion(stepTimestamp, physicsSteps.deltaMs);
+          Engine.update(engine, physicsSteps.deltaMs);
+        }
+
+        stabilizeBodies();
+      }
+      preserveReducedMotionKeyboardFrame = false;
+
+      publishBodies(frame);
+
+      let hasActiveBody = false;
+      for (const { body } of records.values()) {
+        if (
+          !body.isSleeping &&
+          (body.speed > 0.015 || Math.abs(body.angularSpeed) > 0.0001)
+        ) {
+          hasActiveBody = true;
+          break;
+        }
+      }
+
+      frameTask?.setContinuous(
+        isVisible &&
+          (!prefersReducedMotion || Boolean(activeDrag) || hasActiveBody),
+      );
+    };
+
+    frameTask = registerSceneFrameTask(runFrame, {
+      priority: SCENE_FRAME_PRIORITY.projectPhysics,
+      runOnScroll: true,
+      runOnResize: true,
+    });
+
+    const requestMotionFrame = () => {
+      if (isVisible && !isDestroyed) {
+        frameTask?.setContinuous(true);
+      }
+      frameTask?.request();
     };
 
     const scheduleBuild = () => {
-      window.cancelAnimationFrame(resizeFrame);
-      resizeFrame = window.requestAnimationFrame(buildWorld);
+      buildPending = true;
+      frameTask?.request();
     };
 
     const getPointerPosition = (event: PointerEvent) => {
@@ -394,8 +486,11 @@ export function useFloatingProjectPhysics({
         | undefined;
       const record = role ? records.get(role) : null;
       const target = event.target as HTMLElement;
-      const isTouchLike = event.pointerType === "touch" || event.pointerType === "pen";
-      const usedHandle = Boolean(target.closest(".project-float-card__handle"));
+      const isTouchLike =
+        event.pointerType === "touch" || event.pointerType === "pen";
+      const usedHandle = Boolean(
+        target.closest(".project-float-card__handle"),
+      );
 
       if (
         !record ||
@@ -434,7 +529,7 @@ export function useFloatingProjectPhysics({
         previousUserSelect: document.documentElement.style.userSelect,
       };
       document.documentElement.style.userSelect = "none";
-      startLoop();
+      requestMotionFrame();
     };
 
     const handlePointerMove = (event: PointerEvent) => {
@@ -446,7 +541,7 @@ export function useFloatingProjectPhysics({
       const pointer = getPointerPosition(event);
       activeDrag.constraint.pointA.x = pointer.x;
       activeDrag.constraint.pointA.y = pointer.y;
-      startLoop();
+      requestMotionFrame();
     };
 
     const handlePointerEnd = (event: PointerEvent) => {
@@ -459,7 +554,7 @@ export function useFloatingProjectPhysics({
         element.releasePointerCapture(event.pointerId);
       }
       cancelDrag();
-      startLoop();
+      requestMotionFrame();
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -492,10 +587,15 @@ export function useFloatingProjectPhysics({
         x: movement.x * 0.08,
         y: movement.y * 0.08,
       });
+      if (prefersReducedMotion) {
+        Body.setVelocity(record.body, { x: 0, y: 0 });
+        Body.setAngularVelocity(record.body, 0);
+        Sleeping.set(record.body, true);
+        preserveReducedMotionKeyboardFrame = true;
+      }
       record.element.style.zIndex = String(++zIndex);
       stabilizeBodies();
-      renderBodies();
-      startLoop();
+      requestMotionFrame();
     };
 
     const resizeObserver = new ResizeObserver(scheduleBuild);
@@ -522,10 +622,11 @@ export function useFloatingProjectPhysics({
         isVisible = entry.isIntersecting && entry.intersectionRatio > 0.01;
 
         if (isVisible) {
-          startLoop();
+          requestMotionFrame();
         } else {
           cancelDrag();
-          stopLoop();
+          frameTask?.setContinuous(false);
+          frameTask?.request();
         }
       },
       { threshold: [0, 0.01, 0.15] },
@@ -536,8 +637,7 @@ export function useFloatingProjectPhysics({
     return () => {
       isDestroyed = true;
       cancelDrag();
-      stopLoop();
-      window.cancelAnimationFrame(resizeFrame);
+      frameTask?.dispose();
       resizeObserver.disconnect();
       intersectionObserver.disconnect();
 
@@ -554,6 +654,11 @@ export function useFloatingProjectPhysics({
         handle?.removeEventListener("keydown", handleKeyDown);
       }
 
+      batchParticleObstacleUpdates(() => {
+        for (const state of obstacleStates.values()) {
+          unregisterParticleObstacle(state.entry);
+        }
+      });
       Composite.clear(engine.world, false, true);
       Engine.clear(engine);
     };
@@ -563,11 +668,135 @@ export function useFloatingProjectPhysics({
     copyCardRef,
     layoutKey,
     mediaCardRef,
-    measurementDriver,
     prefersReducedMotion,
   ]);
+}
 
-  return measurementDriver;
+function updateObstacleMotion(
+  state: CardObstacleState,
+  frame: SceneFrameState,
+  centerX: number,
+  centerY: number,
+  angle: number,
+) {
+  const deltaSeconds = state.previousTimestamp
+    ? Math.max((frame.timestamp - state.previousTimestamp) / 1000, 0.001)
+    : 0;
+  const rawVelocityX = deltaSeconds
+    ? clamp(
+        (centerX - state.previousCenterX) / deltaSeconds,
+        -MAX_SCREEN_VELOCITY,
+        MAX_SCREEN_VELOCITY,
+      )
+    : 0;
+  const rawVelocityY = deltaSeconds
+    ? clamp(
+        (centerY - state.previousCenterY) / deltaSeconds,
+        -MAX_SCREEN_VELOCITY,
+        MAX_SCREEN_VELOCITY,
+      )
+    : 0;
+  const rawAngularVelocity = deltaSeconds
+    ? clamp(
+        normalizeAngle(angle - state.previousAngle) / deltaSeconds,
+        -MAX_SCREEN_ANGULAR_VELOCITY,
+        MAX_SCREEN_ANGULAR_VELOCITY,
+      )
+    : 0;
+  const velocityLerp = deltaSeconds
+    ? 1 - Math.exp(-deltaSeconds * MOTION_SMOOTHING)
+    : 1;
+
+  state.smoothedVelocityX = lerp(
+    state.smoothedVelocityX,
+    rawVelocityX,
+    velocityLerp,
+  );
+  state.smoothedVelocityY = lerp(
+    state.smoothedVelocityY,
+    rawVelocityY,
+    velocityLerp,
+  );
+  state.smoothedAngularVelocity = lerp(
+    state.smoothedAngularVelocity,
+    rawAngularVelocity,
+    velocityLerp,
+  );
+
+  const scrollDrivenCardVelocityY = -frame.scrollVelocityY;
+  const cardMovementShare = clamp(
+    Math.abs(state.smoothedVelocityY) /
+      (Math.abs(scrollDrivenCardVelocityY) + 1),
+    0,
+    1,
+  );
+  const stickyCurrentY =
+    scrollDrivenCardVelocityY *
+    (1 - cardMovementShare) *
+    STICKY_SCROLL_COUPLING;
+
+  state.entry.motion.velocityX = state.smoothedVelocityX;
+  state.entry.motion.velocityY = clamp(
+    state.smoothedVelocityY + stickyCurrentY,
+    -MAX_SCREEN_VELOCITY,
+    MAX_SCREEN_VELOCITY,
+  );
+  state.entry.motion.angularVelocity = state.smoothedAngularVelocity;
+  state.entry.motion.sampledAt = frame.timestamp;
+  state.previousCenterX = centerX;
+  state.previousCenterY = centerY;
+  state.previousAngle = angle;
+  state.previousTimestamp = frame.timestamp;
+}
+
+function getViewportApproachStrength(entry: ParticleObstacleEntry) {
+  const viewportWidth = Math.max(window.innerWidth, 1);
+  const viewportHeight = Math.max(window.innerHeight, 1);
+  const horizontalDistance = getDistanceFromViewport(
+    entry.geometry.bounds.left,
+    entry.geometry.bounds.right,
+    viewportWidth,
+  );
+  const verticalDistance = getDistanceFromViewport(
+    entry.geometry.bounds.top,
+    entry.geometry.bounds.bottom,
+    viewportHeight,
+  );
+  const normalizedDistance = Math.max(
+    horizontalDistance /
+      (viewportWidth * PREWARM_HORIZONTAL_VIEWPORT_RATIO),
+    verticalDistance / (viewportHeight * PREWARM_VERTICAL_VIEWPORT_RATIO),
+  );
+  const approach = clamp(1 - normalizedDistance, 0, 1);
+
+  return approach * approach * (3 - 2 * approach);
+}
+
+function getDistanceFromViewport(
+  start: number,
+  end: number,
+  viewportSize: number,
+) {
+  if (end < 0) {
+    return -end;
+  }
+
+  if (start > viewportSize) {
+    return start - viewportSize;
+  }
+
+  return 0;
+}
+
+function readCornerRadius(element: HTMLElement) {
+  const value = window.getComputedStyle(element).borderTopLeftRadius;
+  const radius = Number.parseFloat(value);
+
+  return Number.isFinite(radius) ? radius : 0;
+}
+
+function normalizeAngle(angle: number) {
+  return Math.atan2(Math.sin(angle), Math.cos(angle));
 }
 
 function preservePlacements(
@@ -630,6 +859,10 @@ function createArenaWalls(width: number, height: number) {
       options,
     ),
   ];
+}
+
+function lerp(start: number, end: number, progress: number) {
+  return start + (end - start) * progress;
 }
 
 function clamp(value: number, min: number, max: number) {

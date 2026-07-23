@@ -4,17 +4,27 @@ import {
   FLOATING_PROJECT_SIMULATION,
   resolveFloatingProjectPhysicsSteps,
 } from "../lib/floating-project-simulation";
-import { createParticleObstacleScreenFrame } from "../lib/particle-obstacle-geometry";
+import {
+  createParticleObstacleScreenFrame,
+  writeParticleObstacleGeometry,
+} from "../lib/particle-obstacle-geometry";
 import {
   createProjectImageSizingVariables,
   getProjectImageTargetArea,
 } from "../lib/project-card-presentation";
 import {
   batchParticleObstacleUpdates,
-  removeParticleObstacle,
+  getParticleObstacleSnapshot,
+  publishParticleObstacle,
+  registerParticleObstacle,
   subscribeParticleObstacle,
-  upsertParticleObstacle,
+  unregisterParticleObstacle,
 } from "../lib/particle-obstacle-store";
+import {
+  createSceneFrameScheduler,
+  SCENE_FRAME_PRIORITY,
+  type SceneFrameTaskController,
+} from "../lib/scene-frame-scheduler";
 
 test.describe("floating project simulation", () => {
   test("advances once per native high-refresh frame", () => {
@@ -88,40 +98,117 @@ test.describe("floating project simulation", () => {
     }
   });
 
-  test("publishes all card measurements as one scene snapshot per frame", () => {
+  test("publishes mutable card records as one stable scene snapshot per frame", () => {
     let notifications = 0;
     const unsubscribe = subscribeParticleObstacle(() => {
       notifications += 1;
     });
-    const geometry = {
-      centerX: 200,
-      centerY: 160,
-      width: 180,
-      height: 120,
-      angle: 0,
-      cornerRadius: 18,
-      bounds: { left: 110, top: 100, right: 290, bottom: 220 },
-    };
-    const motion = {
-      velocityX: 20,
-      velocityY: 0,
-      angularVelocity: 0,
-      sampledAt: 10,
-    };
+    const media = registerParticleObstacle("batch:media");
+    const copy = registerParticleObstacle("batch:copy");
+    const actions = registerParticleObstacle("batch:actions");
 
     batchParticleObstacleUpdates(() => {
-      upsertParticleObstacle("batch:media", geometry, 1, motion);
-      upsertParticleObstacle("batch:copy", geometry, 1, motion);
-      upsertParticleObstacle("batch:actions", geometry, 1, motion);
+      for (const entry of [media, copy, actions]) {
+        writeParticleObstacleGeometry(
+          entry.geometry,
+          200,
+          160,
+          180,
+          120,
+          0,
+          18,
+        );
+        entry.motion.velocityX = 20;
+        entry.motion.sampledAt = 10;
+        publishParticleObstacle(entry, 1);
+      }
     });
 
     expect(notifications).toBe(1);
+    const snapshot = getParticleObstacleSnapshot();
+    const geometry = media.geometry;
 
     batchParticleObstacleUpdates(() => {
-      removeParticleObstacle("batch:media");
-      removeParticleObstacle("batch:copy");
-      removeParticleObstacle("batch:actions");
+      writeParticleObstacleGeometry(
+        media.geometry,
+        220,
+        170,
+        180,
+        120,
+        Math.PI / 12,
+        18,
+      );
+      publishParticleObstacle(media, 1);
+    });
+
+    expect(getParticleObstacleSnapshot()).toBe(snapshot);
+    expect(media.geometry).toBe(geometry);
+    expect(media.geometry.centerX).toBe(220);
+    expect(notifications).toBe(2);
+
+    batchParticleObstacleUpdates(() => {
+      unregisterParticleObstacle(media);
+      unregisterParticleObstacle(copy);
+      unregisterParticleObstacle(actions);
     });
     unsubscribe();
+  });
+
+  test("runs physics, invalidation, and canvases from one native frame", () => {
+    let queuedFrame: FrameRequestCallback | null = null;
+    let requestCount = 0;
+    const order: string[] = [];
+    const deltas: number[] = [];
+    const scheduler = createSceneFrameScheduler({
+      requestFrame(callback) {
+        requestCount += 1;
+        queuedFrame = callback;
+        return requestCount;
+      },
+      cancelFrame() {
+        queuedFrame = null;
+      },
+      getScrollY: () => 0,
+    });
+    const invalidation: SceneFrameTaskController = scheduler.register(
+      () => order.push("invalidation"),
+      { priority: SCENE_FRAME_PRIORITY.particleInvalidation },
+    );
+    const physics = scheduler.register(
+      (frame) => {
+        order.push("physics");
+        deltas.push(frame.deltaMs);
+        invalidation.request();
+      },
+      { priority: SCENE_FRAME_PRIORITY.projectPhysics },
+    );
+    const orb = scheduler.register(() => order.push("orb"), {
+      priority: SCENE_FRAME_PRIORITY.actionOrb,
+    });
+
+    physics.setContinuous(true);
+    orb.setContinuous(true);
+    expect(requestCount).toBe(1);
+
+    runQueuedFrame(100);
+    expect(order).toEqual(["physics", "invalidation", "orb"]);
+    expect(requestCount).toBe(2);
+
+    order.length = 0;
+    runQueuedFrame(100 + 1000 / 120);
+    expect(deltas[1]).toBeCloseTo(1000 / 120, 5);
+    expect(order).toEqual(["physics", "invalidation", "orb"]);
+
+    physics.dispose();
+    invalidation.dispose();
+    orb.dispose();
+    scheduler.dispose();
+
+    function runQueuedFrame(timestamp: number) {
+      const callback = queuedFrame;
+      expect(callback).not.toBeNull();
+      queuedFrame = null;
+      callback!(timestamp);
+    }
   });
 });

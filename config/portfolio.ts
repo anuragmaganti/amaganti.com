@@ -1,11 +1,32 @@
 import type { StaticImageData } from "next/image";
 
 import type { ProjectFieldPresetId } from "@/lib/project-field-presets";
-import airInkImage from "@/public/projects/air-ink.png";
-import ctrlSayImage from "@/public/projects/ctrl-say.png";
-import resumeLoomrImage from "@/public/projects/resumeloomr-v2.png";
-import text2SpeechImage from "@/public/projects/text2speech.png";
-import thesisTraceImage from "@/public/projects/thesistrace.png";
+
+const ctrlSayImage = projectImage("/projects/ctrl-say.png", 812, 1060);
+const thesisTraceImage = projectImage(
+  "/projects/thesistrace.png",
+  3146,
+  1954,
+);
+const airInkImage = projectImage("/projects/air-ink.png", 2394, 1424);
+const resumeLoomrImage = projectImage(
+  "/projects/resumeloomr-v2.png",
+  2934,
+  1750,
+);
+const text2SpeechImage = projectImage(
+  "/projects/text2speech.png",
+  2152,
+  1952,
+);
+
+function projectImage(
+  src: string,
+  width: number,
+  height: number,
+): StaticImageData {
+  return { src, width, height };
+}
 
 type SiteConfig = {
   name: string;
