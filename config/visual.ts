@@ -1,7 +1,7 @@
 export type PortfolioTheme = "dark" | "light";
 
 export const themeConfig = {
-  defaultTheme: "dark",
+  defaultTheme: "light",
   storageKey: "portfolio-theme",
 } as const satisfies {
   defaultTheme: PortfolioTheme;

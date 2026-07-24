@@ -30,7 +30,11 @@ test.describe("portfolio behavior contract", () => {
   });
 
   test("uses the configured default and persists explicit themes", async ({ page }) => {
-    const alternateTheme = themeConfig.defaultTheme === "dark" ? "light" : "dark";
+    const oppositeTheme = {
+      dark: "light",
+      light: "dark",
+    } as const;
+    const persistedTheme = oppositeTheme[themeConfig.defaultTheme];
 
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
@@ -47,7 +51,7 @@ test.describe("portfolio behavior contract", () => {
     await page.getByRole("button", { name: "Toggle color theme" }).click();
     await expect(page.locator("html")).toHaveAttribute(
       "data-theme",
-      alternateTheme,
+      persistedTheme,
     );
     await expect
       .poll(() =>
@@ -56,12 +60,12 @@ test.describe("portfolio behavior contract", () => {
           themeConfig.storageKey,
         ),
       )
-      .toBe(alternateTheme);
+      .toBe(persistedTheme);
 
     await page.reload();
     await expect(page.locator("html")).toHaveAttribute(
       "data-theme",
-      alternateTheme,
+      persistedTheme,
     );
 
     await page.getByRole("button", { name: "Toggle color theme" }).click();
