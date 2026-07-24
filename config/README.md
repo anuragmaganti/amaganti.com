@@ -4,15 +4,19 @@ This directory is the supported customization boundary for portfolio owners.
 Rendering components should consume these values rather than define editable
 copy or visual preferences themselves.
 
-## `portfolio.ts`
+## Owner content
 
-Change identity, metadata, intro copy, About content, projects, Skills, the
-technology ticker, and outro links here. Array order is display order. Keep
-project slugs and content ids unique because they are used as stable section and
-accessibility identifiers.
+- `site.ts`: identity, metadata, intro copy, and outro links.
+- `projects.ts`: project content and display order.
+- `content-sections.ts`: About and future editorial section content.
+- `skills.ts`: the primary Skills rail and technology ticker.
+
+Array order is display order. Keep project slugs, content ids, and skill ids
+unique because they are used as stable section and accessibility identifiers.
 
 Project images belong in `public/projects/`. Always provide the image's intrinsic
 width and height and a useful alt description. Select one of the typed
+`floatingLayout` values for the starting card composition and one of the typed
 `particlePreset` values for the field behind each card.
 
 ## `visual.ts`

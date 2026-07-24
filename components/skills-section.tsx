@@ -11,8 +11,8 @@ import {
   getSkillsScrollHeightVh,
   SkillsTechnologyTrack,
 } from "@/components/skills-technology-track";
-import { skills, technologySkills } from "@/config/portfolio";
 import type { SectionDefinition } from "@/config/sections";
+import { skills, technologySkills } from "@/config/skills";
 import type { SceneTimeline } from "@/lib/scene-types";
 export function SkillsSection({
   section,

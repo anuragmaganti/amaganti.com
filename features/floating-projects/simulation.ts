@@ -5,18 +5,7 @@ export const FLOATING_PROJECT_SIMULATION = {
   maxCardAngle: Math.PI / 60,
 } as const;
 
-export type FloatingProjectPhysicsSteps = {
-  count: number;
-  deltaMs: number;
-};
-
-/**
- * Advances once per display frame. Slow frames are subdivided so Matter never
- * receives a step larger than its recommended 60 Hz reference interval.
- */
-export function resolveFloatingProjectPhysicsSteps(
-  frameDeltaMs: number,
-): FloatingProjectPhysicsSteps {
+export function resolveFloatingProjectPhysicsSteps(frameDeltaMs: number) {
   if (!Number.isFinite(frameDeltaMs) || frameDeltaMs <= 0) {
     return { count: 0, deltaMs: 0 };
   }
@@ -35,8 +24,5 @@ export function resolveFloatingProjectPhysicsSteps(
     ),
   );
 
-  return {
-    count,
-    deltaMs: boundedDelta / count,
-  };
+  return { count, deltaMs: boundedDelta / count };
 }

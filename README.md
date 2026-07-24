@@ -28,7 +28,10 @@ The supported template boundary is deliberately small:
 
 | Change | File |
 | --- | --- |
-| Identity, metadata, intro, About, projects, Skills, outro links | `config/portfolio.ts` |
+| Identity, metadata, intro, outro links | `config/site.ts` |
+| Projects and project order | `config/projects.ts` |
+| Editorial content sections such as About | `config/content-sections.ts` |
+| Primary and technology Skills lists | `config/skills.ts` |
 | Default theme, particle text, head asset, safe global particle tuning | `config/visual.ts` |
 | Page order, section renderer, magnetic snap point, scene beats | `config/sections.ts` |
 | Camera and particle composition for each scene beat | `config/scene-presets.ts` |
@@ -42,7 +45,7 @@ and routine template changes should not be added to components or engine code.
 
 ## Identity and metadata
 
-Edit `siteConfig` in `config/portfolio.ts`:
+Edit `siteConfig` in `config/site.ts`:
 
 - `name`, `shortName`, `title`, and `description` set the site identity.
 - `url` must be the final canonical production URL.
@@ -55,8 +58,8 @@ Replace `app/icon.svg` for the browser icon.
 
 ## Intro, About, and links
 
-Edit `introContent`, `contentSections`, and `outroLinks` in
-`config/portfolio.ts`.
+Edit `introContent` and `outroLinks` in `config/site.ts`. Editorial section
+copy lives in `config/content-sections.ts`.
 
 Content paragraphs are arrays of text and link segments, so links remain
 semantic DOM links instead of being embedded in WebGL. Each paragraph can set:
@@ -73,7 +76,7 @@ For external links, set `external: true`. Use a `mailto:` URL for email links.
 
 ## Projects
 
-`projects` in `config/portfolio.ts` is both the project content source and the
+`projects` in `config/projects.ts` is both the project content source and the
 project order. Every entry requires:
 
 - a unique `slug`
@@ -81,6 +84,7 @@ project order. Every entry requires:
 - proof-point label/body pairs
 - a technology list
 - an image path, dimensions, and useful alt text
+- a `floatingLayout` preset
 - a `particlePreset`
 - optional website and source URLs
 
@@ -91,12 +95,19 @@ shift and should match the actual file.
 
 1. Add its image under `public/projects/`.
 2. Add one typed object to `projects`.
-3. Choose `contour-sheet`, `torsion-column`, or `bloom-fan` for
+3. Choose one of the typed `floatingLayout` presets for its starting card
+   composition.
+4. Choose `contour-sheet`, `torsion-column`, or `bloom-fan` for
    `particlePreset`.
-4. Run `npm run check`.
+5. Run `npm run check`.
 
 The section registry derives the card section and its scene handoff from the
 project array. No component, timeline range, or route edit is required.
+
+The shipped starting layouts are `left-balanced`, `right-balanced`,
+`center-stagger`, `low-stagger`, and `high-stagger`. Add or tune reusable
+layouts in `features/floating-projects/config.ts`; do not branch on project
+slugs in a component.
 
 ### Remove or reorder projects
 
@@ -110,22 +121,27 @@ Every project renders three independent cards for media, copy, and actions. The
 browser resets them to their authored positions on every load; drag state is
 deliberately not persisted.
 
-- `lib/floating-project-layout.ts` owns normalized default placement.
-- `lib/floating-project-simulation.ts` owns display-rate-independent physics
-  limits and substeps.
-- `lib/project-card-presentation.ts` normalizes screenshots by rendered area so
-  portrait, square, and landscape assets remain visually comparable.
+- `features/floating-projects/config.ts` defines the reusable card roles and
+  named starting-layout presets.
+- `features/floating-projects/layout.ts` resolves collision-safe responsive
+  placement from the selected preset.
+- `features/floating-projects/physics-world.ts` owns Matter bodies, collisions,
+  ambient motion, dragging, and native-refresh substeps.
+- `features/floating-projects/frame-renderer.ts` projects card bodies into DOM
+  transforms and particle obstacles.
+- `features/floating-projects/image-sizing.ts` normalizes screenshots by rendered
+  area so portrait, square, and landscape assets remain visually comparable.
 - `lib/particle-obstacle-geometry.ts` measures oriented card frames.
 - `lib/particle-obstacle-field.ts` owns leading pressure, side slip, passive wake
   refill, and particle exclusion.
 
-Keep presentation tuning in those modules rather than adding project-specific
-branches to `ProjectCardSection`. This separation is what allows additional
-projects or a reusable template to share the same behavior.
+Keep layout and physics tuning inside the feature modules rather than adding
+project-specific branches to `ProjectCardSection`. A project chooses presets in
+configuration; it should not require component, physics, or timeline edits.
 
 ## Skills
 
-In `config/portfolio.ts`:
+In `config/skills.ts`:
 
 - `skills` controls the large primary rail.
 - `technologySkills` controls the corner ticker.
@@ -135,8 +151,10 @@ the animation derives its travel distance and duration from the rendered list.
 
 ## Sections and scene beats
 
-`portfolioSections` in `config/sections.ts` is the canonical page order. A
-section joins three concerns through a narrow definition:
+`portfolioSections` in `config/sections.ts` is the canonical page order.
+`sectionsBeforeProjects` and `sectionsAfterProjects` are the intended template
+insertion points; project sections are generated between them from `projects`.
+A section joins three concerns through a narrow definition:
 
 - `layout` selects the scroll-height and sticky-layout family.
 - `render` selects DOM rendering.
@@ -152,8 +170,8 @@ particle state across the section. A section may also have one or many beats.
 
 ### Add a standard content section
 
-1. Add an entry to `contentSections` in `config/portfolio.ts`.
-2. Insert a section in `portfolioSections` with
+1. Add an entry to `contentSections` in `config/content-sections.ts`.
+2. Insert a section in `sectionsBeforeProjects` or `sectionsAfterProjects` with
    `render: { type: "content", contentId: "your-id" }`.
 3. Add the scene beats it should use, or leave `sceneBeats: []` to hold the
    preceding particle scene.

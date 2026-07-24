@@ -3,196 +3,26 @@
 import Image from "next/image";
 import type { MotionValue } from "motion";
 import {
-  MODE_DRAWS,
-  resolvePreset,
-  type OrbState,
-} from "thinking-orbs";
-import {
   motion,
   useMotionTemplate,
   useSpring,
   useTransform,
 } from "motion/react";
-import { type CSSProperties, useEffect, useRef } from "react";
+import { type CSSProperties, useRef } from "react";
 
 import {
   getSectionTimelineAttributes,
   SectionSnapAnchor,
 } from "@/components/portfolio-section-frame";
-import type { ProjectEntry } from "@/config/portfolio";
+import type { ProjectEntry } from "@/config/projects";
 import type { SectionDefinition } from "@/config/sections";
-import { useFloatingProjectPhysics } from "@/hooks/use-floating-project-physics";
-import type { FloatingProjectCardRole } from "@/lib/floating-project-layout";
-import { createProjectImageSizingVariables } from "@/lib/project-card-presentation";
 import {
-  registerSceneFrameTask,
-  SCENE_FRAME_PRIORITY,
-} from "@/lib/scene-frame-scheduler";
+  createProjectImageSizingVariables,
+  FloatingProjectCard,
+  ProjectActionLink,
+  useFloatingProjectStage,
+} from "@/features/floating-projects";
 import type { SceneTimeline } from "@/lib/scene-types";
-const PROJECT_ACTION_ORB_SIZE = 64;
-
-function ProjectActionOrb({
-  state,
-  theme,
-}: {
-  state: OrbState;
-  theme: "light" | "dark";
-}) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = Math.round(PROJECT_ACTION_ORB_SIZE * pixelRatio);
-    canvas.height = Math.round(PROJECT_ACTION_ORB_SIZE * pixelRatio);
-
-    const context = canvas.getContext("2d");
-    if (!context) return;
-
-    const preset = resolvePreset(state, PROJECT_ACTION_ORB_SIZE);
-    const draw = MODE_DRAWS[preset.mode];
-    const reducedMotionQuery = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    );
-    const action = canvas.closest<HTMLElement>(".project-action");
-    let reducedMotion = reducedMotionQuery.matches;
-    let speedMultiplier = 1;
-    let isIntersecting = true;
-    let phase = (performance.now() / 1000) * preset.speed;
-
-    const paint = (time: number) => {
-      context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-      context.clearRect(
-        0,
-        0,
-        PROJECT_ACTION_ORB_SIZE,
-        PROJECT_ACTION_ORB_SIZE,
-      );
-      draw(
-        context,
-        PROJECT_ACTION_ORB_SIZE,
-        time,
-        theme === "dark",
-        preset.opts,
-      );
-    };
-
-    const frameTask = registerSceneFrameTask((frame) => {
-      phase +=
-        (frame.deltaMs / 1000) * preset.speed * speedMultiplier;
-      paint(phase);
-    }, { priority: SCENE_FRAME_PRIORITY.actionOrb });
-
-    const syncPlayback = () => {
-      if (reducedMotion) {
-        frameTask.setContinuous(false);
-        paint(0.6);
-        return;
-      }
-
-      frameTask.setContinuous(isIntersecting);
-      if (isIntersecting) {
-        frameTask.request();
-      }
-    };
-
-    const observer = new IntersectionObserver(([entry]) => {
-      isIntersecting = entry.isIntersecting;
-      syncPlayback();
-    });
-    const handleReducedMotionChange = (event: MediaQueryListEvent) => {
-      reducedMotion = event.matches;
-      syncPlayback();
-    };
-    const handlePointerEnter = (event: PointerEvent) => {
-      if (event.pointerType === "touch") return;
-      speedMultiplier = 2;
-      canvas.dataset.orbSpeed = "2";
-    };
-    const handlePointerLeave = () => {
-      speedMultiplier = 1;
-      canvas.dataset.orbSpeed = "1";
-    };
-
-    paint(reducedMotion ? 0.6 : phase);
-    observer.observe(canvas);
-    action?.addEventListener("pointerenter", handlePointerEnter);
-    action?.addEventListener("pointerleave", handlePointerLeave);
-    reducedMotionQuery.addEventListener("change", handleReducedMotionChange);
-    syncPlayback();
-
-    return () => {
-      frameTask.dispose();
-      observer.disconnect();
-      action?.removeEventListener("pointerenter", handlePointerEnter);
-      action?.removeEventListener("pointerleave", handlePointerLeave);
-      reducedMotionQuery.removeEventListener(
-        "change",
-        handleReducedMotionChange,
-      );
-    };
-  }, [state, theme]);
-
-  return (
-    <canvas
-      ref={canvasRef}
-      className="project-action__orb"
-      data-orb-speed="1"
-      aria-hidden
-    />
-  );
-}
-
-function ProjectActionLink({
-  href,
-  label,
-  variant,
-  state,
-  theme,
-}: {
-  href: string;
-  label: string;
-  variant: "primary" | "secondary";
-  state: "composing" | "working";
-  theme: "light" | "dark";
-}) {
-  return (
-    <a
-      className={`project-action project-action--${variant}`}
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      aria-label={label}
-    >
-      <ProjectActionOrb state={state} theme={theme} />
-      <span className="project-action__label" data-text={label} aria-hidden>
-        {label}
-      </span>
-    </a>
-  );
-}
-
-function ProjectCardDragHandle({
-  role,
-  projectTitle,
-}: {
-  role: FloatingProjectCardRole;
-  projectTitle: string;
-}) {
-  return (
-    <button
-      type="button"
-      className="project-float-card__handle"
-      data-floating-card-handle={role}
-      aria-label={`Move ${projectTitle} ${role} card`}
-      title="Drag to move. Use arrow keys for precise movement."
-    >
-      <span aria-hidden />
-    </button>
-  );
-}
 
 export function ProjectCardSection({
   project,
@@ -206,9 +36,6 @@ export function ProjectCardSection({
   timeline: SceneTimeline;
 }) {
   const arenaRef = useRef<HTMLDivElement>(null);
-  const mediaCardRef = useRef<HTMLDivElement>(null);
-  const copyCardRef = useRef<HTMLDivElement>(null);
-  const actionsCardRef = useRef<HTMLDivElement>(null);
   const [sectionStart, sectionEnd] = timeline.sectionRanges[section.id];
   const sectionProgress = useTransform(
     progress,
@@ -235,12 +62,10 @@ export function ProjectCardSection({
     project.imageSrc.width,
     project.imageSrc.height,
   ) as CSSProperties;
-  useFloatingProjectPhysics({
-    layoutKey: project.slug,
+  useFloatingProjectStage({
+    stageId: project.slug,
+    layoutPreset: project.floatingLayout,
     arenaRef,
-    mediaCardRef,
-    copyCardRef,
-    actionsCardRef,
   });
 
   return (
@@ -254,13 +79,12 @@ export function ProjectCardSection({
       <div className="section-sticky section-sticky--project">
         <article className="project-float-stage" aria-labelledby={titleId}>
           <div className="project-float-arena" ref={arenaRef}>
-            <motion.div
-              ref={mediaCardRef}
-              className="panel project-float-card project-float-card--media"
-              data-floating-card-role="media"
+            <FloatingProjectCard
+              role="media"
+              projectTitle={project.title}
+              className="project-float-card--media"
               style={{ borderColor, boxShadow: cardShadow }}
             >
-              <ProjectCardDragHandle role="media" projectTitle={project.title} />
               <div className="project-card__media" style={imageSizingStyle}>
                 <motion.div
                   className="project-card__media-inner"
@@ -275,15 +99,14 @@ export function ProjectCardSection({
                   />
                 </motion.div>
               </div>
-            </motion.div>
+            </FloatingProjectCard>
 
-            <motion.div
-              ref={copyCardRef}
-              className="panel project-float-card project-float-card--copy"
-              data-floating-card-role="copy"
+            <FloatingProjectCard
+              role="copy"
+              projectTitle={project.title}
+              className="project-float-card--copy"
               style={{ opacity: copyOpacity, borderColor, boxShadow: cardShadow }}
             >
-              <ProjectCardDragHandle role="copy" projectTitle={project.title} />
               <div className="project-card__scroll">
                 <div className="project-headline">
                   <h2 id={titleId}>{project.title}</h2>
@@ -308,18 +131,14 @@ export function ProjectCardSection({
                   ))}
                 </ul>
               </div>
-            </motion.div>
+            </FloatingProjectCard>
 
-            <motion.div
-              ref={actionsCardRef}
-              className="panel project-float-card project-float-card--actions"
-              data-floating-card-role="actions"
+            <FloatingProjectCard
+              role="actions"
+              projectTitle={project.title}
+              className="project-float-card--actions"
               style={{ opacity: copyOpacity, borderColor, boxShadow: cardShadow }}
             >
-              <ProjectCardDragHandle
-                role="actions"
-                projectTitle={project.title}
-              />
               <div className="project-card__actions">
                 {project.href && project.linkLabel ? (
                   <ProjectActionLink
@@ -340,7 +159,7 @@ export function ProjectCardSection({
                   />
                 ) : null}
               </div>
-            </motion.div>
+            </FloatingProjectCard>
           </div>
         </article>
       </div>

@@ -12,6 +12,10 @@ import type {
   ParticleObstacleMotion,
   ParticleObstacleSnapshot,
 } from "@/lib/particle-obstacle-store";
+import {
+  getRoundedRectangleExitDistance,
+  getRoundedRectangleSupportExtent,
+} from "@/lib/rounded-rectangle";
 
 const FIELD_STRENGTH_SMOOTHING = 11;
 const FIELD_VELOCITY_SMOOTHING = 12;
@@ -583,7 +587,7 @@ function accumulateObstacleFlow(
       (-signedDistance + COLLISION_MARGIN) * field.strength;
 
     if (hasFlow && normalMotion < -0.05) {
-      const exitDistance = getRoundedRectExitDistance(
+      const exitDistance = getRoundedRectangleExitDistance(
         planeX,
         planeY,
         motionX,
@@ -644,7 +648,7 @@ function accumulateObstacleFlow(
   const tangentX = motionX - normalX * normalMotion;
   const tangentY = motionY - normalY * normalMotion;
   const sideCoordinate = planeX * sideX + planeY * sideY;
-  const sideExtent = getRoundedRectSupportExtent(
+  const sideExtent = getRoundedRectangleSupportExtent(
     sideX,
     sideY,
     field.halfWidth,
@@ -671,7 +675,7 @@ function accumulateObstacleFlow(
     tangentY * surfaceWeight * EDGE_SLIP;
 
   const alongCoordinate = planeX * motionX + planeY * motionY;
-  const alongExtent = getRoundedRectSupportExtent(
+  const alongExtent = getRoundedRectangleSupportExtent(
     motionX,
     motionY,
     field.halfWidth,
@@ -715,116 +719,6 @@ function accumulateObstacleFlow(
     targetY * displacement,
     depthFlow * displacement,
     false,
-  );
-}
-
-function getRoundedRectExitDistance(
-  originX: number,
-  originY: number,
-  directionX: number,
-  directionY: number,
-  halfWidth: number,
-  halfHeight: number,
-  cornerRadius: number,
-) {
-  const epsilon = 0.00001;
-  const radius = clamp(
-    cornerRadius,
-    0,
-    Math.min(halfWidth, halfHeight),
-  );
-  const innerHalfWidth = Math.max(halfWidth - radius, 0);
-  const innerHalfHeight = Math.max(halfHeight - radius, 0);
-  let nearestExit = Number.POSITIVE_INFINITY;
-
-  if (Math.abs(directionX) > epsilon) {
-    const boundaryX = directionX > 0 ? halfWidth : -halfWidth;
-    const distance = (boundaryX - originX) / directionX;
-    const intersectionY = originY + directionY * distance;
-
-    if (
-      distance >= 0 &&
-      Math.abs(intersectionY) <= innerHalfHeight + epsilon
-    ) {
-      nearestExit = Math.min(nearestExit, distance);
-    }
-  }
-
-  if (Math.abs(directionY) > epsilon) {
-    const boundaryY = directionY > 0 ? halfHeight : -halfHeight;
-    const distance = (boundaryY - originY) / directionY;
-    const intersectionX = originX + directionX * distance;
-
-    if (
-      distance >= 0 &&
-      Math.abs(intersectionX) <= innerHalfWidth + epsilon
-    ) {
-      nearestExit = Math.min(nearestExit, distance);
-    }
-  }
-
-  if (radius > epsilon) {
-    for (let cornerX = -1; cornerX <= 1; cornerX += 2) {
-      for (let cornerY = -1; cornerY <= 1; cornerY += 2) {
-        const centerX = cornerX * innerHalfWidth;
-        const centerY = cornerY * innerHalfHeight;
-        const offsetX = originX - centerX;
-        const offsetY = originY - centerY;
-        const projection =
-          offsetX * directionX + offsetY * directionY;
-        const discriminant =
-          projection * projection -
-          (offsetX * offsetX + offsetY * offsetY - radius * radius);
-
-        if (discriminant < 0) {
-          continue;
-        }
-
-        const distance = -projection + Math.sqrt(discriminant);
-        if (distance < 0 || distance >= nearestExit) {
-          continue;
-        }
-
-        const intersectionX = originX + directionX * distance;
-        const intersectionY = originY + directionY * distance;
-        if (
-          (intersectionX - centerX) * cornerX >= -epsilon &&
-          (intersectionY - centerY) * cornerY >= -epsilon
-        ) {
-          nearestExit = distance;
-        }
-      }
-    }
-  }
-
-  if (Number.isFinite(nearestExit)) {
-    return nearestExit;
-  }
-
-  // A valid interior point always intersects one segment. Retain a bounded
-  // fallback for floating-point edge cases instead of emitting a large offset.
-  return 0;
-}
-
-function getRoundedRectSupportExtent(
-  directionX: number,
-  directionY: number,
-  halfWidth: number,
-  halfHeight: number,
-  cornerRadius: number,
-) {
-  const radius = clamp(
-    cornerRadius,
-    0,
-    Math.min(halfWidth, halfHeight),
-  );
-  const innerHalfWidth = Math.max(halfWidth - radius, 0);
-  const innerHalfHeight = Math.max(halfHeight - radius, 0);
-
-  return (
-    Math.abs(directionX) * innerHalfWidth +
-    Math.abs(directionY) * innerHalfHeight +
-    Math.hypot(directionX, directionY) * radius
   );
 }
 

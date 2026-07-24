@@ -1,111 +1,7 @@
 import type { StaticImageData } from "next/image";
 
+import type { FloatingProjectLayoutPresetId } from "@/features/floating-projects/config";
 import type { ProjectFieldPresetId } from "@/lib/project-field-presets";
-
-const ctrlSayImage = projectImage("/projects/ctrl-say.png", 812, 1060);
-const thesisTraceImage = projectImage(
-  "/projects/thesistrace.png",
-  3146,
-  1954,
-);
-const airInkImage = projectImage("/projects/air-ink.png", 2394, 1424);
-const resumeLoomrImage = projectImage(
-  "/projects/resumeloomr-v2.png",
-  2934,
-  1750,
-);
-const text2SpeechImage = projectImage(
-  "/projects/text2speech.png",
-  2152,
-  1952,
-);
-
-function projectImage(
-  src: string,
-  width: number,
-  height: number,
-): StaticImageData {
-  return { src, width, height };
-}
-
-type SiteConfig = {
-  name: string;
-  shortName: string;
-  title: string;
-  description: string;
-  url: string;
-  email: string;
-  socialPreview: {
-    src: string;
-    width: number;
-    height: number;
-    alt: string;
-  };
-};
-
-export const siteConfig = {
-  name: "Anurag Maganti",
-  shortName: "Anurag",
-  title: "amaganti.com",
-  description: "Anurag Maganti's personal website",
-  url: "https://amaganti.com",
-  email: "amaganti.dev@gmail.com",
-  socialPreview: {
-    src: "/metadata/metadataImg.png",
-    width: 1210,
-    height: 778,
-    alt: "amaganti.com share preview image",
-  },
-} as const satisfies SiteConfig;
-
-type IntroContent = {
-  greeting: string;
-  name: string;
-  summary: string;
-  note: string;
-};
-
-export const introContent = {
-  greeting: "Hi, I'm",
-  name: siteConfig.shortName,
-  summary:
-    "a software engineer obsessed with building products that feel a little bit magical",
-  note: "(yep, that's a real LIDAR scan of my head)",
-} as const satisfies IntroContent;
-
-type PortfolioLink = {
-  id: string;
-  label: string;
-  href: string;
-  external?: boolean;
-};
-
-export const outroLinks = [
-  {
-    id: "github",
-    label: "GitHub",
-    href: "https://github.com/anuragmaganti",
-    external: true,
-  },
-  {
-    id: "linkedin",
-    label: "LinkedIn",
-    href: "https://www.linkedin.com/in/anuragmaganti/",
-    external: true,
-  },
-  {
-    id: "email",
-    label: "Email me",
-    href: `mailto:${siteConfig.email}`,
-    external: false,
-  },
-  {
-    id: "publication",
-    label: "Nature publication",
-    href: "https://www.nature.com/articles/s41586-018-0697-7",
-    external: true,
-  },
-] as const satisfies readonly PortfolioLink[];
 
 export type ProjectEntry = {
   slug: string;
@@ -121,6 +17,7 @@ export type ProjectEntry = {
   href?: string;
   linkLabel?: string;
   githubHref?: string;
+  floatingLayout: FloatingProjectLayoutPresetId;
   particlePreset: ProjectFieldPresetId;
 };
 
@@ -153,10 +50,11 @@ export const projects = [
       "SwiftData",
       "Core Animation",
     ],
-    imageSrc: ctrlSayImage,
+    imageSrc: projectImage("/projects/ctrl-say.png", 812, 1060),
     imageAlt:
       "Ctrl-Say floating clipboard showing numbered and named voice-controlled slots for text, an image, and files on macOS.",
     githubHref: "https://github.com/anuragmaganti/Ctrl-Say",
+    floatingLayout: "high-stagger",
     particlePreset: "torsion-column",
   },
   {
@@ -187,12 +85,13 @@ export const projects = [
       "OpenAI",
       "Zod",
     ],
-    imageSrc: thesisTraceImage,
+    imageSrc: projectImage("/projects/thesistrace.png", 3146, 1954),
     imageAlt:
       "ThesisTrace Grid Infrastructure workspace showing recent developments, market coverage, AI research actions, and a market map.",
     href: "https://thesistrace.vercel.app/",
     linkLabel: "Visit Website",
     githubHref: "https://github.com/anuragmaganti/thesistrace",
+    floatingLayout: "low-stagger",
     particlePreset: "contour-sheet",
   },
   {
@@ -222,12 +121,13 @@ export const projects = [
       "Web Workers",
       "Canvas API",
     ],
-    imageSrc: airInkImage,
+    imageSrc: projectImage("/projects/air-ink.png", 2394, 1424),
     imageAlt:
       "Air Ink signature studio showing its camera preview, gesture guidance, drawing stage, and download controls.",
     href: "https://webcamsign.com",
     linkLabel: "Visit Website",
     githubHref: "https://github.com/anuragmaganti/air-ink",
+    floatingLayout: "center-stagger",
     particlePreset: "bloom-fan",
   },
   {
@@ -257,12 +157,13 @@ export const projects = [
       "Vercel API Routes",
       "Gemini API",
     ],
-    imageSrc: resumeLoomrImage,
+    imageSrc: projectImage("/projects/resumeloomr-v2.png", 2934, 1750),
     imageAlt:
       "ResumeLoomr interface showing a resume editor, section navigation, and live printable resume preview.",
     href: "https://resumeloomr.com/",
     linkLabel: "Visit Website",
     githubHref: "https://github.com/anuragmaganti/ResumeLoomr",
+    floatingLayout: "right-balanced",
     particlePreset: "torsion-column",
   },
   {
@@ -293,12 +194,13 @@ export const projects = [
       "Chatterbox TTS",
       "AWS S3",
     ],
-    imageSrc: text2SpeechImage,
+    imageSrc: projectImage("/projects/text2speech.png", 2152, 1952),
     imageAlt:
       "Text2Speech dashboard showing account statistics, generation shortcuts, recent audio projects, and available credits.",
     href: "https://text2speech.dev",
     linkLabel: "Visit Website",
     githubHref: "https://github.com/anuragmaganti/text-to-speech",
+    floatingLayout: "left-balanced",
     particlePreset: "contour-sheet",
   },
 ] as const satisfies readonly ProjectEntry[];
@@ -313,129 +215,10 @@ export const projectsBySlug = projects.reduce<Record<ProjectSlug, ProjectEntry>>
   {} as Record<ProjectSlug, ProjectEntry>,
 );
 
-export type SkillEntry = {
-  id: string;
-  label: string;
-};
-
-export const skills = [
-  { id: "product-engineering", label: "Product Engineering" },
-  { id: "full-stack-web", label: "Full-Stack Web" },
-  { id: "applied-ai", label: "Applied AI" },
-  { id: "systems-integration", label: "Systems Integration" },
-  { id: "product-design", label: "Product Design" },
-  { id: "interaction-design", label: "Interaction Design" },
-] as const satisfies readonly SkillEntry[];
-
-export const technologySkills = [
-  { id: "typescript", label: "TypeScript" },
-  { id: "javascript", label: "JavaScript" },
-  { id: "sql", label: "SQL" },
-  { id: "html-css", label: "HTML/CSS" },
-  { id: "react", label: "React" },
-  { id: "nextjs", label: "Next.js" },
-  { id: "tailwind-css", label: "Tailwind CSS" },
-  { id: "nodejs", label: "Node.js" },
-  { id: "expressjs", label: "Express.js" },
-  { id: "zod", label: "Zod" },
-  { id: "rest-apis", label: "REST APIs" },
-  { id: "postgresql", label: "PostgreSQL" },
-  { id: "prisma", label: "Prisma" },
-  { id: "supabase", label: "Supabase" },
-  { id: "neon", label: "Neon" },
-  { id: "better-auth", label: "Better Auth" },
-  { id: "aws-s3", label: "AWS S3" },
-  { id: "vercel", label: "Vercel" },
-  { id: "render", label: "Render" },
-  { id: "solana", label: "Solana" },
-  { id: "llm-api-integration", label: "LLM API Integration" },
-] as const satisfies readonly SkillEntry[];
-
-type ContentTextSegment = {
-  type: "text";
-  text: string;
-};
-
-type ContentLinkSegment = {
-  type: "link";
-  text: string;
-  href: string;
-  external?: boolean;
-};
-
-export type ContentParagraph = {
-  id: string;
-  segments: readonly (ContentTextSegment | ContentLinkSegment)[];
-  reveal: {
-    enter: readonly [number, number];
-    from: "left" | "right" | "bottom";
-    exitTo: "left" | "right";
-  };
-};
-
-export type ContentSectionEntry = {
-  id: string;
-  title: string;
-  layout: "top-overlay";
-  exit: readonly [number, number];
-  paragraphs: readonly ContentParagraph[];
-};
-
-export const contentSections = [
-  {
-    id: "about-me",
-    title: "About Me",
-    layout: "top-overlay",
-    exit: [0.58, 0.82],
-    paragraphs: [
-      {
-        id: "systems",
-        segments: [
-          {
-            type: "text",
-            text: "I fell in love with interconnected systems as a researcher in cell biology and cancer, where I saw delicate molecular interactions ripple outward and shape the behavior of cellular systems.",
-          },
-        ],
-        reveal: { enter: [-0.22, -0.12], from: "left", exitTo: "right" },
-      },
-      {
-        id: "software",
-        segments: [
-          {
-            type: "text",
-            text: "That same fascination drew me to software engineering. I’ve spent the past two years ",
-          },
-          {
-            type: "link",
-            text: "building a startup in the digital asset space by creating software for evolving markets.",
-            href: "https://www.nuopact.com/",
-            external: true,
-          },
-        ],
-        reveal: { enter: [-0.17, -0.07], from: "right", exitTo: "left" },
-      },
-      {
-        id: "curiosity",
-        segments: [
-          {
-            type: "text",
-            text: "My journey has been an extension of that same curiosity, a chance to explore how code and people interact and to build tools within systems that are constantly evolving.",
-          },
-        ],
-        reveal: { enter: [-0.12, -0.02], from: "left", exitTo: "right" },
-      },
-    ],
-  },
-] as const satisfies readonly ContentSectionEntry[];
-
-export type ContentSectionId = (typeof contentSections)[number]["id"];
-
-export const contentSectionsById = contentSections.reduce<
-  Record<ContentSectionId, ContentSectionEntry>
->(
-  (index, section) => {
-    index[section.id] = section;
-    return index;
-  },
-  {} as Record<ContentSectionId, ContentSectionEntry>,
-);
+function projectImage(
+  src: string,
+  width: number,
+  height: number,
+): StaticImageData {
+  return { src, width, height };
+}

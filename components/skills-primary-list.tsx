@@ -9,7 +9,7 @@ import {
 } from "motion/react";
 import { useEffect, useRef, type RefObject } from "react";
 
-import type { SkillEntry } from "@/config/portfolio";
+import type { SkillEntry } from "@/config/skills";
 
 type ListTravel = {
   end: number;

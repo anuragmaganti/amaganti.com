@@ -1,11 +1,8 @@
 import { expect, test } from "@playwright/test";
 
-import {
-  outroLinks,
-  projects,
-  type ProjectEntry,
-} from "../config/portfolio";
+import { projects, type ProjectEntry } from "../config/projects";
 import { portfolioSections } from "../config/sections";
+import { outroLinks } from "../config/site";
 import { themeConfig } from "../config/visual";
 import {
   expectActiveParticleObstacle,

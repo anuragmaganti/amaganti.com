@@ -1,6 +1,11 @@
 import { expect, test } from "@playwright/test";
 
-import { portfolioSections } from "../config/sections";
+import { projects } from "../config/projects";
+import {
+  portfolioSections,
+  sectionsAfterProjects,
+  sectionsBeforeProjects,
+} from "../config/sections";
 import { parsePointCloudBuffer } from "../lib/point-cloud-asset";
 import {
   createSampledScene,
@@ -11,6 +16,25 @@ import {
 } from "../lib/scene-timeline";
 
 test.describe("scene engine contract", () => {
+  test("generates project sections between the public insertion points", () => {
+    expect(portfolioSections.map((section) => section.id)).toEqual([
+      ...sectionsBeforeProjects.map((section) => section.id),
+      ...projects.map((project) => project.slug),
+      ...sectionsAfterProjects.map((section) => section.id),
+    ]);
+
+    for (const project of projects) {
+      const section = portfolioSections.find(
+        (candidate) => candidate.id === project.slug,
+      );
+
+      expect(section?.render).toEqual({
+        type: "project-card",
+        projectSlug: project.slug,
+      });
+    }
+  });
+
   test("accepts only complete point-cloud XYZ triplets", () => {
     const validBuffer = new ArrayBuffer(Float32Array.BYTES_PER_ELEMENT * 6);
     const source = new Float32Array(validBuffer);

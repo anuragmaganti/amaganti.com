@@ -1,9 +1,9 @@
+import type { ContentSectionId } from "@/config/content-sections";
 import {
   projects,
-  type ContentSectionId,
   type ProjectEntry,
   type ProjectSlug,
-} from "@/config/portfolio";
+} from "@/config/projects";
 import type { ScenePresetId } from "@/config/scene-presets";
 import type { SceneTransitionEasing } from "@/lib/scene-types";
 
@@ -65,10 +65,9 @@ export function sceneBeat(
 
 function createProjectSection<const Project extends ProjectEntry>(
   project: Project,
-  projectIndex: number,
+  nextProject: ProjectEntry | undefined,
 ): SectionDefinition & { id: Project["slug"] } {
   const currentPresetId = `project-${project.particlePreset}` as ScenePresetId;
-  const nextProject = projects[projectIndex + 1];
   const nextPresetId = nextProject
     ? (`project-${nextProject.particlePreset}` as ScenePresetId)
     : currentPresetId;
@@ -92,7 +91,9 @@ if (!finalProject) {
   throw new Error("At least one project is required to build the section registry.");
 }
 
-export const portfolioSections = [
+// These two arrays are the template's explicit insertion points. Add ordinary
+// or custom sections here; project sections continue to derive from `projects`.
+export const sectionsBeforeProjects = [
   defineSection({
     id: "intro",
     layout: "intro",
@@ -123,7 +124,13 @@ export const portfolioSections = [
       sceneBeat("projects-reveal", "projects-reveal", 100),
     ],
   }),
-  ...projects.map(createProjectSection),
+] as const satisfies readonly SectionDefinition[];
+
+const projectSections = projects.map((project, index) =>
+  createProjectSection(project, projects[index + 1]),
+);
+
+export const sectionsAfterProjects = [
   defineSection({
     id: "skills-stage",
     layout: "skills",
@@ -148,6 +155,12 @@ export const portfolioSections = [
       sceneBeat("contact", "outro-face", 32),
     ],
   }),
+] as const satisfies readonly SectionDefinition[];
+
+export const portfolioSections = [
+  ...sectionsBeforeProjects,
+  ...projectSections,
+  ...sectionsAfterProjects,
 ] as const satisfies readonly SectionDefinition[];
 
 export type SectionId = (typeof portfolioSections)[number]["id"];

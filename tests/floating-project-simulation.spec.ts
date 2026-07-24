@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import {
   FLOATING_PROJECT_SIMULATION,
   resolveFloatingProjectPhysicsSteps,
-} from "../lib/floating-project-simulation";
+} from "../features/floating-projects/simulation";
 import {
   createParticleObstacleScreenFrame,
   writeParticleObstacleGeometry,
@@ -11,7 +11,7 @@ import {
 import {
   createProjectImageSizingVariables,
   getProjectImageTargetArea,
-} from "../lib/project-card-presentation";
+} from "../features/floating-projects/image-sizing";
 import {
   batchParticleObstacleUpdates,
   getParticleObstacleSnapshot,
@@ -20,11 +20,6 @@ import {
   subscribeParticleObstacle,
   unregisterParticleObstacle,
 } from "../lib/particle-obstacle-store";
-import {
-  createSceneFrameScheduler,
-  SCENE_FRAME_PRIORITY,
-  type SceneFrameTaskController,
-} from "../lib/scene-frame-scheduler";
 
 test.describe("floating project simulation", () => {
   test("advances once per native high-refresh frame", () => {
@@ -152,63 +147,5 @@ test.describe("floating project simulation", () => {
       unregisterParticleObstacle(actions);
     });
     unsubscribe();
-  });
-
-  test("runs physics, invalidation, and canvases from one native frame", () => {
-    let queuedFrame: FrameRequestCallback | null = null;
-    let requestCount = 0;
-    const order: string[] = [];
-    const deltas: number[] = [];
-    const scheduler = createSceneFrameScheduler({
-      requestFrame(callback) {
-        requestCount += 1;
-        queuedFrame = callback;
-        return requestCount;
-      },
-      cancelFrame() {
-        queuedFrame = null;
-      },
-      getScrollY: () => 0,
-    });
-    const invalidation: SceneFrameTaskController = scheduler.register(
-      () => order.push("invalidation"),
-      { priority: SCENE_FRAME_PRIORITY.particleInvalidation },
-    );
-    const physics = scheduler.register(
-      (frame) => {
-        order.push("physics");
-        deltas.push(frame.deltaMs);
-        invalidation.request();
-      },
-      { priority: SCENE_FRAME_PRIORITY.projectPhysics },
-    );
-    const orb = scheduler.register(() => order.push("orb"), {
-      priority: SCENE_FRAME_PRIORITY.actionOrb,
-    });
-
-    physics.setContinuous(true);
-    orb.setContinuous(true);
-    expect(requestCount).toBe(1);
-
-    runQueuedFrame(100);
-    expect(order).toEqual(["physics", "invalidation", "orb"]);
-    expect(requestCount).toBe(2);
-
-    order.length = 0;
-    runQueuedFrame(100 + 1000 / 120);
-    expect(deltas[1]).toBeCloseTo(1000 / 120, 5);
-    expect(order).toEqual(["physics", "invalidation", "orb"]);
-
-    physics.dispose();
-    invalidation.dispose();
-    orb.dispose();
-    scheduler.dispose();
-
-    function runQueuedFrame(timestamp: number) {
-      const callback = queuedFrame;
-      expect(callback).not.toBeNull();
-      queuedFrame = null;
-      callback!(timestamp);
-    }
   });
 });

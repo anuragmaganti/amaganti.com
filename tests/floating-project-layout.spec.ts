@@ -1,12 +1,16 @@
 import { expect, test } from "@playwright/test";
 
 import {
-  createFloatingProjectCardPlacements,
   floatingProjectCardRoles,
-  type FloatingProjectArenaSize,
+  floatingProjectLayoutPresets,
   type FloatingProjectCardRole,
+  type FloatingProjectLayoutPresetId,
+} from "../features/floating-projects/config";
+import {
+  createFloatingProjectCardPlacements,
+  type FloatingProjectArenaSize,
   type FloatingProjectCardSize,
-} from "../lib/floating-project-layout";
+} from "../features/floating-projects/layout";
 
 const desktopArena = { width: 1400, height: 840 };
 const desktopCards = {
@@ -14,6 +18,9 @@ const desktopCards = {
   copy: { width: 496, height: 380 },
   actions: { width: 340, height: 70 },
 };
+const layoutPresetIds = Object.keys(
+  floatingProjectLayoutPresets,
+) as FloatingProjectLayoutPresetId[];
 
 test.describe("floating project layout", () => {
   test("places copy left with media and actions stacked on the right", () => {
@@ -21,7 +28,7 @@ test.describe("floating project layout", () => {
       desktopArena,
       desktopCards,
       null,
-      "project-01",
+      "left-balanced",
     );
 
     expectContained(desktopArena, desktopCards, placements);
@@ -41,12 +48,12 @@ test.describe("floating project layout", () => {
   });
 
   test("varies position and angle substantially across project defaults", () => {
-    const placements = Array.from({ length: 5 }, (_, index) =>
+    const placements = layoutPresetIds.map((presetId) =>
       createFloatingProjectCardPlacements(
         desktopArena,
         desktopCards,
         null,
-        `project-0${index + 1}`,
+        presetId,
       ),
     );
     const copyXs = placements.map(({ copy }) => copy.x);
@@ -67,12 +74,12 @@ test.describe("floating project layout", () => {
   });
 
   test("gives each project a distinct collision-safe default", () => {
-    const placements = Array.from({ length: 5 }, (_, index) =>
+    const placements = layoutPresetIds.map((presetId) =>
       createFloatingProjectCardPlacements(
         desktopArena,
         desktopCards,
         null,
-        `project-0${index + 1}`,
+        presetId,
       ),
     );
     const signatures = placements.map(({ media, copy, actions }) =>
@@ -115,6 +122,7 @@ test.describe("floating project layout", () => {
         arena,
         cards,
         null,
+        "left-balanced",
       );
 
       expectContained(arena, cards, placements);
@@ -133,7 +141,7 @@ test.describe("floating project layout", () => {
       media: { x: 0.95, y: 0.05, angle: 0.02 },
       copy: { x: 0.5, y: 0.5, angle: -0.01 },
       actions: { x: 0.02, y: 0.98, angle: 0 },
-    });
+    }, "left-balanced");
 
     expectContained(arena, cards, placements);
     expect(placements.media.x).toBe(arena.width - cards.media.width * 0.5);

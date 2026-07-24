@@ -10,7 +10,7 @@ import {
 import type {
   ContentParagraph,
   ContentSectionEntry,
-} from "@/config/portfolio";
+} from "@/config/content-sections";
 import type { SectionDefinition } from "@/config/sections";
 import type { SceneTimeline } from "@/lib/scene-types";
 function renderContentSegments(

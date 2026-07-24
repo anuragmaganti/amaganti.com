@@ -33,18 +33,14 @@ import {
   useMeasuredSceneTimeline,
   usePortfolioScrollProgress,
 } from "@/hooks/use-portfolio-timeline";
-import {
-  contentSectionsById,
-  projectsBySlug,
-} from "@/config/portfolio";
+import { contentSectionsById } from "@/config/content-sections";
+import { projectsBySlug } from "@/config/projects";
 import {
   portfolioSections,
   type BuiltInSectionRendererId,
   type SectionDefinition,
 } from "@/config/sections";
-import {
-  getTimelineProgressPoint,
-} from "@/lib/scene-timeline";
+import { getTimelineProgressPoint } from "@/lib/scene-timeline";
 import type { SceneTimeline } from "@/lib/scene-types";
 
 const SceneCanvas = dynamic(

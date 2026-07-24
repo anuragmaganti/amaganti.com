@@ -1,6 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 
-import { projects } from "../config/portfolio";
+import { projects } from "../config/projects";
 import { themeConfig, type PortfolioTheme } from "../config/visual";
 
 export type { PortfolioTheme } from "../config/visual";

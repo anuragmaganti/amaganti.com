@@ -1,4 +1,4 @@
-import { projects } from "@/config/portfolio";
+import { projects } from "@/config/projects";
 import type { ProjectFieldPresetId } from "@/lib/project-field-presets";
 import type {
   SceneCameraState,

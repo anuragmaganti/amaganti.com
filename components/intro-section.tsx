@@ -11,9 +11,9 @@ import {
   useState,
 } from "react";
 
-import { introContent } from "@/config/portfolio";
 import { getSectionTimelineAttributes } from "@/components/portfolio-section-frame";
 import type { SectionDefinition } from "@/config/sections";
+import { introContent } from "@/config/site";
 import { getTimelineProgressPoint } from "@/lib/scene-timeline";
 import type { SceneTimeline } from "@/lib/scene-types";
 

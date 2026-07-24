@@ -6,8 +6,8 @@ import { motion, useMotionTemplate, useTransform } from "motion/react";
 import {
   getSectionTimelineAttributes,
 } from "@/components/portfolio-section-frame";
-import { outroLinks } from "@/config/portfolio";
 import type { SectionDefinition } from "@/config/sections";
+import { outroLinks } from "@/config/site";
 import { getTimelineProgressPoint } from "@/lib/scene-timeline";
 import type { SceneTimeline } from "@/lib/scene-types";
 export function OutroSection({
