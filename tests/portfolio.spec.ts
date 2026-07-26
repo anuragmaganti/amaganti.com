@@ -319,7 +319,7 @@ test.describe("portfolio behavior contract", () => {
     }
   });
 
-  test("enables pointer interaction only for fine pointers", async (
+  test("gates hover to fine pointers and supports pressure ripples", async (
     { page },
     testInfo,
   ) => {
@@ -337,6 +337,18 @@ test.describe("portfolio behavior contract", () => {
         () => window.__portfolioSceneDiagnostics?.pointerPresence ?? -1,
       );
       expect(pointerPresence).toBe(0);
+
+      await page.touchscreen.tap(180, 320);
+      await expect
+        .poll(
+          () =>
+            page.evaluate(
+              () =>
+                window.__portfolioSceneDiagnostics?.pressureRippleCount ?? 0,
+            ),
+          { timeout: 2_000 },
+        )
+        .toBeGreaterThan(0);
       return;
     }
 
@@ -350,6 +362,17 @@ test.describe("portfolio behavior contract", () => {
         { timeout: 2_000 },
       )
       .toBeGreaterThan(0.2);
+
+    await page.mouse.click(240, 260);
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            () => window.__portfolioSceneDiagnostics?.pressureRippleCount ?? 0,
+          ),
+        { timeout: 2_000 },
+      )
+      .toBeGreaterThan(0);
   });
 
   test("honors reduced motion without removing content", async ({ page }) => {

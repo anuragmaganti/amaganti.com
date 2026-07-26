@@ -9,6 +9,7 @@ export type SceneDiagnostics = {
   nextShape: PointCloudShape;
   mix: number;
   pointerPresence: number;
+  pressureRippleCount: number;
   obstacleFlow: number;
   obstacleIds: string[];
   obstacleStrengths: number[];
@@ -29,6 +30,7 @@ export function createSceneDiagnostics(): SceneDiagnostics {
     nextShape: "face",
     mix: 0,
     pointerPresence: 0,
+    pressureRippleCount: 0,
     obstacleFlow: 0,
     obstacleIds: [],
     obstacleStrengths: [],
@@ -53,6 +55,7 @@ export function updateSceneDiagnostics(
   nextShape: PointCloudShape,
   mix: number,
   pointerPresence: number,
+  pressureRippleCount: number,
   obstacleFlow: number,
   obstacleFields: ParticleObstacleRuntime[],
 ) {
@@ -63,6 +66,7 @@ export function updateSceneDiagnostics(
   diagnostics.nextShape = nextShape;
   diagnostics.mix = mix;
   diagnostics.pointerPresence = pointerPresence;
+  diagnostics.pressureRippleCount = pressureRippleCount;
   diagnostics.obstacleFlow = obstacleFlow;
   diagnostics.obstacleIds.length = obstacleFields.length;
   diagnostics.obstacleStrengths.length = obstacleFields.length;

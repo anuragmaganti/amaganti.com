@@ -31,10 +31,11 @@ import {
   sampleParticlePosition,
 } from "@/lib/particle-motion";
 import {
-  applyMouseRepulsion,
-  createMouseRepulsionResources,
+  applyPointerParticleInteraction,
+  createPointerParticleFlowState,
+  createPointerParticleInteractionResources,
   getFaceTrackingWeight,
-  resolveMouseRepulsionFrame,
+  resolvePointerParticleInteractionFrame,
   updatePointerState,
 } from "@/lib/pointer-particle-interaction";
 import {
@@ -70,6 +71,7 @@ import {
   registerSceneFrameTask,
   SCENE_FRAME_PRIORITY,
 } from "@/lib/scene-frame-scheduler";
+import { usePointerParticleEvents } from "@/hooks/use-pointer-particle-events";
 
 type SceneCanvasProps = {
   progress: MotionValue<number>;
@@ -197,10 +199,15 @@ function PointCloudSystem({
   const pointerCurrent = useMemo(() => new THREE.Vector2(0, 0), []);
   const pointerPresenceTarget = useRef(0);
   const pointerPresenceCurrent = useRef(0);
-  const mouseRepulsionResources = useMemo(
-    () => createMouseRepulsionResources(),
+  const pointerInteractionResources = useMemo(
+    () => createPointerParticleInteractionResources(),
     [],
   );
+  const pointerFlowState = useMemo(
+    () => createPointerParticleFlowState(pointCount),
+    [pointCount],
+  );
+  const pointerParticleMotionActiveRef = useRef(false);
   const raycaster = useMemo(() => new THREE.Raycaster(), []);
   const interactionPlane = useMemo(() => new THREE.Plane(), []);
   const interactionPlaneNormal = useMemo(() => new THREE.Vector3(), []);
@@ -228,6 +235,15 @@ function PointCloudSystem({
       process.env.NODE_ENV === "production" ? null : createSceneDiagnostics(),
     [],
   );
+
+  usePointerParticleEvents({
+    reducedMotion,
+    pointerCurrent,
+    pointerTarget,
+    pointerPresenceTarget,
+    resources: pointerInteractionResources,
+    invalidate,
+  });
 
   useEffect(() => {
     const unsubscribe = progress.on("change", () => {
@@ -267,38 +283,6 @@ function PointCloudSystem({
       invalidationTask.dispose();
     };
   }, [invalidate]);
-
-  useEffect(() => {
-    if (reducedMotion || !window.matchMedia("(pointer: fine)").matches) {
-      return;
-    }
-
-    const handlePointerMove = (event: PointerEvent) => {
-      pointerTarget.set(
-        (event.clientX / window.innerWidth) * 2 - 1,
-        (event.clientY / window.innerHeight) * 2 - 1,
-      );
-      pointerPresenceTarget.current = 1;
-      invalidate();
-    };
-    const resetPointer = () => {
-      pointerTarget.set(0, 0);
-      pointerPresenceTarget.current = 0;
-      invalidate();
-    };
-
-    window.addEventListener("pointermove", handlePointerMove, {
-      passive: true,
-    });
-    window.addEventListener("pointerleave", resetPointer);
-    window.addEventListener("blur", resetPointer);
-
-    return () => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerleave", resetPointer);
-      window.removeEventListener("blur", resetPointer);
-    };
-  }, [invalidate, pointerTarget, reducedMotion]);
 
   useEffect(() => {
     if (!diagnostics) {
@@ -355,8 +339,16 @@ function PointCloudSystem({
         phaseState.next.cloud.shape,
         blend,
       ) * (reducedMotion ? 0.45 : 1);
-    const pointerPitch = pointerCurrent.y * 0.08 * trackingStrength;
-    const pointerYaw = pointerCurrent.x * 0.14 * trackingStrength;
+    const pointerPitch =
+      pointerCurrent.y *
+      0.08 *
+      trackingStrength *
+      pointerPresenceCurrent.current;
+    const pointerYaw =
+      pointerCurrent.x *
+      0.14 *
+      trackingStrength *
+      pointerPresenceCurrent.current;
 
     desiredCamera.set(...phaseState.camera.position);
     cameraTarget.set(...phaseState.camera.target);
@@ -432,7 +424,7 @@ function PointCloudSystem({
       cloud,
       resources: obstacleResources,
     });
-    const mouseRepulsionState = resolveMouseRepulsionFrame({
+    const pointerInteractionFrame = resolvePointerParticleInteractionFrame({
       pointerPresence: pointerPresenceCurrent.current,
       pointerCurrent,
       currentShape: phaseState.current.cloud.shape,
@@ -442,7 +434,14 @@ function PointCloudSystem({
       raycaster,
       interactionPlane,
       cloud,
-      resources: mouseRepulsionResources,
+      viewportWidth: size.width,
+      viewportHeight: size.height,
+      hoverStrengthScale:
+        particleVisualConfig.interaction.pointerFlowStrength,
+      rippleStrengthScale:
+        particleVisualConfig.interaction.pressureRippleStrength,
+      delta,
+      resources: pointerInteractionResources,
     });
 
     if (diagnostics) {
@@ -454,6 +453,7 @@ function PointCloudSystem({
         phaseState.next.cloud.shape,
         phaseState.mix,
         pointerPresenceCurrent.current,
+        pointerInteractionFrame.ripples.length,
         phaseState.cloud.obstacleFlow,
         obstacleFrame.fields,
       );
@@ -464,6 +464,12 @@ function PointCloudSystem({
       obstacleFrame.unsettled ||
       obstacleParticleMotionActiveRef.current;
     let obstacleParticleMotionActive = false;
+    const updatePointerParticles =
+      pointerInteractionFrame.hoverActive ||
+      pointerInteractionFrame.ripples.length > 0 ||
+      pointerInteractionFrame.unsettled ||
+      pointerParticleMotionActiveRef.current;
+    let pointerParticleMotionActive = false;
 
     for (let index = 0; index < pointCount; index += 1) {
       const offset = index * 3;
@@ -480,13 +486,16 @@ function PointCloudSystem({
         seeds,
       );
 
-      if (mouseRepulsionState.active) {
-        applyMouseRepulsion(
+      if (updatePointerParticles) {
+        const particleMotionActive = applyPointerParticleInteraction(
           particle,
-          mouseRepulsionState.localPoint,
-          mouseRepulsionState.strength *
-            particleVisualConfig.interaction.pointerRepulsionStrength,
+          index,
+          pointerInteractionFrame,
+          pointerFlowState,
+          delta,
         );
+        pointerParticleMotionActive =
+          particleMotionActive || pointerParticleMotionActive;
       }
 
       if (updateObstacleParticles) {
@@ -508,12 +517,16 @@ function PointCloudSystem({
     }
 
     obstacleParticleMotionActiveRef.current = obstacleParticleMotionActive;
+    pointerParticleMotionActiveRef.current = pointerParticleMotionActive;
     geometry.attributes.position.needsUpdate = true;
 
     if (
       pointerCurrent.distanceToSquared(pointerTarget) > 0.00004 ||
       Math.abs(pointerPresenceCurrent.current - pointerPresenceTarget.current) >
         0.00004 ||
+      pointerInteractionFrame.unsettled ||
+      pointerInteractionFrame.ripples.length > 0 ||
+      pointerParticleMotionActive ||
       obstacleFrame.unsettled ||
       obstacleParticleMotionActive
     ) {

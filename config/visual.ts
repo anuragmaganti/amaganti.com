@@ -75,7 +75,8 @@ export const particleVisualConfig = {
     darkProjectOpacityMultiplier: 0.84,
   },
   interaction: {
-    pointerRepulsionStrength: 1,
+    pointerFlowStrength: 1,
+    pressureRippleStrength: 1,
     cardFlowStrength: 1,
   },
   quality: {
