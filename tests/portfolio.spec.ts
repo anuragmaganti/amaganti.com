@@ -315,6 +315,47 @@ test.describe("portfolio behavior contract", () => {
     expect(diagnostics?.frameCount).toBeGreaterThan(1);
   });
 
+  test("runs the GPU particle backend through project interactions", async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== "desktop");
+    const problems: string[] = [];
+
+    page.on("console", (message) => {
+      if (
+        (message.type() === "error" || message.type() === "warning") &&
+        !isExpectedDevelopmentWarning(message.text())
+      ) {
+        problems.push(`${message.type()}: ${message.text()}`);
+      }
+    });
+    page.on("pageerror", (error) => problems.push(`pageerror: ${error.message}`));
+
+    await openPortfolio(page, {
+      reducedMotion: "no-preference",
+      particleBackend: "gpu",
+    });
+    await expect(page.locator(".scene-frame canvas")).toHaveAttribute(
+      "data-particle-backend",
+      "gpu",
+    );
+    await scrollToSection(page, projects[0].slug, 0.5);
+    await expectActiveParticleObstacle(page, projects[0].slug);
+    await page.mouse.move(240, 260);
+    await page.mouse.click(240, 260);
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            () =>
+              window.__portfolioSceneDiagnostics?.pressureRippleCount ?? 0,
+          ),
+        { timeout: 2_000 },
+      )
+      .toBeGreaterThan(0);
+    expect(problems).toEqual([]);
+  });
+
   test("reframes the scene after live resize and orientation changes", async (
     { page },
     testInfo,

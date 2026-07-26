@@ -17,6 +17,7 @@ export const stableCheckpoints = [
 export async function openPortfolio(
   page: Page,
   options: {
+    particleBackend?: "auto" | "cpu" | "gpu";
     reducedMotion?: "no-preference" | "reduce";
     theme?: PortfolioTheme;
   } = {},
@@ -28,10 +29,15 @@ export async function openPortfolio(
     reducedMotion: options.reducedMotion ?? "reduce",
   });
   await page.addInitScript(
-    ({ initialTheme, storageKey }) => {
+    ({ initialTheme, particleBackend, storageKey }) => {
       window.localStorage.setItem(storageKey, initialTheme);
+      window.__portfolioParticleBackendPreference = particleBackend;
     },
-    { initialTheme: theme, storageKey: themeConfig.storageKey },
+    {
+      initialTheme: theme,
+      particleBackend: options.particleBackend ?? "auto",
+      storageKey: themeConfig.storageKey,
+    },
   );
 
   const pointCloudResponse = page.waitForResponse(

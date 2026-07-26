@@ -15,7 +15,7 @@ test.describe("stable visual checkpoints", () => {
       page,
     }, testInfo) => {
       test.skip(testInfo.project.name !== "desktop");
-      await openPortfolio(page, { theme });
+      await openPortfolio(page, { theme, particleBackend: "gpu" });
 
       for (const checkpoint of stableCheckpoints) {
         await scrollToSection(page, checkpoint.id, checkpoint.progress);
@@ -31,7 +31,7 @@ test.describe("stable visual checkpoints", () => {
       page,
     }, testInfo) => {
       test.skip(testInfo.project.name === "desktop");
-      await openPortfolio(page, { theme });
+      await openPortfolio(page, { theme, particleBackend: "gpu" });
 
       for (const checkpoint of [stableCheckpoints[1], stableCheckpoints[3]]) {
         await scrollToSection(page, checkpoint.id, checkpoint.progress);

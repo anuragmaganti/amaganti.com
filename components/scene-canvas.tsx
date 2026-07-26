@@ -19,6 +19,7 @@ import {
   type PointCloudQualityProfile,
 } from "@/hooks/use-scene-environment";
 import { useTypographyVersion } from "@/hooks/use-typography-version";
+import { createGpuParticleRuntime } from "@/lib/gpu-particles/runtime";
 import {
   applyParticleObstacleFlow,
   createParticleObstacleFlowState,
@@ -87,6 +88,14 @@ type PointCloudSystemProps = {
   phases: ScenePhase[];
 };
 
+type ParticleBackendPreference = "auto" | "cpu" | "gpu";
+
+declare global {
+  interface Window {
+    __portfolioParticleBackendPreference?: ParticleBackendPreference;
+  }
+}
+
 export function SceneCanvas({ progress, timeline }: SceneCanvasProps) {
   const reducedMotion = Boolean(useReducedMotion());
   const isDarkTheme = useIsDarkTheme();
@@ -131,6 +140,14 @@ function PointCloudSystem({
   phases,
 }: PointCloudSystemProps) {
   const invalidate = useThree((state) => state.invalidate);
+  const renderer = useThree((state) => state.gl);
+  const backendPreference = useMemo<ParticleBackendPreference>(
+    () =>
+      typeof window === "undefined"
+        ? "auto"
+        : (window.__portfolioParticleBackendPreference ?? "auto"),
+    [],
+  );
   const pointCount = Math.floor(basePositions.length / 3);
   const renderPositions = useMemo(
     () => new Float32Array(basePositions.length),
@@ -144,7 +161,7 @@ function PointCloudSystem({
     [],
   );
   const typographyVersion = useTypographyVersion(typographyDescriptors);
-  const geometry = useMemo(() => {
+  const cpuGeometry = useMemo(() => {
     const nextGeometry = new THREE.BufferGeometry();
     const attribute = new THREE.BufferAttribute(renderPositions, 3);
     attribute.setUsage(THREE.DynamicDrawUsage);
@@ -175,7 +192,20 @@ function PointCloudSystem({
       ) as Record<PointCloudTargetId, THREE.Box3>,
     [morphTargets],
   );
-  const cloudMaterial = useMemo(
+  const gpuRuntime = useMemo(
+    () =>
+      backendPreference === "cpu"
+        ? null
+        : createGpuParticleRuntime({
+            renderer,
+            basePositions,
+            morphTargets,
+            seeds,
+            allowSoftwareRenderer: backendPreference === "gpu",
+          }),
+    [backendPreference, basePositions, morphTargets, renderer, seeds],
+  );
+  const cpuCloudMaterial = useMemo(
     () =>
       new THREE.PointsMaterial({
         color: new THREE.Color("#ffffff"),
@@ -188,6 +218,8 @@ function PointCloudSystem({
       }),
     [],
   );
+  const geometry = gpuRuntime?.geometry ?? cpuGeometry;
+  const cloudMaterial = gpuRuntime?.material ?? cpuCloudMaterial;
   const cloud = useMemo(() => {
     const points = new THREE.Points(geometry, cloudMaterial);
     points.frustumCulled = false;
@@ -224,6 +256,8 @@ function PointCloudSystem({
     [pointCount],
   );
   const obstacleParticleMotionActiveRef = useRef(false);
+  const gpuSettleTimeRef = useRef(0);
+  const previousProgressRef = useRef(progress.get());
   const introCopyFrameRef = useIntroCopyFrame(invalidate);
   const layoutResources = useMemo(() => createCloudLayoutResources(), []);
   const elapsedTimeRef = useRef(0);
@@ -265,10 +299,23 @@ function PointCloudSystem({
   }, [invalidate, isDarkTheme]);
 
   useEffect(() => {
-    renderPositions.set(morphTargets.face);
-    geometry.attributes.position.needsUpdate = true;
+    if (!gpuRuntime) {
+      renderPositions.set(morphTargets.face);
+      cpuGeometry.attributes.position.needsUpdate = true;
+    }
     invalidate();
-  }, [geometry, invalidate, morphTargets, renderPositions]);
+  }, [cpuGeometry, gpuRuntime, invalidate, morphTargets, renderPositions]);
+
+  useEffect(() => {
+    const backend = gpuRuntime ? "gpu" : "cpu";
+    renderer.domElement.dataset.particleBackend = backend;
+
+    return () => {
+      if (renderer.domElement.dataset.particleBackend === backend) {
+        delete renderer.domElement.dataset.particleBackend;
+      }
+    };
+  }, [gpuRuntime, renderer]);
 
   useEffect(() => {
     const invalidationTask = registerSceneFrameTask(() => {
@@ -294,10 +341,16 @@ function PointCloudSystem({
 
   useEffect(() => {
     return () => {
-      geometry.dispose();
-      cloudMaterial.dispose();
+      cpuGeometry.dispose();
+      cpuCloudMaterial.dispose();
     };
-  }, [cloudMaterial, geometry]);
+  }, [cpuCloudMaterial, cpuGeometry]);
+
+  useEffect(() => {
+    return () => {
+      gpuRuntime?.dispose();
+    };
+  }, [gpuRuntime]);
 
   useFrame(({ camera, size }, delta) => {
     const progressValue = progress.get();
@@ -459,66 +512,106 @@ function PointCloudSystem({
       );
     }
 
-    const updateObstacleParticles =
-      obstacleFrame.fields.length > 0 ||
-      obstacleFrame.unsettled ||
-      obstacleParticleMotionActiveRef.current;
     let obstacleParticleMotionActive = false;
-    const updatePointerParticles =
-      pointerInteractionFrame.hoverActive ||
-      pointerInteractionFrame.ripples.length > 0 ||
-      pointerInteractionFrame.unsettled ||
-      pointerParticleMotionActiveRef.current;
     let pointerParticleMotionActive = false;
+    let gpuParticleMotionActive = false;
+    const progressChanged =
+      Math.abs(progressValue - previousProgressRef.current) > 0.000001;
+    previousProgressRef.current = progressValue;
 
-    for (let index = 0; index < pointCount; index += 1) {
-      const offset = index * 3;
-      sampleParticlePosition(
-        particle,
-        index,
-        offset,
-        shapeFrom,
-        shapeTo,
+    if (gpuRuntime) {
+      gpuRuntime.update({
+        currentTargetId,
+        nextTargetId,
         blend,
         noise,
-        phaseState.cloud.intensity,
+        intensity: phaseState.cloud.intensity,
         pulse,
-        seeds,
-      );
+        delta,
+        obstacleFrame,
+        pointerFrame: pointerInteractionFrame,
+      });
 
-      if (updatePointerParticles) {
-        const particleMotionActive = applyPointerParticleInteraction(
+      const pointerInputChanging =
+        pointerCurrent.distanceToSquared(pointerTarget) > 0.00004 ||
+        Math.abs(
+          pointerPresenceCurrent.current - pointerPresenceTarget.current,
+        ) > 0.00004 ||
+        pointerInteractionFrame.unsettled ||
+        pointerInteractionFrame.ripples.length > 0;
+      const obstacleInputChanging =
+        obstacleFrame.unsettled ||
+        (progressChanged && obstacleFrame.fields.length > 0);
+
+      if (pointerInputChanging || obstacleInputChanging) {
+        gpuSettleTimeRef.current = 1.4;
+      } else {
+        gpuSettleTimeRef.current = Math.max(
+          gpuSettleTimeRef.current - delta,
+          0,
+        );
+      }
+      gpuParticleMotionActive = gpuSettleTimeRef.current > 0;
+    } else {
+      const updateObstacleParticles =
+        obstacleFrame.fields.length > 0 ||
+        obstacleFrame.unsettled ||
+        obstacleParticleMotionActiveRef.current;
+      const updatePointerParticles =
+        pointerInteractionFrame.hoverActive ||
+        pointerInteractionFrame.ripples.length > 0 ||
+        pointerInteractionFrame.unsettled ||
+        pointerParticleMotionActiveRef.current;
+
+      for (let index = 0; index < pointCount; index += 1) {
+        const offset = index * 3;
+        sampleParticlePosition(
           particle,
           index,
-          pointerInteractionFrame,
-          pointerFlowState,
-          delta,
+          offset,
+          shapeFrom,
+          shapeTo,
+          blend,
+          noise,
+          phaseState.cloud.intensity,
+          pulse,
+          seeds,
         );
-        pointerParticleMotionActive =
-          particleMotionActive || pointerParticleMotionActive;
+
+        if (updatePointerParticles) {
+          const particleMotionActive = applyPointerParticleInteraction(
+            particle,
+            index,
+            pointerInteractionFrame,
+            pointerFlowState,
+            delta,
+          );
+          pointerParticleMotionActive =
+            particleMotionActive || pointerParticleMotionActive;
+        }
+
+        if (updateObstacleParticles) {
+          const particleMotionActive = applyParticleObstacleFlow(
+            particle,
+            index,
+            obstacleFrame.fields,
+            obstacleFlowState,
+            obstacleResources,
+            delta,
+          );
+          obstacleParticleMotionActive =
+            particleMotionActive || obstacleParticleMotionActive;
+        }
+
+        renderPositions[offset] = particle.x;
+        renderPositions[offset + 1] = particle.y;
+        renderPositions[offset + 2] = particle.z;
       }
 
-      if (updateObstacleParticles) {
-        const particleMotionActive = applyParticleObstacleFlow(
-          particle,
-          index,
-          obstacleFrame.fields,
-          obstacleFlowState,
-          obstacleResources,
-          delta,
-        );
-        obstacleParticleMotionActive =
-          particleMotionActive || obstacleParticleMotionActive;
-      }
-
-      renderPositions[offset] = particle.x;
-      renderPositions[offset + 1] = particle.y;
-      renderPositions[offset + 2] = particle.z;
+      obstacleParticleMotionActiveRef.current = obstacleParticleMotionActive;
+      pointerParticleMotionActiveRef.current = pointerParticleMotionActive;
+      cpuGeometry.attributes.position.needsUpdate = true;
     }
-
-    obstacleParticleMotionActiveRef.current = obstacleParticleMotionActive;
-    pointerParticleMotionActiveRef.current = pointerParticleMotionActive;
-    geometry.attributes.position.needsUpdate = true;
 
     if (
       pointerCurrent.distanceToSquared(pointerTarget) > 0.00004 ||
@@ -528,7 +621,8 @@ function PointCloudSystem({
       pointerInteractionFrame.ripples.length > 0 ||
       pointerParticleMotionActive ||
       obstacleFrame.unsettled ||
-      obstacleParticleMotionActive
+      obstacleParticleMotionActive ||
+      gpuParticleMotionActive
     ) {
       invalidate();
     }
