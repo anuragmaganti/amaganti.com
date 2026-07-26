@@ -51,40 +51,38 @@ test.describe("particle obstacle flow", () => {
     field.targetAngularVelocity = 0;
   });
 
-  test("keeps particles outside the rounded card boundary", () => {
-    for (const [x, y] of [
-      [-0.55, 0],
-      [0.55, 0],
-      [0, 0.4],
-      [0, -0.4],
-      [0.65, 0.45],
-    ]) {
-      const particle = simulate(x, y);
+  test("softens the resting exclusion without pinning particles to a hard contour", () => {
+    const deep = simulate(0, 0, 90);
+    const shallow = simulate(0.55, 0, 90);
+    const deepDisplacement = Math.hypot(deep.x, deep.y);
+    const shallowDisplacement = Math.hypot(shallow.x - 0.55, shallow.y);
 
-      expect(getRoundedRectDistance(particle.x, particle.y)).toBeGreaterThan(0);
-    }
+    expect(deepDisplacement).toBeGreaterThan(shallowDisplacement);
+    expect(getRoundedRectDistance(deep.x, deep.y)).toBeLessThan(-0.05);
+    expect(getRoundedRectDistance(shallow.x, shallow.y)).toBeLessThan(-0.05);
   });
 
-  test("pushes the leading edge and slips along the sides without attracting the wake", () => {
+  test("pushes the front, shears around the sides, and refills behind the card", () => {
     field.flowVelocity.set(0, 1);
 
-    const leading = simulate(0, 0.72, 4);
-    const side = simulate(0.92, 0, 4);
-    const trailing = simulate(0, -0.72, 4);
+    const leading = simulate(0, 0.72, 12);
+    const side = simulate(0.92, 0, 12);
+    const trailing = simulate(0, -0.72, 12);
 
     expect(leading.y).toBeGreaterThan(0.72);
-    expect(side.y).toBeGreaterThan(0);
-    expect(trailing.y).toBeCloseTo(-0.72, 5);
+    expect(side.y).toBeLessThan(0);
+    expect(trailing.y).toBeGreaterThan(-0.72);
+    expect(trailing.y + 0.72).toBeLessThan(leading.y - 0.72);
   });
 
   test("reverses the flow when card motion reverses", () => {
     field.flowVelocity.set(0, -1);
 
-    const leading = simulate(0, -0.72, 4);
-    const trailing = simulate(0, 0.72, 4);
+    const leading = simulate(0, -0.72, 12);
+    const trailing = simulate(0, 0.72, 12);
 
     expect(leading.y).toBeLessThan(-0.72);
-    expect(trailing.y).toBeCloseTo(0.72, 5);
+    expect(trailing.y).toBeLessThan(0.72);
   });
 
   test("refills the trailing wake by releasing prior offsets", () => {
@@ -108,21 +106,30 @@ test.describe("particle obstacle flow", () => {
     expect(outerRight.x).toBeGreaterThan(0.25);
   });
 
-  test("routes diagonal sweeps through the rounded corner without a particle ridge", () => {
+  test("keeps diagonal flow curved instead of projecting particles onto one ridge", () => {
     field.flowVelocity.set(1, 1);
 
-    const cornerExit = simulate(-0.3, -0.5);
-    const topExit = simulate(-0.4, 0);
-    const rightExit = simulate(0, -0.4);
+    const cornerExit = simulate(-0.3, -0.5, 24);
+    const topExit = simulate(-0.4, 0, 24);
+    const rightExit = simulate(0, -0.4, 24);
     const topProjection = (topExit.x + topExit.y) * Math.SQRT1_2;
     const rightProjection = (rightExit.x + rightExit.y) * Math.SQRT1_2;
 
-    // A sharp-box support plane would put all three particles on one diagonal
-    // and eject the corner particle through the rectangle's imaginary corner.
     expect(cornerExit.x).toBeLessThan(field.halfWidth - 0.01);
     expect(cornerExit.y).toBeLessThan(field.halfHeight - 0.01);
-    expect(Math.abs(topProjection - rightProjection)).toBeGreaterThan(0.1);
-    expect(getRoundedRectDistance(cornerExit.x, cornerExit.y)).toBeGreaterThan(0);
+    expect(Math.abs(topProjection - rightProjection)).toBeGreaterThan(0.02);
+    expect(getRoundedRectDistance(cornerExit.x, cornerExit.y)).toBeLessThan(0);
+  });
+
+  test("integrates the fluid response consistently at 60Hz and 120Hz", () => {
+    field.flowVelocity.set(0.8, 1);
+
+    const at60Hz = simulateDuration(0.28, 0.72, 0.6, 60);
+    const at120Hz = simulateDuration(0.28, 0.72, 0.6, 120);
+
+    expect(at120Hz.x).toBeCloseTo(at60Hz.x, 2);
+    expect(at120Hz.y).toBeCloseTo(at60Hz.y, 2);
+    expect(at120Hz.z).toBeCloseTo(at60Hz.z, 2);
   });
 
   test("leaves distant particles unchanged and settles offsets after exit", () => {
@@ -176,7 +183,7 @@ test.describe("particle obstacle flow", () => {
   });
 });
 
-function simulate(x: number, y: number, frames = 1) {
+function simulate(x: number, y: number, frames = 1, delta = 1 / 60) {
   const particle = createParticleState();
   const resources = createParticleObstacleResources();
   const flowState = createParticleObstacleFlowState(1);
@@ -195,11 +202,20 @@ function simulate(x: number, y: number, frames = 1) {
       [field],
       flowState,
       resources,
-      1 / 60,
+      delta,
     );
   }
 
   return particle;
+}
+
+function simulateDuration(
+  x: number,
+  y: number,
+  duration: number,
+  refreshRate: number,
+) {
+  return simulate(x, y, Math.round(duration * refreshRate), 1 / refreshRate);
 }
 
 function getRoundedRectDistance(x: number, y: number) {

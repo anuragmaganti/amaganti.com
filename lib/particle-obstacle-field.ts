@@ -12,29 +12,29 @@ import type {
   ParticleObstacleMotion,
   ParticleObstacleSnapshot,
 } from "@/lib/particle-obstacle-store";
-import {
-  getRoundedRectangleExitDistance,
-  getRoundedRectangleSupportExtent,
-} from "@/lib/rounded-rectangle";
+import { getRoundedRectangleSupportExtent } from "@/lib/rounded-rectangle";
 
 const FIELD_STRENGTH_SMOOTHING = 11;
 const FIELD_VELOCITY_SMOOTHING = 12;
 const MOTION_DECAY_SECONDS = 0.3;
 const MIN_FIELD_STRENGTH = 0.001;
 const MIN_FLOW_SPEED = 0.008;
-const FLOW_RADIUS_RATIO = 0.62;
-const FLOW_RADIUS_MIN = 0.16;
-const FLOW_DISPLACEMENT_RATIO = 0.24;
-const LEADING_PRESSURE = 0.82;
-const LEADING_SPLIT = 0.68;
-const LEADING_SPLIT_BLEND_RATIO = 0.34;
-const EDGE_SLIP = 0.5;
-const TRAILING_REFILL_RESPONSE = 11;
-const FLOW_DEPTH = 0.08;
-const FLOW_RESPONSE = 15;
-const FLOW_RETURN = 6;
-const COLLISION_MARGIN = 0.018;
-const MAX_PARTICLE_OFFSET = 0.42;
+const FLOW_INFLUENCE_RADIUS = 2.7;
+const FLOW_DISPLACEMENT_RATIO = 0.28;
+const FLOW_VISCOSITY_SWIRL = 0.075;
+const TRAILING_FLOW_RATIO = 0.62;
+const RESTING_PRESSURE_RATIO = 0.38;
+const RESTING_PRESSURE_VARIANCE = 0.22;
+const RESTING_TANGENTIAL_DRIFT = 0.16;
+const RESTING_DEPTH_DRIFT = 0.14;
+const TRAILING_REFILL_STIFFNESS = 42;
+const FLOW_DEPTH = 0.12;
+const FLOW_STIFFNESS = 46;
+const FLOW_DAMPING = 10.5;
+const RETURN_STIFFNESS = 22;
+const RETURN_DAMPING = 8.5;
+const MAX_PARTICLE_SPEED = 1.8;
+const MAX_PARTICLE_OFFSET = 0.38;
 const PARTICLE_MOTION_EPSILON = 0.0005;
 
 export type ParticleObstacleRuntime = {
@@ -71,9 +71,6 @@ type ParticleFlowAccumulator = {
   targetX: number;
   targetY: number;
   targetZ: number;
-  correctionX: number;
-  correctionY: number;
-  correctionZ: number;
   refillWeight: number;
 };
 
@@ -87,6 +84,7 @@ export type ParticleObstacleResources = {
 
 export type ParticleObstacleFlowState = {
   offsets: Float32Array;
+  velocities: Float32Array;
 };
 
 export function createParticleObstacleResources(): ParticleObstacleResources {
@@ -99,9 +97,6 @@ export function createParticleObstacleResources(): ParticleObstacleResources {
       targetX: 0,
       targetY: 0,
       targetZ: 0,
-      correctionX: 0,
-      correctionY: 0,
-      correctionZ: 0,
       refillWeight: 0,
     },
   };
@@ -112,6 +107,7 @@ export function createParticleObstacleFlowState(
 ): ParticleObstacleFlowState {
   return {
     offsets: new Float32Array(pointCount * 3),
+    velocities: new Float32Array(pointCount * 3),
   };
 }
 
@@ -233,22 +229,23 @@ export function applyParticleObstacleFlow(
   delta: number,
 ) {
   const offsetIndex = particleIndex * 3;
-  const { offsets } = flowState;
+  const { offsets, velocities } = flowState;
   const accumulator = resources.accumulator;
   let offsetX = offsets[offsetIndex];
   let offsetY = offsets[offsetIndex + 1];
   let offsetZ = offsets[offsetIndex + 2];
+  let velocityX = velocities[offsetIndex];
+  let velocityY = velocities[offsetIndex + 1];
+  let velocityZ = velocities[offsetIndex + 2];
 
   accumulator.targetX = 0;
   accumulator.targetY = 0;
   accumulator.targetZ = 0;
-  accumulator.correctionX = 0;
-  accumulator.correctionY = 0;
-  accumulator.correctionZ = 0;
   accumulator.refillWeight = 0;
 
-  // The authored morph target stays immutable. The card contributes a
-  // temporary viscous offset plus an immediate collision correction.
+  // The authored morph target stays immutable. Card pressure only changes the
+  // persistent offset and velocity, so the response carries momentum instead
+  // of snapping particles onto the obstacle boundary.
   const displacedX = particle.x + offsetX;
   const displacedY = particle.y + offsetY;
   const displacedZ = particle.z + offsetZ;
@@ -276,43 +273,85 @@ export function applyParticleObstacleFlow(
     accumulator.targetZ *= targetScale;
   }
 
-  const responseRate =
-    targetLength > PARTICLE_MOTION_EPSILON
-      ? FLOW_RESPONSE
-      : lerp(
-          FLOW_RETURN,
-          TRAILING_REFILL_RESPONSE,
-          accumulator.refillWeight,
-        );
-  const response = 1 - Math.exp(-Math.min(delta, 1 / 30) * responseRate);
-  offsetX = lerp(offsetX, accumulator.targetX, response);
-  offsetY = lerp(offsetY, accumulator.targetY, response);
-  offsetZ = lerp(offsetZ, accumulator.targetZ, response);
+  const timestep = Math.min(delta, 1 / 30);
+  const targetActive = targetLength > PARTICLE_MOTION_EPSILON;
+  const stiffness = targetActive
+    ? FLOW_STIFFNESS
+    : lerp(
+        RETURN_STIFFNESS,
+        TRAILING_REFILL_STIFFNESS,
+        accumulator.refillWeight,
+      );
+  const damping = targetActive
+    ? FLOW_DAMPING
+    : lerp(RETURN_DAMPING, FLOW_DAMPING, accumulator.refillWeight);
+
+  velocityX +=
+    ((accumulator.targetX - offsetX) * stiffness - velocityX * damping) *
+    timestep;
+  velocityY +=
+    ((accumulator.targetY - offsetY) * stiffness - velocityY * damping) *
+    timestep;
+  velocityZ +=
+    ((accumulator.targetZ - offsetZ) * stiffness - velocityZ * damping) *
+    timestep;
+
+  const velocityLength = Math.hypot(velocityX, velocityY, velocityZ);
+  if (velocityLength > MAX_PARTICLE_SPEED) {
+    const velocityScale = MAX_PARTICLE_SPEED / velocityLength;
+    velocityX *= velocityScale;
+    velocityY *= velocityScale;
+    velocityZ *= velocityScale;
+  }
+
+  offsetX += velocityX * timestep;
+  offsetY += velocityY * timestep;
+  offsetZ += velocityZ * timestep;
+
+  const offsetLength = Math.hypot(offsetX, offsetY, offsetZ);
+  if (offsetLength > MAX_PARTICLE_OFFSET) {
+    const offsetScale = MAX_PARTICLE_OFFSET / offsetLength;
+    offsetX *= offsetScale;
+    offsetY *= offsetScale;
+    offsetZ *= offsetScale;
+  }
+
+  const remainingError = Math.hypot(
+    accumulator.targetX - offsetX,
+    accumulator.targetY - offsetY,
+    accumulator.targetZ - offsetZ,
+  );
+  const remainingVelocity = Math.hypot(velocityX, velocityY, velocityZ);
 
   if (
-    targetLength <= PARTICLE_MOTION_EPSILON &&
+    fields.length === 0 &&
     Math.abs(offsetX) <= PARTICLE_MOTION_EPSILON &&
     Math.abs(offsetY) <= PARTICLE_MOTION_EPSILON &&
-    Math.abs(offsetZ) <= PARTICLE_MOTION_EPSILON
+    Math.abs(offsetZ) <= PARTICLE_MOTION_EPSILON &&
+    remainingVelocity <= PARTICLE_MOTION_EPSILON
   ) {
     offsetX = 0;
     offsetY = 0;
     offsetZ = 0;
+    velocityX = 0;
+    velocityY = 0;
+    velocityZ = 0;
   }
 
   offsets[offsetIndex] = offsetX;
   offsets[offsetIndex + 1] = offsetY;
   offsets[offsetIndex + 2] = offsetZ;
+  velocities[offsetIndex] = velocityX;
+  velocities[offsetIndex + 1] = velocityY;
+  velocities[offsetIndex + 2] = velocityZ;
 
-  particle.x += offsetX + accumulator.correctionX;
-  particle.y += offsetY + accumulator.correctionY;
-  particle.z += offsetZ + accumulator.correctionZ;
+  particle.x += offsetX;
+  particle.y += offsetY;
+  particle.z += offsetZ;
 
   return (
-    targetLength > PARTICLE_MOTION_EPSILON ||
-    Math.abs(offsetX) > PARTICLE_MOTION_EPSILON ||
-    Math.abs(offsetY) > PARTICLE_MOTION_EPSILON ||
-    Math.abs(offsetZ) > PARTICLE_MOTION_EPSILON
+    remainingVelocity > PARTICLE_MOTION_EPSILON ||
+    remainingError > PARTICLE_MOTION_EPSILON
   );
 }
 
@@ -544,8 +583,19 @@ function accumulateObstacleFlow(
     deltaX * field.upAxis.x +
     deltaY * field.upAxis.y +
     deltaZ * field.upAxis.z;
-  const signX = planeX >= 0 ? 1 : -1;
-  const signY = planeY >= 0 ? 1 : -1;
+  const signX =
+    Math.abs(planeX) > 0.0001
+      ? Math.sign(planeX)
+      : particle.spreadX >= 0
+        ? 1
+        : -1;
+  const signY =
+    Math.abs(planeY) > 0.0001
+      ? Math.sign(planeY)
+      : particle.spreadY >= 0
+        ? 1
+        : -1;
+  const minHalfSize = Math.min(field.halfWidth, field.halfHeight);
   const innerHalfWidth = Math.max(field.halfWidth - field.cornerRadius, 0);
   const innerHalfHeight = Math.max(field.halfHeight - field.cornerRadius, 0);
   const distanceX = Math.abs(planeX) - innerHalfWidth;
@@ -569,6 +619,31 @@ function accumulateObstacleFlow(
     normalY = signY;
   }
 
+  if (signedDistance < 0) {
+    const surfaceTangentX = -normalY;
+    const surfaceTangentY = normalX;
+    const seedVariation =
+      1 + particle.spreadZ * 2 * RESTING_PRESSURE_VARIANCE;
+    const restingPressure =
+      -signedDistance *
+      RESTING_PRESSURE_RATIO *
+      seedVariation *
+      field.strength;
+    const tangentDrift =
+      particle.spreadZ * 2 * restingPressure * RESTING_TANGENTIAL_DRIFT;
+
+    // A resting card creates a compliant low-density volume, not a rigid
+    // contour. Deep particles move more than shallow ones and retain seeded
+    // tangential/depth variation, so they never converge on one support line.
+    addPlaneVector(
+      accumulator,
+      field,
+      normalX * restingPressure + surfaceTangentX * tangentDrift,
+      normalY * restingPressure + surfaceTangentY * tangentDrift,
+      particle.spreadZ * restingPressure * RESTING_DEPTH_DRIFT,
+    );
+  }
+
   // Card translation and rotation both contribute to the local surface flow.
   // CSS angles increase clockwise, so their local Cartesian rotation is
   // (angularVelocity * y, -angularVelocity * x).
@@ -580,50 +655,6 @@ function accumulateObstacleFlow(
   const hasFlow = flowSpeed > MIN_FLOW_SPEED;
   const motionX = hasFlow ? flowX / flowSpeed : 0;
   const motionY = hasFlow ? flowY / flowSpeed : 0;
-  const normalMotion = normalX * motionX + normalY * motionY;
-
-  if (signedDistance < 0) {
-    const nearestCorrection =
-      (-signedDistance + COLLISION_MARGIN) * field.strength;
-
-    if (hasFlow && normalMotion < -0.05) {
-      const exitDistance = getRoundedRectangleExitDistance(
-        planeX,
-        planeY,
-        motionX,
-        motionY,
-        field.halfWidth,
-        field.halfHeight,
-        field.cornerRadius,
-      );
-      const leadingCorrection =
-        Math.max(
-          exitDistance + COLLISION_MARGIN,
-          -signedDistance + COLLISION_MARGIN,
-        ) * field.strength;
-
-      // Resolve along the swept path so each particle exits through the actual
-      // flat or rounded surface it reaches. Projecting everything onto a box
-      // support plane collapses diagonal motion into a line at the corner.
-      addPlaneVector(
-        accumulator,
-        field,
-        motionX * leadingCorrection,
-        motionY * leadingCorrection,
-        0,
-        true,
-      );
-    } else {
-      addPlaneVector(
-        accumulator,
-        field,
-        normalX * nearestCorrection,
-        normalY * nearestCorrection,
-        0,
-        true,
-      );
-    }
-  }
 
   if (!hasFlow) {
     return;
@@ -631,50 +662,13 @@ function accumulateObstacleFlow(
 
   const sideX = -motionY;
   const sideY = motionX;
-  const minHalfSize = Math.min(field.halfWidth, field.halfHeight);
-  const flowRadius = minHalfSize * FLOW_RADIUS_RATIO + FLOW_RADIUS_MIN;
-  const surfaceWeight = smoothstep01(
-    1 - clamp(Math.max(signedDistance, 0) / flowRadius, 0, 1),
-  );
   const speedWeight = Math.sqrt(
-    clamp(flowSpeed / Math.max(minHalfSize * 1.5, 0.001), 0, 1),
+    clamp(flowSpeed / Math.max(minHalfSize * 1.2, 0.001), 0, 1),
   );
   const displacement =
-    minHalfSize *
-    FLOW_DISPLACEMENT_RATIO *
-    field.strength *
-    speedWeight;
-  const leadingWeight = Math.max(normalMotion, 0) * surfaceWeight;
-  const tangentX = motionX - normalX * normalMotion;
-  const tangentY = motionY - normalY * normalMotion;
-  const sideCoordinate = planeX * sideX + planeY * sideY;
-  const sideExtent = getRoundedRectangleSupportExtent(
-    sideX,
-    sideY,
-    field.halfWidth,
-    field.halfHeight,
-    field.cornerRadius,
-  );
-  // Ease the flow through its centerline instead of sending each half of the
-  // leading edge in an immediately opposite direction. The old binary split
-  // created a visible slit through the particles directly in front of a card.
-  const splitDirection = smoothSigned(
-    sideCoordinate /
-      Math.max(sideExtent * LEADING_SPLIT_BLEND_RATIO, 0.001),
-  );
-  const splitWeight =
-    leadingWeight *
-    (1 - clamp(Math.abs(sideCoordinate) / Math.max(sideExtent, 0.001), 0, 1));
-  const targetX =
-    normalX * leadingWeight * LEADING_PRESSURE +
-    sideX * splitDirection * splitWeight * LEADING_SPLIT +
-    tangentX * surfaceWeight * EDGE_SLIP;
-  const targetY =
-    normalY * leadingWeight * LEADING_PRESSURE +
-    sideY * splitDirection * splitWeight * LEADING_SPLIT +
-    tangentY * surfaceWeight * EDGE_SLIP;
-
+    minHalfSize * FLOW_DISPLACEMENT_RATIO * field.strength * speedWeight;
   const alongCoordinate = planeX * motionX + planeY * motionY;
+  const sideCoordinate = planeX * sideX + planeY * sideY;
   const alongExtent = getRoundedRectangleSupportExtent(
     motionX,
     motionY,
@@ -682,6 +676,64 @@ function accumulateObstacleFlow(
     field.halfHeight,
     field.cornerRadius,
   );
+  const sideExtent = getRoundedRectangleSupportExtent(
+    sideX,
+    sideY,
+    field.halfWidth,
+    field.halfHeight,
+    field.cornerRadius,
+  );
+  const normalizedAlong = alongCoordinate / Math.max(alongExtent, 0.001);
+  const normalizedSide = sideCoordinate / Math.max(sideExtent, 0.001);
+  const normalizedRadius = Math.hypot(normalizedAlong, normalizedSide);
+  const sampleRadius = Math.max(normalizedRadius, 1);
+  const influenceWeight = smoothstep01(
+    1 -
+      clamp(
+        (sampleRadius - 1) / Math.max(FLOW_INFLUENCE_RADIUS - 1, 0.001),
+        0,
+        1,
+      ),
+  );
+
+  if (influenceWeight <= 0) {
+    return;
+  }
+
+  const directionLength = Math.max(normalizedRadius, 0.0001);
+  const seedDirectionLength = Math.max(
+    Math.hypot(particle.spreadX, particle.spreadY),
+    0.0001,
+  );
+  const directionAlong =
+    normalizedRadius > 0.0001
+      ? normalizedAlong / directionLength
+      : particle.spreadX / seedDirectionLength;
+  const directionSide =
+    normalizedRadius > 0.0001
+      ? normalizedSide / directionLength
+      : particle.spreadY / seedDirectionLength;
+  const inverseRadiusSquared = 1 / (sampleRadius * sampleRadius);
+  const doubleAngleAlong =
+    directionAlong * directionAlong - directionSide * directionSide;
+  const doubleAngleSide = 2 * directionAlong * directionSide;
+  const directionalViscosity = lerp(
+    TRAILING_FLOW_RATIO,
+    1,
+    smoothstep01((directionAlong + 1) * 0.5),
+  );
+  const potentialWeight =
+    inverseRadiusSquared * influenceWeight * directionalViscosity;
+  const viscousSwirl =
+    particle.spreadZ *
+    FLOW_VISCOSITY_SWIRL *
+    influenceWeight *
+    (1 - clamp(Math.abs(directionSide), 0, 1));
+  const flowAlong = doubleAngleAlong * potentialWeight;
+  const flowSide = doubleAngleSide * potentialWeight + viscousSwirl;
+  const targetX = motionX * flowAlong + sideX * flowSide;
+  const targetY = motionY * flowAlong + sideY * flowSide;
+
   const behindDistance = -(alongCoordinate + alongExtent);
   const wakeLength = alongExtent * 0.9 + minHalfSize * 0.72;
 
@@ -705,12 +757,8 @@ function accumulateObstacleFlow(
     );
   }
 
-  const sideSurfaceWeight =
-    (1 - Math.abs(normalMotion)) * surfaceWeight;
   const depthFlow =
-    particle.spreadZ *
-    Math.max(leadingWeight, sideSurfaceWeight) *
-    FLOW_DEPTH;
+    particle.spreadZ * potentialWeight * FLOW_DEPTH;
 
   addPlaneVector(
     accumulator,
@@ -718,7 +766,6 @@ function accumulateObstacleFlow(
     targetX * displacement,
     targetY * displacement,
     depthFlow * displacement,
-    false,
   );
 }
 
@@ -728,7 +775,6 @@ function addPlaneVector(
   planeX: number,
   planeY: number,
   depth: number,
-  correction: boolean,
 ) {
   const x =
     field.rightAxis.x * planeX +
@@ -742,13 +788,6 @@ function addPlaneVector(
     field.rightAxis.z * planeX +
     field.upAxis.z * planeY +
     field.planeNormal.z * depth;
-
-  if (correction) {
-    accumulator.correctionX += x;
-    accumulator.correctionY += y;
-    accumulator.correctionZ += z;
-    return;
-  }
 
   accumulator.targetX += x;
   accumulator.targetY += y;
@@ -787,10 +826,6 @@ function projectScreenPointToLocal(
 function smoothstep01(value: number) {
   const clamped = clamp(value, 0, 1);
   return clamped * clamped * (3 - 2 * clamped);
-}
-
-function smoothSigned(value: number) {
-  return Math.sign(value) * smoothstep01(Math.abs(value));
 }
 
 function lerp(start: number, end: number, progress: number) {
