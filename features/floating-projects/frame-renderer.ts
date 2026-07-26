@@ -40,6 +40,7 @@ type ArenaMeasurements = {
   scrollY: number;
   left: number;
   top: number;
+  cardScale: number;
   scaleX: number;
   scaleY: number;
   cornerScale: number;
@@ -66,6 +67,7 @@ export function createFloatingProjectFrameRenderer(
     scrollY: 0,
     left: 0,
     top: 0,
+    cardScale: 1,
     scaleX: 1,
     scaleY: 1,
     cornerScale: 1,
@@ -107,10 +109,11 @@ export function createFloatingProjectFrameRenderer(
   };
 
   return {
-    refreshMeasurements() {
+    refreshMeasurements(cardScale: number) {
       for (const role of floatingProjectCardRoles) {
         states[role].cornerRadius = readCornerRadius(elements[role]);
       }
+      measurements.cardScale = cardScale;
       measurements.valid = false;
       measureArena(window.scrollY);
     },
@@ -132,12 +135,14 @@ export function createFloatingProjectFrameRenderer(
           const { body, role, width, height } = record;
           const element = elements[role];
           const state = states[role];
+          const layoutWidth = width / measurements.cardScale;
+          const layoutHeight = height / measurements.cardScale;
           const centerX =
             measurements.left + body.position.x * measurements.scaleX;
           const centerY =
             measurements.top + body.position.y * measurements.scaleY;
 
-          element.style.transform = `translate3d(${body.position.x - width * 0.5}px, ${body.position.y - height * 0.5}px, 0) rotate(${body.angle}rad)`;
+          element.style.transform = `translate3d(${body.position.x - layoutWidth * 0.5}px, ${body.position.y - layoutHeight * 0.5}px, 0) rotate(${body.angle}rad) scale(${measurements.cardScale})`;
           if (WRITE_PHYSICS_DIAGNOSTICS) {
             element.dataset.physicsX = body.position.x.toFixed(2);
             element.dataset.physicsY = body.position.y.toFixed(2);
@@ -151,7 +156,9 @@ export function createFloatingProjectFrameRenderer(
             width * measurements.scaleX,
             height * measurements.scaleY,
             body.angle,
-            state.cornerRadius * measurements.cornerScale,
+            state.cornerRadius *
+              measurements.cardScale *
+              measurements.cornerScale,
           );
           updateObstacleMotion(state, frame, centerX, centerY, body.angle);
           publishParticleObstacle(

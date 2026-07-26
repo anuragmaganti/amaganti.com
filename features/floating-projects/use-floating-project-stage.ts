@@ -5,6 +5,7 @@ import { type RefObject, useLayoutEffect } from "react";
 
 import {
   floatingProjectCardRoles,
+  getFloatingProjectCardScale,
   mapFloatingProjectCards,
   type FloatingProjectCardRole,
   type FloatingProjectLayoutPresetId,
@@ -82,10 +83,11 @@ export function useFloatingProjectStage({
       const height = arena.clientHeight;
       if (width < 1 || height < 1) return;
 
-      renderer.refreshMeasurements();
+      const cardScale = getFloatingProjectCardScale(window.innerWidth);
+      renderer.refreshMeasurements(cardScale);
       const cardSizes = mapFloatingProjectCards((role) => ({
-        width: Math.min(elements[role].offsetWidth, width),
-        height: Math.min(elements[role].offsetHeight, height),
+        width: Math.min(elements[role].offsetWidth * cardScale, width),
+        height: Math.min(elements[role].offsetHeight * cardScale, height),
       }));
       world.rebuild({ width, height }, cardSizes, layoutPreset);
     };

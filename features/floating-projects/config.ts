@@ -3,6 +3,15 @@ export const floatingProjectCardRoles = ["media", "copy", "actions"] as const;
 export type FloatingProjectCardRole =
   (typeof floatingProjectCardRoles)[number];
 
+const MOBILE_CARD_MAX_VIEWPORT_WIDTH = 700;
+const MOBILE_CARD_SCALE = 0.9;
+
+export function getFloatingProjectCardScale(viewportWidth: number) {
+  return viewportWidth <= MOBILE_CARD_MAX_VIEWPORT_WIDTH
+    ? MOBILE_CARD_SCALE
+    : 1;
+}
+
 export type FloatingProjectLayoutPreset = {
   columnGap: number;
   mediaActionGap: number;

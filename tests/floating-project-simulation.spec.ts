@@ -4,6 +4,7 @@ import {
   FLOATING_PROJECT_SIMULATION,
   resolveFloatingProjectPhysicsSteps,
 } from "../features/floating-projects/simulation";
+import { getFloatingProjectCardScale } from "../features/floating-projects/config";
 import {
   createParticleObstacleScreenFrame,
   writeParticleObstacleGeometry,
@@ -22,6 +23,13 @@ import {
 } from "../lib/particle-obstacle-store";
 
 test.describe("floating project simulation", () => {
+  test("scales every floating card down ten percent only on mobile", () => {
+    expect(getFloatingProjectCardScale(700)).toBe(0.9);
+    expect(getFloatingProjectCardScale(430)).toBe(0.9);
+    expect(getFloatingProjectCardScale(701)).toBe(1);
+    expect(getFloatingProjectCardScale(1024)).toBe(1);
+  });
+
   test("advances once per native high-refresh frame", () => {
     for (const refreshRate of [120, 144]) {
       const frame = resolveFloatingProjectPhysicsSteps(1000 / refreshRate);

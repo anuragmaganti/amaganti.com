@@ -180,6 +180,18 @@ test.describe("portfolio behavior contract", () => {
           };
         }),
       );
+      const cardScales = await cards.evaluateAll((elements) =>
+        elements.map((element) => {
+          const matrix = new DOMMatrixReadOnly(
+            getComputedStyle(element).transform,
+          );
+          return Math.hypot(matrix.a, matrix.b);
+        }),
+      );
+      const expectedCardScale =
+        (page.viewportSize()?.width ?? Number.POSITIVE_INFINITY) <= 700
+          ? 0.9
+          : 1;
 
       for (const box of cardBoxes) {
         expect(box.left).toBeGreaterThanOrEqual(-2);
@@ -188,6 +200,9 @@ test.describe("portfolio behavior contract", () => {
         expect(box.bottom).toBeLessThanOrEqual(
           (page.viewportSize()?.height ?? 0) + 2,
         );
+      }
+      for (const cardScale of cardScales) {
+        expect(cardScale).toBeCloseTo(expectedCardScale, 2);
       }
       expect(overflow.overflowX).not.toMatch(/auto|scroll/);
       expect(overflow.overflowY).not.toMatch(/auto|scroll/);
