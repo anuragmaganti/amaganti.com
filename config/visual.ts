@@ -69,6 +69,11 @@ export const particleVisualConfig = {
   density: {
     maxPoints: 8000,
   },
+  rendering: {
+    // Full-screen DPR 3 canvases more than double the fill cost of DPR 2.
+    // Retina-density touch displays remain sharp at DPR 2 without dropping points.
+    maxCoarsePointerDpr: 2,
+  },
   appearance: {
     pointSizeScale: 1,
     noiseScale: 1,

@@ -47,44 +47,73 @@ export function useIsDarkTheme() {
   return isDarkTheme;
 }
 
-export function useDevicePixelRatio() {
-  const [devicePixelRatio, setDevicePixelRatio] = useState(1);
+export function resolveScenePixelRatio(
+  devicePixelRatio: number,
+  coarsePointer: boolean,
+) {
+  const validDevicePixelRatio =
+    Number.isFinite(devicePixelRatio) && devicePixelRatio > 0
+      ? devicePixelRatio
+      : 1;
+
+  return coarsePointer
+    ? Math.min(
+        validDevicePixelRatio,
+        particleVisualConfig.rendering.maxCoarsePointerDpr,
+      )
+    : validDevicePixelRatio;
+}
+
+export function useScenePixelRatio() {
+  const [scenePixelRatio, setScenePixelRatio] = useState(1);
 
   useEffect(() => {
     let resolutionQuery: MediaQueryList | null = null;
+    const coarsePointerQuery = window.matchMedia(
+      "(hover: none) and (pointer: coarse)",
+    );
 
-    const updateDevicePixelRatio = () => {
-      const nextDevicePixelRatio = window.devicePixelRatio || 1;
+    const updateScenePixelRatio = () => {
+      const devicePixelRatio = window.devicePixelRatio || 1;
+      const nextScenePixelRatio = resolveScenePixelRatio(
+        devicePixelRatio,
+        coarsePointerQuery.matches,
+      );
 
-      setDevicePixelRatio((currentDevicePixelRatio) =>
-        currentDevicePixelRatio === nextDevicePixelRatio
-          ? currentDevicePixelRatio
-          : nextDevicePixelRatio,
+      setScenePixelRatio((currentScenePixelRatio) =>
+        currentScenePixelRatio === nextScenePixelRatio
+          ? currentScenePixelRatio
+          : nextScenePixelRatio,
       );
 
       resolutionQuery?.removeEventListener(
         "change",
-        updateDevicePixelRatio,
+        updateScenePixelRatio,
       );
       resolutionQuery = window.matchMedia(
-        `(resolution: ${nextDevicePixelRatio}dppx)`,
+        `(resolution: ${devicePixelRatio}dppx)`,
       );
-      resolutionQuery.addEventListener("change", updateDevicePixelRatio);
+      resolutionQuery.addEventListener("change", updateScenePixelRatio);
     };
 
-    updateDevicePixelRatio();
-    window.addEventListener("resize", updateDevicePixelRatio, {
+    updateScenePixelRatio();
+    window.addEventListener("resize", updateScenePixelRatio, {
       passive: true,
     });
+    coarsePointerQuery.addEventListener("change", updateScenePixelRatio);
 
     return () => {
-      window.removeEventListener("resize", updateDevicePixelRatio);
+      window.removeEventListener("resize", updateScenePixelRatio);
+      coarsePointerQuery.removeEventListener(
+        "change",
+        updateScenePixelRatio,
+      );
       resolutionQuery?.removeEventListener(
         "change",
-        updateDevicePixelRatio,
+        updateScenePixelRatio,
       );
     };
   }, []);
 
-  return devicePixelRatio;
+  return scenePixelRatio;
 }

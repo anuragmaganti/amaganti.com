@@ -80,6 +80,29 @@ test.describe("portfolio behavior contract", () => {
     );
   });
 
+  test("runs project compositor effects only near the active stage", async ({
+    page,
+  }) => {
+    await openPortfolio(page, { reducedMotion: "no-preference" });
+    const firstProject = projects[0];
+    const firstArena = page.locator(
+      `#${firstProject.slug} .project-float-arena`,
+    );
+
+    await expect(firstArena).toHaveAttribute("data-active", "false");
+    const actionLabel = firstArena.locator(".project-action__label").first();
+    const readShimmerAnimation = () =>
+      actionLabel.evaluate(
+        (element) => getComputedStyle(element, "::before").animationName,
+      );
+
+    await expect.poll(readShimmerAnimation).toBe("none");
+
+    await scrollToSection(page, firstProject.slug);
+    await expect(firstArena).toHaveAttribute("data-active", "true");
+    await expect.poll(readShimmerAnimation).toBe("project-action-shimmer");
+  });
+
   test("keeps project and contact destinations explicit", async ({ page }) => {
     await openPortfolio(page);
 
@@ -98,6 +121,20 @@ test.describe("portfolio behavior contract", () => {
           "href",
           project.githubHref,
         );
+      }
+
+      if (project.video) {
+        const video = card.getByLabel(project.video.label);
+
+        await expect(video).toHaveAttribute("controls", "");
+        await expect(video).toHaveAttribute("playsinline", "");
+        await expect(video).toHaveAttribute("preload", "metadata");
+        await expect(video).toHaveAttribute("poster", project.video.posterSrc.src);
+        await expect(video.locator("source")).toHaveAttribute(
+          "src",
+          project.video.src,
+        );
+        await expect(video).not.toHaveAttribute("autoplay", "");
       }
     }
 

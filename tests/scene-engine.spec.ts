@@ -7,6 +7,7 @@ import {
   sectionsBeforeProjects,
 } from "../config/sections";
 import { parsePointCloudBuffer } from "../lib/point-cloud-asset";
+import { resolveScenePixelRatio } from "../hooks/use-scene-environment";
 import {
   createSampledScene,
   createSceneTimeline,
@@ -49,6 +50,14 @@ test.describe("scene engine contract", () => {
     expect(() =>
       parsePointCloudBuffer(new ArrayBuffer(Float32Array.BYTES_PER_ELEMENT)),
     ).toThrow("Float32 XYZ triplets");
+  });
+
+  test("caps only high-density coarse-pointer scene rendering", () => {
+    expect(resolveScenePixelRatio(3, true)).toBe(2);
+    expect(resolveScenePixelRatio(2, true)).toBe(2);
+    expect(resolveScenePixelRatio(1.5, true)).toBe(1.5);
+    expect(resolveScenePixelRatio(3, false)).toBe(3);
+    expect(resolveScenePixelRatio(Number.NaN, true)).toBe(1);
   });
 
   test("derives a continuous timeline from the section registry", () => {

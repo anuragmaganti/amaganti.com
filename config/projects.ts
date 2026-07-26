@@ -14,6 +14,11 @@ export type ProjectEntry = {
   technologies: readonly string[];
   imageSrc: StaticImageData;
   imageAlt: string;
+  video?: {
+    src: string;
+    posterSrc: StaticImageData;
+    label: string;
+  };
   href?: string;
   linkLabel?: string;
   githubHref?: string;
@@ -160,6 +165,15 @@ export const projects = [
     imageSrc: projectImage("/projects/resumeloomr-v2.png", 2934, 1750),
     imageAlt:
       "ResumeLoomr interface showing a resume editor, section navigation, and live printable resume preview.",
+    video: {
+      src: "/projects/resumeloomr-promo.mp4",
+      posterSrc: projectImage(
+        "/projects/resumeloomr-promo-poster.jpg",
+        1920,
+        1080,
+      ),
+      label: "Play the ResumeLoomr product walkthrough",
+    },
     href: "https://resumeloomr.com/",
     linkLabel: "Visit Website",
     githubHref: "https://github.com/anuragmaganti/ResumeLoomr",

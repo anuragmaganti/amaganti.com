@@ -20,12 +20,9 @@
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: var(--panel-background);
-  backdrop-filter: blur(12px);
   box-shadow: var(--shadow-panel);
   overflow: hidden;
   contain: paint;
-  transform: translateZ(0);
-  will-change: transform, opacity;
 }
 
 .panel::before {
@@ -67,13 +64,22 @@
   margin: 0;
   border-radius: var(--radius-lg);
   background: var(--project-panel-background);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
   box-shadow: var(--project-panel-shadow);
   cursor: grab;
   touch-action: pan-y;
   transform-origin: center;
   user-select: text;
+}
+
+.project-float-arena[data-active="true"] .panel.project-float-card {
+  backdrop-filter: blur(14px);
+  will-change: transform;
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .project-float-arena[data-active="true"] .panel.project-float-card {
+    -webkit-backdrop-filter: blur(14px);
+  }
 }
 
 .panel.project-float-card::before {
@@ -203,6 +209,11 @@
   opacity: 1;
   filter: none;
   mix-blend-mode: normal;
+}
+
+.project-card__video {
+  background: var(--project-media-background);
+  cursor: auto;
 }
 
 .project-card__scroll {
@@ -410,6 +421,10 @@
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  animation: none;
+}
+
+.project-float-arena[data-active="true"] .project-action__label::before {
   animation: project-action-shimmer 2000ms linear infinite;
 }
 

@@ -14,8 +14,9 @@ copy or visual preferences themselves.
 Array order is display order. Keep project slugs, content ids, and skill ids
 unique because they are used as stable section and accessibility identifiers.
 
-Project images belong in `public/projects/`. Always provide the image's intrinsic
-width and height and a useful alt description. Select one of the typed
+Project images and optional videos belong in `public/projects/`. Always provide
+the image or video poster's intrinsic width and height and a useful accessible
+description. Video entries use the image as a loading-failure fallback. Select one of the typed
 `floatingLayout` values for the starting card composition and one of the typed
 `particlePreset` values for the field behind each card.
 

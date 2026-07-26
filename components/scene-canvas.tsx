@@ -13,9 +13,9 @@ import {
 import { useIntroCopyFrame } from "@/hooks/use-intro-copy-frame";
 import { usePointCloudSource } from "@/hooks/use-point-cloud-source";
 import {
-  useDevicePixelRatio,
   useIsDarkTheme,
   usePointCloudQualityProfile,
+  useScenePixelRatio,
   type PointCloudQualityProfile,
 } from "@/hooks/use-scene-environment";
 import { useTypographyVersion } from "@/hooks/use-typography-version";
@@ -90,7 +90,7 @@ type PointCloudSystemProps = {
 export function SceneCanvas({ progress, timeline }: SceneCanvasProps) {
   const reducedMotion = Boolean(useReducedMotion());
   const isDarkTheme = useIsDarkTheme();
-  const devicePixelRatio = useDevicePixelRatio();
+  const scenePixelRatio = useScenePixelRatio();
   const profile = usePointCloudQualityProfile(reducedMotion);
   const basePositions = usePointCloudSource(
     particleVisualConfig.density.maxPoints,
@@ -98,7 +98,7 @@ export function SceneCanvas({ progress, timeline }: SceneCanvasProps) {
 
   return (
     <Canvas
-      dpr={devicePixelRatio}
+      dpr={scenePixelRatio}
       camera={{ position: [0, 0, 4.9], fov: 30 }}
       frameloop="demand"
       gl={{

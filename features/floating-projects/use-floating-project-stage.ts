@@ -51,6 +51,7 @@ export function useFloatingProjectStage({
       arena,
       elements,
     );
+    arena.dataset.active = "false";
     let activeDrag: ActiveDrag | null = null;
     let frameTask: SceneFrameTaskController | null = null;
     let buildPending = false;
@@ -141,13 +142,16 @@ export function useFloatingProjectStage({
       const usedHandle = Boolean(
         target.closest(".project-float-card__handle"),
       );
+      const usedInteractiveControl = Boolean(
+        target.closest("a, button, input, select, textarea, video"),
+      );
       const isTouchLike =
         event.pointerType === "touch" || event.pointerType === "pen";
 
       if (
         !element ||
         !role ||
-        (!usedHandle && target.closest("a, button")) ||
+        (!usedHandle && usedInteractiveControl) ||
         (isTouchLike && !usedHandle)
       ) {
         return;
@@ -224,6 +228,7 @@ export function useFloatingProjectStage({
     const intersectionObserver = new IntersectionObserver(
       ([entry]) => {
         isVisible = entry.isIntersecting && entry.intersectionRatio > 0.01;
+        arena.dataset.active = String(isVisible);
 
         if (isVisible) {
           requestFrame();
@@ -240,6 +245,7 @@ export function useFloatingProjectStage({
 
     return () => {
       isDestroyed = true;
+      delete arena.dataset.active;
       cancelDrag();
       frameTask?.dispose();
       resizeObserver.disconnect();

@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import type { MotionValue } from "motion";
 import {
   motion,
@@ -14,6 +13,7 @@ import {
   getSectionTimelineAttributes,
   SectionSnapAnchor,
 } from "@/components/portfolio-section-frame";
+import { ProjectMedia } from "@/components/project-media";
 import type { ProjectEntry } from "@/config/projects";
 import type { SectionDefinition } from "@/config/sections";
 import {
@@ -59,8 +59,8 @@ export function ProjectCardSection({
   const cardShadow = useMotionTemplate`0 30px 90px rgba(var(--project-card-shadow-rgb), 0.52), 0 0 48px rgba(var(--project-card-glow-rgb), ${glowAlpha})`;
   const titleId = `${project.slug}-title`;
   const imageSizingStyle = createProjectImageSizingVariables(
-    project.imageSrc.width,
-    project.imageSrc.height,
+    project.video?.posterSrc.width ?? project.imageSrc.width,
+    project.video?.posterSrc.height ?? project.imageSrc.height,
   ) as CSSProperties;
   useFloatingProjectStage({
     stageId: project.slug,
@@ -90,13 +90,7 @@ export function ProjectCardSection({
                   className="project-card__media-inner"
                   style={{ scale: mediaScale }}
                 >
-                  <Image
-                    src={project.imageSrc}
-                    alt={project.imageAlt}
-                    className="project-card__image"
-                    loading="eager"
-                    sizes="(max-width: 380px) 86vw, (max-width: 700px) 90vw, (max-width: 1024px) 29rem, (max-width: 1400px) 31rem, 36rem"
-                  />
+                  <ProjectMedia project={project} />
                 </motion.div>
               </div>
             </FloatingProjectCard>

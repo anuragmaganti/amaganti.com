@@ -42,7 +42,7 @@ function ProjectActionOrb({
     const action = canvas.closest<HTMLElement>(".project-action");
     let reducedMotion = reducedMotionQuery.matches;
     let speedMultiplier = 1;
-    let isIntersecting = true;
+    let isIntersecting = false;
     let phase = (performance.now() / 1000) * preset.speed;
 
     const paint = (time: number) => {
