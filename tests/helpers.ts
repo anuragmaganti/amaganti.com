@@ -43,7 +43,9 @@ export async function openPortfolio(
   await pointCloudResponse;
   await page.waitForFunction(() => document.fonts.status === "loaded");
   await page.waitForFunction(() =>
-    Array.from(document.images).every((image) => image.complete),
+    Array.from(document.images).every(
+      (image) => image.loading === "lazy" || image.complete,
+    ),
   );
   await expect(page.locator(".scene-frame canvas")).toBeVisible();
   await page.waitForTimeout(350);
@@ -73,6 +75,22 @@ export async function scrollToSection(
     (target) => Math.abs(window.scrollY - target) < 2,
     targetScroll,
   );
+  const sectionImages = page.locator(
+    `[data-portfolio-section-id="${sectionId}"] img`,
+  );
+  if (await sectionImages.count()) {
+    await expect
+      .poll(() =>
+        sectionImages.evaluateAll((images) =>
+          images.every(
+            (image) =>
+              (image as HTMLImageElement).complete &&
+              (image as HTMLImageElement).naturalWidth > 0,
+          ),
+        ),
+      )
+      .toBe(true);
+  }
   await page.waitForTimeout(650);
 }
 

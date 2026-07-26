@@ -128,13 +128,18 @@ test.describe("portfolio behavior contract", () => {
 
         await expect(video).toHaveAttribute("controls", "");
         await expect(video).toHaveAttribute("playsinline", "");
-        await expect(video).toHaveAttribute("preload", "metadata");
+        await expect(video).toHaveAttribute("preload", "none");
         await expect(video).toHaveAttribute("poster", project.video.posterSrc.src);
         await expect(video.locator("source")).toHaveAttribute(
           "src",
           project.video.src,
         );
         await expect(video).not.toHaveAttribute("autoplay", "");
+
+        await scrollToSection(page, project.slug);
+        await expect(video).toHaveAttribute("preload", "metadata");
+      } else {
+        await expect(card.locator("img")).toHaveAttribute("loading", "lazy");
       }
     }
 
@@ -264,7 +269,7 @@ test.describe("portfolio behavior contract", () => {
     page.on("console", (message) => {
       if (
         (message.type() === "error" || message.type() === "warning") &&
-        !isHeadlessGraphicsReadbackWarning(message.text())
+        !isExpectedDevelopmentWarning(message.text())
       ) {
         problems.push(`${message.type()}: ${message.text()}`);
       }
@@ -433,9 +438,12 @@ test.describe("portfolio behavior contract", () => {
   });
 });
 
-function isHeadlessGraphicsReadbackWarning(message: string) {
+function isExpectedDevelopmentWarning(message: string) {
   return (
-    message.includes("GL Driver Message") &&
-    message.includes("GPU stall due to ReadPixels")
+    (message.includes("GL Driver Message") &&
+      message.includes("GPU stall due to ReadPixels")) ||
+    (message.includes("was detected as the Largest Contentful Paint") &&
+      message.includes("/projects/") &&
+      message.includes('loading="eager"'))
   );
 }

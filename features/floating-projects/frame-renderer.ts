@@ -7,6 +7,7 @@ import type { FloatingProjectCardBody } from "@/features/floating-projects/physi
 import { writeParticleObstacleGeometry } from "@/lib/particle-obstacle-geometry";
 import {
   batchParticleObstacleUpdates,
+  deactivateParticleObstacle,
   publishParticleObstacle,
   registerParticleObstacle,
   unregisterParticleObstacle,
@@ -32,6 +33,17 @@ const MAX_SCREEN_VELOCITY = 2400;
 const MAX_SCREEN_ANGULAR_VELOCITY = Math.PI * 1.5;
 const MOTION_SMOOTHING = 12;
 const STICKY_SCROLL_COUPLING = 0.55;
+const WRITE_PHYSICS_DIAGNOSTICS = process.env.NODE_ENV !== "production";
+
+type ArenaMeasurements = {
+  valid: boolean;
+  scrollY: number;
+  left: number;
+  top: number;
+  scaleX: number;
+  scaleY: number;
+  cornerScale: number;
+};
 
 export function createFloatingProjectFrameRenderer(
   stageId: string,
@@ -49,12 +61,58 @@ export function createFloatingProjectFrameRenderer(
     velocityY: 0,
     angularVelocity: 0,
   }));
+  const measurements: ArenaMeasurements = {
+    valid: false,
+    scrollY: 0,
+    left: 0,
+    top: 0,
+    scaleX: 1,
+    scaleY: 1,
+    cornerScale: 1,
+  };
+
+  const measureArena = (scrollY: number) => {
+    const bounds = arena.getBoundingClientRect();
+    const arenaWidth = arena.clientWidth;
+    const arenaHeight = arena.clientHeight;
+
+    measurements.valid = true;
+    measurements.scrollY = scrollY;
+    measurements.left = bounds.left;
+    measurements.top = bounds.top;
+    measurements.scaleX = arenaWidth ? bounds.width / arenaWidth : 1;
+    measurements.scaleY = arenaHeight ? bounds.height / arenaHeight : 1;
+    measurements.cornerScale = Math.min(
+      measurements.scaleX,
+      measurements.scaleY,
+    );
+  };
+
+  const deactivate = () => {
+    batchParticleObstacleUpdates(() => {
+      for (const role of floatingProjectCardRoles) {
+        const state = states[role];
+
+        state.previousTimestamp = 0;
+        state.velocityX = 0;
+        state.velocityY = 0;
+        state.angularVelocity = 0;
+        state.entry.motion.velocityX = 0;
+        state.entry.motion.velocityY = 0;
+        state.entry.motion.angularVelocity = 0;
+        state.entry.motion.sampledAt = 0;
+        deactivateParticleObstacle(state.entry);
+      }
+    });
+  };
 
   return {
     refreshMeasurements() {
       for (const role of floatingProjectCardRoles) {
         states[role].cornerRadius = readCornerRadius(elements[role]);
       }
+      measurements.valid = false;
+      measureArena(window.scrollY);
     },
     render(
       records: Map<FloatingProjectCardRole, FloatingProjectCardBody>,
@@ -62,45 +120,52 @@ export function createFloatingProjectFrameRenderer(
     ) {
       if (!records.size) return;
 
-      const arenaBounds = arena.getBoundingClientRect();
-      const scaleX = arena.clientWidth
-        ? arenaBounds.width / arena.clientWidth
-        : 1;
-      const scaleY = arena.clientHeight
-        ? arenaBounds.height / arena.clientHeight
-        : 1;
-      const cornerScale = Math.min(scaleX, scaleY);
+      if (!measurements.valid || frame.scrollY !== measurements.scrollY) {
+        measureArena(frame.scrollY);
+      }
+
+      const viewportWidth = Math.max(window.innerWidth, 1);
+      const viewportHeight = Math.max(window.innerHeight, 1);
 
       batchParticleObstacleUpdates(() => {
         for (const record of records.values()) {
           const { body, role, width, height } = record;
           const element = elements[role];
           const state = states[role];
-          const centerX = arenaBounds.left + body.position.x * scaleX;
-          const centerY = arenaBounds.top + body.position.y * scaleY;
+          const centerX =
+            measurements.left + body.position.x * measurements.scaleX;
+          const centerY =
+            measurements.top + body.position.y * measurements.scaleY;
 
           element.style.transform = `translate3d(${body.position.x - width * 0.5}px, ${body.position.y - height * 0.5}px, 0) rotate(${body.angle}rad)`;
-          element.dataset.physicsX = body.position.x.toFixed(2);
-          element.dataset.physicsY = body.position.y.toFixed(2);
-          element.dataset.physicsAngle = body.angle.toFixed(6);
+          if (WRITE_PHYSICS_DIAGNOSTICS) {
+            element.dataset.physicsX = body.position.x.toFixed(2);
+            element.dataset.physicsY = body.position.y.toFixed(2);
+            element.dataset.physicsAngle = body.angle.toFixed(6);
+          }
 
           writeParticleObstacleGeometry(
             state.entry.geometry,
             centerX,
             centerY,
-            width * scaleX,
-            height * scaleY,
+            width * measurements.scaleX,
+            height * measurements.scaleY,
             body.angle,
-            state.cornerRadius * cornerScale,
+            state.cornerRadius * measurements.cornerScale,
           );
           updateObstacleMotion(state, frame, centerX, centerY, body.angle);
           publishParticleObstacle(
             state.entry,
-            getViewportApproachStrength(state.entry),
+            getViewportApproachStrength(
+              state.entry,
+              viewportWidth,
+              viewportHeight,
+            ),
           );
         }
       });
     },
+    deactivate,
     destroy() {
       batchParticleObstacleUpdates(() => {
         for (const role of floatingProjectCardRoles) {
@@ -179,9 +244,11 @@ function updateObstacleMotion(
   state.previousTimestamp = frame.timestamp;
 }
 
-function getViewportApproachStrength(entry: ParticleObstacleEntry) {
-  const viewportWidth = Math.max(window.innerWidth, 1);
-  const viewportHeight = Math.max(window.innerHeight, 1);
+function getViewportApproachStrength(
+  entry: ParticleObstacleEntry,
+  viewportWidth: number,
+  viewportHeight: number,
+) {
   const horizontalDistance = getViewportDistance(
     entry.geometry.bounds.left,
     entry.geometry.bounds.right,

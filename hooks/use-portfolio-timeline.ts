@@ -18,18 +18,30 @@ export function usePortfolioScrollProgress(
   useEffect(() => {
     let frameId = 0;
     let observer: ResizeObserver | null = null;
+    let needsMeasurement = true;
+    let shellTop = 0;
+    let scrollableHeight = 1;
 
     const update = () => {
       frameId = 0;
       const shell = shellRef.current;
 
-      if (!shell) {
-        return;
+      if (!shell) return;
+
+      if (needsMeasurement) {
+        const rect = shell.getBoundingClientRect();
+
+        shellTop = rect.top + window.scrollY;
+        scrollableHeight = Math.max(
+          shell.scrollHeight - window.innerHeight,
+          1,
+        );
+        needsMeasurement = false;
       }
 
-      const rect = shell.getBoundingClientRect();
-      const scrollableHeight = Math.max(rect.height - window.innerHeight, 1);
-      progress.set(clamp01(-rect.top / scrollableHeight));
+      progress.set(
+        clamp01((window.scrollY - shellTop) / scrollableHeight),
+      );
     };
     const scheduleUpdate = () => {
       if (frameId) {
@@ -38,22 +50,26 @@ export function usePortfolioScrollProgress(
 
       frameId = window.requestAnimationFrame(update);
     };
+    const scheduleMeasurement = () => {
+      needsMeasurement = true;
+      scheduleUpdate();
+    };
 
-    scheduleUpdate();
+    scheduleMeasurement();
     window.addEventListener("scroll", scheduleUpdate, { passive: true });
-    window.addEventListener("resize", scheduleUpdate, { passive: true });
-    window.addEventListener("load", scheduleUpdate);
+    window.addEventListener("resize", scheduleMeasurement, { passive: true });
+    window.addEventListener("load", scheduleMeasurement);
 
     if (shellRef.current) {
-      observer = new ResizeObserver(scheduleUpdate);
+      observer = new ResizeObserver(scheduleMeasurement);
       observer.observe(shellRef.current);
     }
 
     return () => {
       window.cancelAnimationFrame(frameId);
       window.removeEventListener("scroll", scheduleUpdate);
-      window.removeEventListener("resize", scheduleUpdate);
-      window.removeEventListener("load", scheduleUpdate);
+      window.removeEventListener("resize", scheduleMeasurement);
+      window.removeEventListener("load", scheduleMeasurement);
       observer?.disconnect();
     };
   }, [progress, shellRef]);

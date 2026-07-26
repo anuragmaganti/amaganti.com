@@ -19,6 +19,7 @@ import {
   SCENE_FRAME_PRIORITY,
   type SceneFrameTaskController,
 } from "@/lib/scene-frame-scheduler";
+import { observeViewportProximity } from "@/lib/viewport-proximity";
 
 type ActiveDrag = {
   pointerId: number;
@@ -45,18 +46,19 @@ export function useFloatingProjectStage({
     const elements = readCardElements(arena);
     if (!elements) return;
 
-    const world = createFloatingProjectWorld(reducedMotion);
     const renderer = createFloatingProjectFrameRenderer(
       stageId,
       arena,
       elements,
     );
     arena.dataset.active = "false";
+    const world = createFloatingProjectWorld(reducedMotion);
     let activeDrag: ActiveDrag | null = null;
     let frameTask: SceneFrameTaskController | null = null;
     let buildPending = false;
     let preserveReducedMotionKeyboardFrame = false;
     let isVisible = false;
+    let isNearViewport = false;
     let isDestroyed = false;
     let zIndex = 3;
 
@@ -96,6 +98,11 @@ export function useFloatingProjectStage({
         buildWorld();
       }
 
+      if (!isNearViewport) {
+        frameTask?.setContinuous(false);
+        return;
+      }
+
       if (!world.records.size) {
         frameTask?.setContinuous(false);
         return;
@@ -118,10 +125,12 @@ export function useFloatingProjectStage({
       runOnResize: true,
     });
 
-    const requestFrame = () => {
+    function requestFrame() {
+      if (!isNearViewport || isDestroyed) return;
+
       if (isVisible && !isDestroyed) frameTask?.setContinuous(true);
       frameTask?.request();
-    };
+    }
     const scheduleBuild = () => {
       buildPending = true;
       frameTask?.request();
@@ -175,7 +184,9 @@ export function useFloatingProjectStage({
     };
 
     const handlePointerMove = (event: PointerEvent) => {
-      if (!activeDrag || activeDrag.pointerId !== event.pointerId) return;
+      if (!activeDrag || activeDrag.pointerId !== event.pointerId) {
+        return;
+      }
 
       event.preventDefault();
       world.updateDrag(activeDrag.drag, getPointerPosition(event));
@@ -241,6 +252,21 @@ export function useFloatingProjectStage({
       { threshold: [0, 0.01, 0.15] },
     );
     intersectionObserver.observe(arena);
+    const stopObservingProximity = observeViewportProximity(
+      arena,
+      (nextIsNearViewport) => {
+        isNearViewport = nextIsNearViewport;
+
+        if (isNearViewport) {
+          requestFrame();
+        } else {
+          cancelDrag();
+          frameTask?.setContinuous(false);
+          renderer.deactivate();
+        }
+      },
+      { marginViewportRatio: 0.75 },
+    );
     scheduleBuild();
 
     return () => {
@@ -250,6 +276,7 @@ export function useFloatingProjectStage({
       frameTask?.dispose();
       resizeObserver.disconnect();
       intersectionObserver.disconnect();
+      stopObservingProximity();
       arena.removeEventListener("pointerdown", handlePointerDown);
       arena.removeEventListener("pointermove", handlePointerMove);
       arena.removeEventListener("pointerup", handlePointerEnd);
