@@ -12,14 +12,14 @@ import type {
   ParticleObstacleMotion,
   ParticleObstacleSnapshot,
 } from "@/lib/particle-obstacle-store";
-import { getRoundedRectangleSupportExtent } from "@/lib/rounded-rectangle";
-
 const FIELD_STRENGTH_SMOOTHING = 11;
 const FIELD_VELOCITY_SMOOTHING = 12;
 const MOTION_DECAY_SECONDS = 0.3;
 const MIN_FIELD_STRENGTH = 0.001;
 const MIN_FLOW_SPEED = 0.008;
 const FLOW_INFLUENCE_RADIUS = 2.7;
+const FLOW_INFLUENCE_RADIUS_SQUARED =
+  FLOW_INFLUENCE_RADIUS * FLOW_INFLUENCE_RADIUS;
 const FLOW_DISPLACEMENT_RATIO = 0.28;
 const FLOW_VISCOSITY_SWIRL = 0.075;
 const TRAILING_FLOW_RATIO = 0.62;
@@ -83,6 +83,7 @@ export type ParticleObstacleResources = {
 };
 
 export type ParticleObstacleFlowState = {
+  active: Uint8Array;
   offsets: Float32Array;
   velocities: Float32Array;
 };
@@ -106,6 +107,7 @@ export function createParticleObstacleFlowState(
   pointCount: number,
 ): ParticleObstacleFlowState {
   return {
+    active: new Uint8Array(pointCount),
     offsets: new Float32Array(pointCount * 3),
     velocities: new Float32Array(pointCount * 3),
   };
@@ -229,7 +231,7 @@ export function applyParticleObstacleFlow(
   delta: number,
 ) {
   const offsetIndex = particleIndex * 3;
-  const { offsets, velocities } = flowState;
+  const { active, offsets, velocities } = flowState;
   const accumulator = resources.accumulator;
   let offsetX = offsets[offsetIndex];
   let offsetY = offsets[offsetIndex + 1];
@@ -237,6 +239,14 @@ export function applyParticleObstacleFlow(
   let velocityX = velocities[offsetIndex];
   let velocityY = velocities[offsetIndex + 1];
   let velocityZ = velocities[offsetIndex + 2];
+  const wasTracked =
+    active[particleIndex] === 1 ||
+    offsetX !== 0 ||
+    offsetY !== 0 ||
+    offsetZ !== 0 ||
+    velocityX !== 0 ||
+    velocityY !== 0 ||
+    velocityZ !== 0;
 
   accumulator.targetX = 0;
   accumulator.targetY = 0;
@@ -249,16 +259,24 @@ export function applyParticleObstacleFlow(
   const displacedX = particle.x + offsetX;
   const displacedY = particle.y + offsetY;
   const displacedZ = particle.z + offsetZ;
+  let hasFieldInfluence = false;
 
   for (const field of fields) {
-    accumulateObstacleFlow(
-      particle,
-      displacedX,
-      displacedY,
-      displacedZ,
-      field,
-      accumulator,
-    );
+    hasFieldInfluence =
+      accumulateObstacleFlow(
+        particle,
+        displacedX,
+        displacedY,
+        displacedZ,
+        field,
+        accumulator,
+      ) || hasFieldInfluence;
+  }
+
+  // Untouched particles stop after the conservative broad phase. Tracked
+  // particles continue through the spring until all stored motion is gone.
+  if (!hasFieldInfluence && !wasTracked) {
+    return false;
   }
 
   const targetLength = Math.hypot(
@@ -324,10 +342,11 @@ export function applyParticleObstacleFlow(
   const remainingVelocity = Math.hypot(velocityX, velocityY, velocityZ);
 
   if (
-    fields.length === 0 &&
+    !hasFieldInfluence &&
     Math.abs(offsetX) <= PARTICLE_MOTION_EPSILON &&
     Math.abs(offsetY) <= PARTICLE_MOTION_EPSILON &&
     Math.abs(offsetZ) <= PARTICLE_MOTION_EPSILON &&
+    remainingError <= PARTICLE_MOTION_EPSILON &&
     remainingVelocity <= PARTICLE_MOTION_EPSILON
   ) {
     offsetX = 0;
@@ -344,6 +363,15 @@ export function applyParticleObstacleFlow(
   velocities[offsetIndex] = velocityX;
   velocities[offsetIndex + 1] = velocityY;
   velocities[offsetIndex + 2] = velocityZ;
+  active[particleIndex] =
+    offsetX !== 0 ||
+    offsetY !== 0 ||
+    offsetZ !== 0 ||
+    velocityX !== 0 ||
+    velocityY !== 0 ||
+    velocityZ !== 0
+      ? 1
+      : 0;
 
   particle.x += offsetX;
   particle.y += offsetY;
@@ -583,6 +611,79 @@ function accumulateObstacleFlow(
     deltaX * field.upAxis.x +
     deltaY * field.upAxis.y +
     deltaZ * field.upAxis.z;
+  // Card translation and rotation both contribute to the local surface flow.
+  // CSS angles increase clockwise, so their local Cartesian rotation is
+  // (angularVelocity * y, -angularVelocity * x).
+  const flowX = field.flowVelocity.x + field.angularVelocity * planeY;
+  const flowY = field.flowVelocity.y - field.angularVelocity * planeX;
+  const flowSpeedSquared = flowX * flowX + flowY * flowY;
+  const hasFlow = flowSpeedSquared > MIN_FLOW_SPEED * MIN_FLOW_SPEED;
+  const cornerRadius = clamp(
+    field.cornerRadius,
+    0,
+    Math.min(field.halfWidth, field.halfHeight),
+  );
+  const minHalfSize = Math.min(field.halfWidth, field.halfHeight);
+  const innerHalfWidth = Math.max(field.halfWidth - cornerRadius, 0);
+  const innerHalfHeight = Math.max(field.halfHeight - cornerRadius, 0);
+  let flowSpeed = 0;
+  let motionX = 0;
+  let motionY = 0;
+  let sideX = 0;
+  let sideY = 0;
+  let alongCoordinate = 0;
+  let sideCoordinate = 0;
+  let alongExtent = 0;
+  let sideExtent = 0;
+  let normalizedAlong = 0;
+  let normalizedSide = 0;
+  let normalizedRadiusSquared = 0;
+
+  if (hasFlow) {
+    flowSpeed = Math.sqrt(flowSpeedSquared);
+    motionX = flowX / flowSpeed;
+    motionY = flowY / flowSpeed;
+    sideX = -motionY;
+    sideY = motionX;
+    alongCoordinate = planeX * motionX + planeY * motionY;
+    sideCoordinate = planeX * sideX + planeY * sideY;
+    // The flow basis is normalized, so the rounded-rectangle support needs no
+    // direction-length square root. This rectangle is the cheap first reject.
+    alongExtent =
+      Math.abs(motionX) * innerHalfWidth +
+      Math.abs(motionY) * innerHalfHeight +
+      cornerRadius;
+    sideExtent =
+      Math.abs(sideX) * innerHalfWidth +
+      Math.abs(sideY) * innerHalfHeight +
+      cornerRadius;
+
+    if (
+      Math.abs(alongCoordinate) >
+        alongExtent * FLOW_INFLUENCE_RADIUS ||
+      Math.abs(sideCoordinate) > sideExtent * FLOW_INFLUENCE_RADIUS
+    ) {
+      return false;
+    }
+
+    normalizedAlong = alongCoordinate / Math.max(alongExtent, 0.001);
+    normalizedSide = sideCoordinate / Math.max(sideExtent, 0.001);
+    normalizedRadiusSquared =
+      normalizedAlong * normalizedAlong + normalizedSide * normalizedSide;
+
+    // This is the exact zero-influence boundary used by the potential flow.
+    // Rejecting here skips rounded-SDF work in the outer rectangle's corners.
+    if (normalizedRadiusSquared > FLOW_INFLUENCE_RADIUS_SQUARED) {
+      return false;
+    }
+  } else if (
+    Math.abs(planeX) > field.halfWidth ||
+    Math.abs(planeY) > field.halfHeight
+  ) {
+    // With no card motion, only the soft interior pressure can contribute.
+    return false;
+  }
+
   const signX =
     Math.abs(planeX) > 0.0001
       ? Math.sign(planeX)
@@ -595,9 +696,6 @@ function accumulateObstacleFlow(
       : particle.spreadY >= 0
         ? 1
         : -1;
-  const minHalfSize = Math.min(field.halfWidth, field.halfHeight);
-  const innerHalfWidth = Math.max(field.halfWidth - field.cornerRadius, 0);
-  const innerHalfHeight = Math.max(field.halfHeight - field.cornerRadius, 0);
   const distanceX = Math.abs(planeX) - innerHalfWidth;
   const distanceY = Math.abs(planeY) - innerHalfHeight;
   const outsideX = Math.max(distanceX, 0);
@@ -606,9 +704,10 @@ function accumulateObstacleFlow(
   const signedDistance =
     outsideLength +
     Math.min(Math.max(distanceX, distanceY), 0) -
-    field.cornerRadius;
+    cornerRadius;
   let normalX = 0;
   let normalY = 0;
+  let influenced = false;
 
   if (outsideLength > 0.0001) {
     normalX = (outsideX / outsideLength) * signX;
@@ -620,6 +719,7 @@ function accumulateObstacleFlow(
   }
 
   if (signedDistance < 0) {
+    influenced = true;
     const surfaceTangentX = -normalY;
     const surfaceTangentY = normalX;
     const seedVariation =
@@ -644,48 +744,16 @@ function accumulateObstacleFlow(
     );
   }
 
-  // Card translation and rotation both contribute to the local surface flow.
-  // CSS angles increase clockwise, so their local Cartesian rotation is
-  // (angularVelocity * y, -angularVelocity * x).
-  const flowX =
-    field.flowVelocity.x + field.angularVelocity * planeY;
-  const flowY =
-    field.flowVelocity.y - field.angularVelocity * planeX;
-  const flowSpeed = Math.hypot(flowX, flowY);
-  const hasFlow = flowSpeed > MIN_FLOW_SPEED;
-  const motionX = hasFlow ? flowX / flowSpeed : 0;
-  const motionY = hasFlow ? flowY / flowSpeed : 0;
-
   if (!hasFlow) {
-    return;
+    return influenced;
   }
 
-  const sideX = -motionY;
-  const sideY = motionX;
   const speedWeight = Math.sqrt(
     clamp(flowSpeed / Math.max(minHalfSize * 1.2, 0.001), 0, 1),
   );
   const displacement =
     minHalfSize * FLOW_DISPLACEMENT_RATIO * field.strength * speedWeight;
-  const alongCoordinate = planeX * motionX + planeY * motionY;
-  const sideCoordinate = planeX * sideX + planeY * sideY;
-  const alongExtent = getRoundedRectangleSupportExtent(
-    motionX,
-    motionY,
-    field.halfWidth,
-    field.halfHeight,
-    field.cornerRadius,
-  );
-  const sideExtent = getRoundedRectangleSupportExtent(
-    sideX,
-    sideY,
-    field.halfWidth,
-    field.halfHeight,
-    field.cornerRadius,
-  );
-  const normalizedAlong = alongCoordinate / Math.max(alongExtent, 0.001);
-  const normalizedSide = sideCoordinate / Math.max(sideExtent, 0.001);
-  const normalizedRadius = Math.hypot(normalizedAlong, normalizedSide);
+  const normalizedRadius = Math.sqrt(normalizedRadiusSquared);
   const sampleRadius = Math.max(normalizedRadius, 1);
   const influenceWeight = smoothstep01(
     1 -
@@ -697,8 +765,10 @@ function accumulateObstacleFlow(
   );
 
   if (influenceWeight <= 0) {
-    return;
+    return influenced;
   }
+
+  influenced = true;
 
   const directionLength = Math.max(normalizedRadius, 0.0001);
   const seedDirectionLength = Math.max(
@@ -767,6 +837,8 @@ function accumulateObstacleFlow(
     targetY * displacement,
     depthFlow * displacement,
   );
+
+  return influenced;
 }
 
 function addPlaneVector(

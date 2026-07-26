@@ -121,6 +121,16 @@ test.describe("particle obstacle flow", () => {
     expect(getRoundedRectDistance(cornerExit.x, cornerExit.y)).toBeLessThan(0);
   });
 
+  test("keeps the exact flow envelope while rejecting its outer corners", () => {
+    field.flowVelocity.set(0, 1);
+
+    const insideEnvelope = simulate(2, 0, 12);
+    const outsideEllipse = simulate(-1.6, 1.2, 12);
+
+    expect(Math.abs(insideEnvelope.y)).toBeGreaterThan(0.000001);
+    expect(outsideEllipse).toMatchObject({ x: -1.6, y: 1.2, z: 0 });
+  });
+
   test("integrates the fluid response consistently at 60Hz and 120Hz", () => {
     field.flowVelocity.set(0.8, 1);
 
@@ -149,6 +159,7 @@ test.describe("particle obstacle flow", () => {
       1 / 60,
     );
     expect(particle).toMatchObject({ x: 2, y: 2, z: 0 });
+    expect(flowState.active[0]).toBe(0);
 
     for (let frame = 0; frame < 12; frame += 1) {
       particle.x = 0.92;
@@ -163,6 +174,7 @@ test.describe("particle obstacle flow", () => {
         1 / 60,
       );
     }
+    expect(flowState.active[0]).toBe(1);
 
     for (let frame = 0; frame < 180; frame += 1) {
       particle.x = 0.92;
@@ -180,6 +192,7 @@ test.describe("particle obstacle flow", () => {
 
     expect(particle.x).toBeCloseTo(0.92, 2);
     expect(particle.y).toBeCloseTo(0, 2);
+    expect(flowState.active[0]).toBe(0);
   });
 });
 
