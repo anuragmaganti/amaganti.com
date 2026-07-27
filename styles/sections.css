@@ -212,6 +212,8 @@
     #000 7.5rem,
     #000 100%
   );
+  -webkit-mask-size: 100vw 100%;
+  -webkit-mask-repeat: no-repeat;
   -webkit-mask-clip: no-clip;
   mask-image: linear-gradient(
     to bottom,
@@ -220,6 +222,8 @@
     #000 7.5rem,
     #000 100%
   );
+  mask-size: 100vw 100%;
+  mask-repeat: no-repeat;
   mask-clip: no-clip;
 }
 

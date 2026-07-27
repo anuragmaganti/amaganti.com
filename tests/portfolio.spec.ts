@@ -228,6 +228,49 @@ test.describe("portfolio behavior contract", () => {
     }
   });
 
+  test("keeps overflowing skill labels inside the top fade mask", async (
+    { page },
+    testInfo,
+  ) => {
+    test.skip(testInfo.project.name !== "desktop");
+    await openPortfolio(page, { theme: "light" });
+
+    const geometry = await page.evaluate(() => {
+      const rail = document.querySelector<HTMLElement>(".skills-stage__rail")!;
+      const railRect = rail.getBoundingClientRect();
+      const style = getComputedStyle(rail);
+      const maskWidth = Number.parseFloat(style.maskSize);
+      const labels = Array.from(
+        document.querySelectorAll<HTMLElement>(".skills-stage__item"),
+      ).map((element) => {
+        const range = document.createRange();
+
+        range.selectNodeContents(element);
+        return {
+          label: element.textContent?.trim(),
+          right: range.getBoundingClientRect().right,
+        };
+      });
+
+      return {
+        labels,
+        maskRepeat: style.maskRepeat,
+        maskRight: railRect.left + maskWidth,
+        railRight: railRect.right,
+      };
+    });
+
+    expect(geometry.maskRepeat).toBe("no-repeat");
+    expect(geometry.labels.some(({ right }) => right > geometry.railRight)).toBe(
+      true,
+    );
+    for (const label of geometry.labels) {
+      expect(label.right, label.label).toBeLessThanOrEqual(
+        geometry.maskRight + 1,
+      );
+    }
+  });
+
   test("registers all three floating cards as particle obstacles", async ({ page }) => {
     await openPortfolio(page);
     const project = projects[0];
