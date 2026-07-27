@@ -1,8 +1,8 @@
 # Point-cloud portfolio template
 
 A scroll-driven Next.js portfolio with one persistent React Three Fiber canvas,
-DOM-based content, configurable particle text and project fields, dark and light
-themes, and responsive motion.
+GPU-accelerated particle simulation, DOM-based content, configurable particle
+text and project fields, dark and light themes, and responsive motion.
 
 ## Run locally
 
@@ -218,6 +218,31 @@ framed. Card exclusion is applied later by the obstacle engine, so new fields
 automatically repel around measured card edges and corners in both scroll
 directions.
 
+## Particle runtime
+
+The particle engine has two interchangeable execution paths. Supported hardware
+uses a GPU simulation; unsupported or software-rendered environments retain the
+same scene through the CPU implementation.
+
+- `lib/gpu-particles/textures.ts` packs authored morph targets and deterministic
+  particle seeds into square floating-point textures.
+- `lib/gpu-particles/runtime.ts` owns the Three.js `GPUComputationRenderer`, its
+  ping-pong offset and velocity targets, uniform updates, and resource cleanup.
+- `lib/gpu-particles/shaders.ts` contains card-fluid flow, passive wake refill,
+  pointer interaction, pressure ripples, and point-position shaders.
+- `components/scene-canvas.tsx` selects the backend and keeps scene, camera,
+  obstacle, and pointer projection shared between both paths.
+
+The GPU path keeps per-particle motion state and morph sampling on the graphics
+device instead of updating and uploading every point from JavaScript each
+frame. It requires vertex textures and `EXT_color_buffer_float`. Software
+renderers such as SwiftShader and llvmpipe use the CPU fallback unless a test
+explicitly forces the GPU path.
+
+The active backend is exposed on the canvas as
+`data-particle-backend="gpu"` or `data-particle-backend="cpu"`. This attribute is
+diagnostic only; application code should not branch on it.
+
 ## Safe particle tuning
 
 Use `particleVisualConfig` in `config/visual.ts` for owner-facing changes:
@@ -293,10 +318,49 @@ npm run test:e2e
 npm run test:e2e:update
 npm run build
 npm run check
+npm run benchmark:particles
 ```
 
 `test:e2e:update` replaces visual baselines. Use it only after an intentional,
 reviewed visual change.
+
+`benchmark:particles` builds the production app and runs three desktop and
+three CPU-throttled mobile scroll traversals. It records frame timing, long
+tasks, and Chrome DevTools Protocol main-thread metrics. Useful overrides are:
+
+```bash
+PARTICLE_BENCHMARK_URL=https://www.example.com \
+PARTICLE_BENCHMARK_BROWSER_CHANNEL=chrome \
+PARTICLE_BENCHMARK_BACKEND=auto \
+PARTICLE_BENCHMARK_OUTPUT=/tmp/particle-benchmark.json \
+npm run benchmark:particles
+```
+
+`PARTICLE_BENCHMARK_BACKEND` accepts `auto`, `cpu`, or `gpu`. Forced backends
+exist for controlled comparisons and tests; production should use `auto`.
+
+### Production shader benchmark
+
+The shader migration was measured on `amaganti.com` on July 26, 2026, before and
+after deploying commit `9fd1945`, with Chrome 150 on an Apple M5 Pro. Values
+below are three-run medians from the same eight-second Projects-to-Skills
+scroll. The mobile profile used a 430-by-932 viewport, DPR 3, touch input, and
+4x CPU throttling; it is device emulation, not physical iPhone Safari.
+
+| Metric | CPU production | GPU production | Change |
+| --- | ---: | ---: | ---: |
+| Desktop FPS | 119.37 | 120.13 | +0.6% |
+| Desktop main-thread scripting | 2707.84 ms | 1151.03 ms | -57.5% |
+| Mobile-stress FPS | 78.26 | 116.89 | +49.4% |
+| Mobile-stress p95 frame | 17.6 ms | 9.3 ms | -47.2% |
+| Mobile-stress frames over 20 ms | 20 | 2 | -90.0% |
+| Mobile-stress main-thread scripting | 5758.44 ms | 3900.45 ms | -32.3% |
+
+Lighthouse 13.4.1 was also run three times per form factor. Runtime scrolling
+improved, but median mobile Lighthouse performance moved from 87 to 80 because
+LCP moved from 4.01 seconds to 5.36 seconds. Lighthouse identified the animated
+`Anurag` intro text as the LCP element. Treat runtime and load performance as
+separate budgets when changing shader initialization or the intro sequence.
 
 The site is a statically prerendered Next.js app. Deploy it to Vercel by
 importing the repository, or build and run it on any Node-compatible host with
@@ -311,6 +375,7 @@ Template changes should preserve:
 - `frameloop="demand"`
 - DOM-based readable content and links
 - one measured section registry for page order and scene timing
+- GPU-resident particle state with an automatic CPU compatibility fallback
 - allocation-free per-frame and per-particle hot paths
 - card obstacle measurement outside the per-particle loop
 - dynamic display-pixel-ratio quality
