@@ -8,9 +8,9 @@ Add one section between `skills-stage` and `outro` containing three shelves:
 2. Movies
 3. TV Shows
 
-Each shelf contains a snapshot of the current US top 10 captured on
-2026-07-28. The catalog is configuration-driven so owners can replace, reorder,
-or add entries without editing rendering or motion code.
+Each shelf contains a curated catalog. Catalog content, ordering, artwork
+sources, rendering, and interaction are separated so owners can replace,
+reorder, or add entries without editing shelf motion code.
 
 ## Visual contract
 
@@ -30,21 +30,21 @@ The supplied bookshelf screenshot is the source of truth.
 
 ## Interaction contract
 
-- Native horizontal overflow owns trackpad and touch scrolling.
-- Pointer drag maps directly to `scrollLeft` and captures the pointer.
-- Release velocity continues through requestAnimationFrame-based exponential
-  damping while the repeated track wraps seamlessly.
-- A new drag, wheel input, resize, or visibility change cancels active inertia.
+- Embla owns one logical item set and provides continuous looping, drag
+  momentum, touch input, and transform-based movement.
+- The Embla wheel gestures plugin maps horizontal trackpad input to the same
+  rail without trapping ordinary vertical page scrolling.
 - Keyboard users can focus a shelf and use Left, Right, Home, and End.
-- Reduced motion keeps direct dragging and native scrolling but disables
-  post-release inertia and animated keyboard scrolling.
+- Reduced motion keeps direct interaction but removes free-running momentum and
+  animated keyboard movement.
 - Dragging never prevents ordinary vertical page scrolling from the trackpad.
 
 ## Architecture
 
 - Render with React DOM and CSS, not a second WebGL scene.
 - Register the section through the existing custom-section boundary.
-- Keep catalog data in `config/media-shelves.ts`.
+- Keep catalog data in `config/media/` and ordering in
+  `config/media-shelves.ts`.
 - Keep reusable shelf UI and input physics under `features/media-shelves/`.
 - Keep shelf-specific CSS in `styles/media-shelves.css`.
 - Fade the existing `skills-ambient` field to a quieter shelf-specific variant
@@ -53,23 +53,25 @@ The supplied bookshelf screenshot is the source of truth.
 
 ## Data and artwork
 
-- Books: Apple Books US Top Paid RSS feed.
-- Movies: Apple iTunes US Top Movies RSS feed.
-- TV Shows: Apple iTunes US Top TV Seasons RSS feed.
-- Store a dated metadata snapshot in the repo, not a runtime API request.
-- Load Apple-hosted artwork through Next Image with explicit dimensions,
-  responsive `sizes`, lazy loading, and low fetch priority.
-- Do not duplicate downloaded third-party cover files in the repository.
-- Every item retains its source URL and accessible title/creator metadata.
+- Store catalog metadata in the repo, not behind a runtime API request.
+- Keep every item's source URL and accessible title/creator metadata in config.
+- Run `npm run media:sync` after artwork changes. The script downloads each
+  source once, creates 256/512/768-pixel-high WebP variants, and replaces the
+  generated local artwork only after every variant succeeds.
+- Serve content-hashed local artwork with immutable caching. The browser chooses
+  the appropriate density from `srcset`; remote hosts are never in the runtime
+  rendering path.
 
 ## Performance budget
 
 - No new canvas, render loop, physics engine, or global listener per shelf.
-- One shared hook implementation; listeners attach only to each shelf element.
-- Inertia requests frames only after a qualifying drag and stops below its
-  velocity threshold.
-- Artwork below the fold remains lazy and dimensioned to prevent layout shift.
-- Reflections reuse the same optimized image URL and avoid new source downloads.
+- One Embla instance and one logical item set per shelf; looping does not clone
+  the catalog in React.
+- Artwork preloads at low priority after load/idle, then promotes when the shelf
+  approaches the viewport. Visible covers and nearby neighbors decode first.
+- Artwork remains dimensioned to prevent layout shift.
+- Reflections reuse the selected local image URL and browser cache rather than
+  downloading another source.
 - Shelf layout uses transforms and opacity for moving artwork.
 
 ## Responsive behavior

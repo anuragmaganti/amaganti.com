@@ -81,13 +81,9 @@
   width: calc(100% + var(--media-shelf-bleed) + var(--media-shelf-bleed));
   height: 100%;
   margin-inline: calc(0px - var(--media-shelf-bleed));
-  overflow-x: auto;
-  overflow-y: hidden;
-  overscroll-behavior-inline: contain;
-  scrollbar-width: none;
+  overflow: hidden;
   cursor: grab;
-  touch-action: pan-x pan-y;
-  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y pinch-zoom;
   -webkit-tap-highlight-color: transparent;
   mask-image: linear-gradient(
     to right,
@@ -105,11 +101,8 @@
   );
 }
 
-.media-shelf__viewport::-webkit-scrollbar {
-  display: none;
-}
-
-.media-shelf__viewport[data-dragging="true"] {
+.media-shelf__viewport[data-dragging="true"],
+.media-shelf__viewport.is-wheel-dragging {
   cursor: grabbing;
   user-select: none;
 }
@@ -121,21 +114,20 @@
 
 .media-shelf__track {
   display: flex;
-  width: max-content;
+  width: 100%;
   min-width: 100%;
   height: 100%;
   align-items: flex-start;
-  gap: var(--media-shelf-item-gap);
   margin: 0;
-  padding: 0
-    calc(var(--media-shelf-bleed) + var(--media-shelf-side-space));
+  padding: 0;
   list-style: none;
+  will-change: transform;
 }
 
 .media-shelf__item {
   flex: none;
   margin: 0;
-  padding: 0;
+  padding: 0 0 0 var(--media-shelf-item-gap);
 }
 
 .media-shelf__artwork {
@@ -186,14 +178,14 @@
 }
 
 .media-shelf__reflection-track {
+  position: relative;
+  left: calc(0px - var(--media-shelf-bleed));
   display: flex;
-  width: max-content;
+  width: calc(100% + var(--media-shelf-bleed) + var(--media-shelf-bleed));
   height: 100%;
   align-items: flex-start;
-  gap: var(--media-shelf-item-gap);
   margin: 0;
-  padding: 0
-    calc(var(--media-shelf-bleed) + var(--media-shelf-side-space));
+  padding: 0;
   list-style: none;
   will-change: transform;
 }
@@ -203,7 +195,7 @@
   flex: none;
   overflow: hidden;
   margin: 0;
-  padding: 0;
+  padding: 0 0 0 var(--media-shelf-item-gap);
   opacity: 0.14;
   filter: blur(0.45px) saturate(0.74);
   mask-image: linear-gradient(to bottom, #000 0%, transparent 88%);

@@ -4,6 +4,7 @@ import {
   mediaShelves,
   mediaShelfSortModes,
 } from "../config/media-shelves";
+import artworkManifest from "../config/media/artwork-manifest.json";
 import { projects, type ProjectEntry } from "../config/projects";
 import { portfolioSections } from "../config/sections";
 import { outroLinks } from "../config/site";
@@ -14,6 +15,14 @@ import {
   openPortfolio,
   scrollToSection,
 } from "./helpers";
+
+const artworkEntries = artworkManifest.entries as Record<
+  string,
+  {
+    src: string;
+    variants: readonly { src: string }[];
+  }
+>;
 
 test.describe("portfolio behavior contract", () => {
   test("keeps media catalogs unique and applies their configured order", () => {
@@ -51,6 +60,21 @@ test.describe("portfolio behavior contract", () => {
       }
 
       expect(releaseDates).toEqual(expectedReleaseDates);
+    }
+
+    const catalogItems = mediaShelves.flatMap((shelf) => shelf.items);
+
+    expect(Object.keys(artworkEntries)).toHaveLength(catalogItems.length);
+    for (const item of catalogItems) {
+      const artwork = artworkEntries[`${item.kind}:${item.id}`];
+
+      expect(artwork?.src).toMatch(/^\/media-shelves\//);
+      expect(artwork?.variants).toHaveLength(3);
+      expect(
+        artwork?.variants.every(({ src }) =>
+          src.startsWith("/media-shelves/"),
+        ),
+      ).toBe(true);
     }
   });
 
@@ -106,20 +130,19 @@ test.describe("portfolio behavior contract", () => {
     for (const shelf of mediaShelves) {
       const shelfElement = section.locator(`[data-media-shelf="${shelf.id}"]`);
       const viewport = shelfElement.locator(".media-shelf__viewport");
-      const primaryItems = shelfElement.locator(
-        '.media-shelf__item[data-media-copy="primary"]',
-      );
-      const covers = primaryItems.locator(".media-shelf__cover");
+      const items = shelfElement.locator(".media-shelf__item");
+      const covers = items.locator(".media-shelf__cover");
 
       await expect(shelfElement.getByRole("heading", { name: shelf.label })).toBeVisible();
-      await expect(primaryItems).toHaveCount(shelf.items.length);
-      await expect(shelfElement.locator(".media-shelf__item")).toHaveCount(
-        shelf.items.length * 3,
-      );
+      await expect(items).toHaveCount(shelf.items.length);
       await expect(
         shelfElement.locator(".media-shelf__reflection-item"),
-      ).toHaveCount(shelf.items.length * 3);
+      ).toHaveCount(shelf.items.length);
       await expect(covers).toHaveCount(shelf.items.length);
+      await expect(covers.first()).toHaveAttribute(
+        "src",
+        /^\/media-shelves\//,
+      );
       await expect(viewport).toHaveAttribute("tabindex", "0");
       await expect(shelfElement.locator(".media-shelf__arrow")).toHaveCount(0);
       await expect(
@@ -132,9 +155,7 @@ test.describe("portfolio behavior contract", () => {
           ".media-shelf__viewport",
         )!;
         const coverElements = Array.from(
-          element.querySelectorAll<HTMLElement>(
-            '[data-media-copy="primary"] .media-shelf__cover',
-          ),
+          element.querySelectorAll<HTMLElement>(".media-shelf__cover"),
         );
         const trackItems = Array.from(
           element.querySelectorAll<HTMLElement>(".media-shelf__item"),
@@ -145,12 +166,19 @@ test.describe("portfolio behavior contract", () => {
           ),
         );
         const measureGapSpread = (items: HTMLElement[]) => {
-          const gaps = items.slice(1).map((item, index) => {
-            const previousRect = items[index].getBoundingClientRect();
-            const itemRect = item.getBoundingClientRect();
+          const orderedItems = [...items].sort(
+            (a, b) =>
+              a.getBoundingClientRect().left - b.getBoundingClientRect().left,
+          );
+          const gaps = orderedItems
+            .slice(1)
+            .map((item, index) => {
+              const previousRect = orderedItems[index].getBoundingClientRect();
+              const itemRect = item.getBoundingClientRect();
 
-            return itemRect.left - previousRect.right;
-          });
+              return itemRect.left - previousRect.right;
+            })
+            .filter((gap) => Math.abs(gap) < shelfViewport.clientWidth);
 
           return Math.max(...gaps) - Math.min(...gaps);
         };
@@ -197,6 +225,9 @@ test.describe("portfolio behavior contract", () => {
           hasSoftEdgeMask:
             getComputedStyle(shelfViewport).maskImage !== "none" ||
             getComputedStyle(shelfViewport).webkitMaskImage !== "none",
+          hasTransformRail:
+            element.querySelector<HTMLElement>(".media-shelf__track")!.style
+              .transform.startsWith("translate3d("),
           trackGapSpread: measureGapSpread(trackItems),
           visibleCovers,
         };
@@ -214,10 +245,29 @@ test.describe("portfolio behavior contract", () => {
       expect(geometry.reflectionInsideShelf).toBe(true);
       expect(geometry.reflectionTrackGapSpread).toBeLessThanOrEqual(1);
       expect(geometry.hasSoftEdgeMask).toBe(true);
+      expect(geometry.hasTransformRail).toBe(true);
       expect(geometry.trackGapSpread).toBeLessThanOrEqual(1);
       expect(geometry.visibleCovers).toBeGreaterThanOrEqual(2);
       expect(geometry.visibleCovers).toBeLessThan(shelf.items.length);
     }
+
+    const catalogItemCount = mediaShelves.reduce(
+      (total, shelf) => total + shelf.items.length,
+      0,
+    );
+
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          new Set(
+            performance
+              .getEntriesByType("resource")
+              .map((entry) => new URL(entry.name).pathname)
+              .filter((pathname) => pathname.startsWith("/media-shelves/")),
+          ).size,
+        ),
+      )
+      .toBeGreaterThanOrEqual(catalogItemCount);
   });
 
   test("wraps every shelf seamlessly in both directions", async ({
@@ -230,48 +280,105 @@ test.describe("portfolio behavior contract", () => {
     const viewport = page.locator(
       '[data-media-shelf="books"] .media-shelf__viewport',
     );
-    const cycleWidth = await viewport.evaluate((element) => {
-      const firstItems = element.querySelectorAll<HTMLElement>(
-        '[data-media-item-index="0"]',
+    const box = await viewport.boundingBox();
+
+    expect(box).not.toBeNull();
+    if (!box) {
+      return;
+    }
+
+    const drag = async (from: number, to: number) => {
+      await page.mouse.move(
+        box.x + box.width * from,
+        box.y + box.height * 0.45,
       );
-
-      return firstItems[1].offsetLeft - firstItems[0].offsetLeft;
-    });
-
-    await viewport.evaluate((element, cycle) => {
-      element.scrollLeft = cycle * 1.51;
-      element.dispatchEvent(new Event("scroll"));
-    }, cycleWidth);
-    await expect
-      .poll(() => viewport.evaluate((element) => element.scrollLeft))
-      .toBeLessThan(cycleWidth);
-
-    await viewport.evaluate((element, cycle) => {
-      element.scrollLeft = cycle * 0.49;
-      element.dispatchEvent(new Event("scroll"));
-    }, cycleWidth);
-    await expect
-      .poll(() => viewport.evaluate((element) => element.scrollLeft))
-      .toBeGreaterThan(cycleWidth);
-    const reflectionAlignment = await viewport.evaluate((element) => {
+      await page.mouse.down();
+      await page.mouse.move(
+        box.x + box.width * to,
+        box.y + box.height * 0.45,
+        { steps: 5 },
+      );
+      await page.mouse.up();
+      await page.waitForTimeout(60);
+    };
+    const readLoopState = () => viewport.evaluate((element) => {
       const shelf = element.closest<HTMLElement>("[data-media-shelf]")!;
-      const primaryItem = element.querySelector<HTMLElement>(
-        '[data-media-copy="primary"]',
-      )!;
-      const primaryItemCount = element.querySelectorAll(
-        '[data-media-copy="primary"]',
-      ).length;
-      const reflectionItem = shelf.querySelectorAll<HTMLElement>(
-        ".media-shelf__reflection-item",
-      )[primaryItemCount];
-
-      return Math.abs(
-        primaryItem.getBoundingClientRect().left -
-          reflectionItem.getBoundingClientRect().left,
+      const viewportRect = element.getBoundingClientRect();
+      const items = Array.from(
+        element.querySelectorAll<HTMLElement>(".media-shelf__item"),
       );
+      const reflections = Array.from(
+        shelf.querySelectorAll<HTMLElement>(
+        ".media-shelf__reflection-item",
+        ),
+      );
+      const visibleItems = items
+        .map((item, domIndex) => ({
+          domIndex,
+          catalogIndex: Number(item.dataset.mediaItemIndex),
+          rect: item.getBoundingClientRect(),
+        }))
+        .filter(
+          ({ rect }) =>
+            rect.right > viewportRect.left && rect.left < viewportRect.right,
+        )
+        .sort((first, second) => first.rect.left - second.rect.left);
+      const consecutive = visibleItems.slice(1).every((item, index) => {
+        const previous = visibleItems[index];
+
+        return (
+          item.catalogIndex === (previous.catalogIndex + 1) % items.length
+        );
+      });
+      const reflectionDelta = Math.max(
+        ...visibleItems.map(({ domIndex, rect }) =>
+          Math.abs(
+            rect.left - reflections[domIndex].getBoundingClientRect().left,
+          ),
+        ),
+      );
+
+      return {
+        consecutive,
+        loopedSlides: items.filter(
+          (item) =>
+            item.style.transform &&
+            !item.style.transform.includes("translate3d(0px"),
+        ).length,
+        reflectionDelta,
+        visibleCount: visibleItems.length,
+      };
     });
 
-    expect(reflectionAlignment).toBeLessThan(1);
+    let forwardLoopedSlides = 0;
+    for (let index = 0; index < 6; index += 1) {
+      await drag(0.72, 0.28);
+      forwardLoopedSlides = Math.max(
+        forwardLoopedSlides,
+        (await readLoopState()).loopedSlides,
+      );
+    }
+    await page.waitForTimeout(220);
+    const forwardState = await readLoopState();
+
+    let reverseLoopedSlides = 0;
+    for (let index = 0; index < 6; index += 1) {
+      await drag(0.28, 0.72);
+      reverseLoopedSlides = Math.max(
+        reverseLoopedSlides,
+        (await readLoopState()).loopedSlides,
+      );
+    }
+    await page.waitForTimeout(220);
+    const reverseState = await readLoopState();
+
+    for (const state of [forwardState, reverseState]) {
+      expect(state.consecutive).toBe(true);
+      expect(state.reflectionDelta).toBeLessThan(1);
+      expect(state.visibleCount).toBeGreaterThanOrEqual(2);
+    }
+    expect(forwardLoopedSlides).toBeGreaterThan(0);
+    expect(reverseLoopedSlides).toBeGreaterThan(0);
   });
 
   test("continues a fast shelf drag with inertia without trapping vertical scroll", async ({
@@ -284,6 +391,7 @@ test.describe("portfolio behavior contract", () => {
     const viewport = page.locator(
       '[data-media-shelf="books"] .media-shelf__viewport',
     );
+    const track = viewport.locator(".media-shelf__track");
     const box = await viewport.boundingBox();
 
     expect(box).not.toBeNull();
@@ -291,28 +399,49 @@ test.describe("portfolio behavior contract", () => {
       return;
     }
 
+    await viewport.evaluate((element) => {
+      const track = element.querySelector<HTMLElement>(
+        ".media-shelf__track",
+      )!;
+
+      element.addEventListener(
+        "pointerup",
+        () => {
+          const samples: number[] = [];
+          const startedAt = performance.now();
+          const sample = () => {
+            samples.push(track.getBoundingClientRect().left);
+            element.dataset.postReleaseSamples = JSON.stringify(samples);
+
+            if (performance.now() - startedAt < 260) {
+              window.requestAnimationFrame(sample);
+            }
+          };
+
+          window.requestAnimationFrame(sample);
+        },
+        { once: true },
+      );
+    });
+    const beforeDrag = (await track.boundingBox())!.x;
     await page.mouse.move(box.x + box.width * 0.72, box.y + box.height * 0.45);
     await page.mouse.down();
     await page.mouse.move(box.x + box.width * 0.34, box.y + box.height * 0.45, {
-      steps: 5,
+      steps: 1,
     });
     await page.mouse.up();
 
-    const cycleWidth = await viewport.evaluate((element) => {
-      const firstItems = element.querySelectorAll<HTMLElement>(
-        '[data-media-item-index="0"]',
-      );
+    await page.waitForTimeout(320);
+    const afterDrag = (await track.boundingBox())!.x;
+    const postReleaseSamples = await viewport.evaluate((element) =>
+      JSON.parse(element.dataset.postReleaseSamples ?? "[]") as number[],
+    );
+    const postReleaseDistance =
+      Math.max(...postReleaseSamples) - Math.min(...postReleaseSamples);
 
-      return firstItems[1].offsetLeft - firstItems[0].offsetLeft;
-    });
-    const releasedScroll = await viewport.evaluate((element) => element.scrollLeft);
-    await page.waitForTimeout(180);
-    const inertialScroll = await viewport.evaluate((element) => element.scrollLeft);
-    const inertialDistance =
-      ((inertialScroll - releasedScroll) % cycleWidth + cycleWidth) % cycleWidth;
-
-    expect(releasedScroll).toBeGreaterThan(20);
-    expect(inertialDistance).toBeGreaterThan(4);
+    expect(Math.abs(afterDrag - beforeDrag)).toBeGreaterThan(20);
+    expect(postReleaseSamples.length).toBeGreaterThan(2);
+    expect(postReleaseDistance).toBeGreaterThan(4);
 
     const pageScrollBefore = await page.evaluate(() => window.scrollY);
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -320,6 +449,42 @@ test.describe("portfolio behavior contract", () => {
     await expect
       .poll(() => page.evaluate(() => window.scrollY))
       .toBeGreaterThan(pageScrollBefore + 20);
+  });
+
+  test("lets a slow shelf release coast without a low-speed dead zone", async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== "desktop");
+    await openPortfolio(page, { reducedMotion: "no-preference" });
+    await scrollToSection(page, "media-shelves-stage");
+
+    const viewport = page.locator(
+      '[data-media-shelf="books"] .media-shelf__viewport',
+    );
+    const track = viewport.locator(".media-shelf__track");
+    const box = await viewport.boundingBox();
+
+    expect(box).not.toBeNull();
+    if (!box) {
+      return;
+    }
+
+    const startX = box.x + box.width * 0.62;
+    const y = box.y + box.height * 0.45;
+
+    await page.mouse.move(startX, y);
+    await page.mouse.down();
+    for (let step = 1; step <= 12; step += 1) {
+      await page.waitForTimeout(70);
+      await page.mouse.move(startX - step * 4, y);
+    }
+    await page.mouse.up();
+
+    const releasePosition = (await track.boundingBox())!.x;
+    await page.waitForTimeout(260);
+    const coastPosition = (await track.boundingBox())!.x;
+
+    expect(Math.abs(coastPosition - releasePosition)).toBeGreaterThan(1);
   });
 
   test("supports shelf keyboard navigation without persistent controls", async ({
@@ -331,30 +496,50 @@ test.describe("portfolio behavior contract", () => {
 
     const shelf = page.locator('[data-media-shelf="books"]');
     const viewport = shelf.locator(".media-shelf__viewport");
+    const track = viewport.locator(".media-shelf__track");
     await expect(shelf.locator("button")).toHaveCount(0);
 
     await viewport.focus();
     await page.keyboard.press("Home");
-    const cycleWidth = await viewport.evaluate((element) => {
-      const firstItems = element.querySelectorAll<HTMLElement>(
-        '[data-media-item-index="0"]',
-      );
-
-      return firstItems[1].offsetLeft - firstItems[0].offsetLeft;
-    });
-    await expect
-      .poll(() => viewport.evaluate((element) => element.scrollLeft))
-      .toBeCloseTo(cycleWidth, -1);
-    await page.keyboard.press("ArrowRight");
     await expect
       .poll(() =>
-        viewport.evaluate(
-          (element, cycle) =>
-            ((element.scrollLeft - cycle) % cycle + cycle) % cycle,
-          cycleWidth,
-        ),
+        viewport.evaluate((element) => {
+          const viewportRect = element.getBoundingClientRect();
+          const firstItem = element.querySelector<HTMLElement>(
+            '[data-media-item-index="0"]',
+          )!;
+          const firstRect = firstItem.getBoundingClientRect();
+
+          return firstRect.right > viewportRect.left &&
+            firstRect.left < viewportRect.right;
+        }),
       )
+      .toBe(true);
+
+    const beforeArrow = (await track.boundingBox())!.x;
+    await page.keyboard.press("ArrowRight");
+    await expect
+      .poll(async () => Math.abs((await track.boundingBox())!.x - beforeArrow))
       .toBeGreaterThan(100);
+
+    const finalCatalogIndex = mediaShelves.find(
+      (candidate) => candidate.id === "books",
+    )!.items.length - 1;
+    await page.keyboard.press("End");
+    await expect
+      .poll(() =>
+        viewport.evaluate((element, itemIndex) => {
+          const viewportRect = element.getBoundingClientRect();
+          const finalItem = element.querySelector<HTMLElement>(
+            `[data-media-item-index="${itemIndex}"]`,
+          )!;
+          const finalRect = finalItem.getBoundingClientRect();
+
+          return finalRect.right > viewportRect.left &&
+            finalRect.left < viewportRect.right;
+        }, finalCatalogIndex),
+      )
+      .toBe(true);
   });
 
   test("disables post-release shelf inertia for reduced motion", async ({
@@ -367,6 +552,7 @@ test.describe("portfolio behavior contract", () => {
     const viewport = page.locator(
       '[data-media-shelf="books"] .media-shelf__viewport',
     );
+    const track = viewport.locator(".media-shelf__track");
     const box = await viewport.boundingBox();
 
     expect(box).not.toBeNull();
@@ -381,11 +567,12 @@ test.describe("portfolio behavior contract", () => {
     });
     await page.mouse.up();
 
-    const releasedScroll = await viewport.evaluate((element) => element.scrollLeft);
+    await page.waitForTimeout(80);
+    const settledPosition = (await track.boundingBox())!.x;
     await page.waitForTimeout(180);
-    const settledScroll = await viewport.evaluate((element) => element.scrollLeft);
+    const stablePosition = (await track.boundingBox())!.x;
 
-    expect(settledScroll).toBeCloseTo(releasedScroll, 0);
+    expect(stablePosition).toBeCloseTo(settledPosition, 0);
   });
 
   test("uses the configured default and persists explicit themes", async ({ page }) => {

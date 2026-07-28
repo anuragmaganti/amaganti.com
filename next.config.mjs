@@ -1,24 +1,18 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   devIndicators: false,
-  images: {
-    remotePatterns: [
+  async headers() {
+    return [
       {
-        protocol: "https",
-        hostname: "covers.openlibrary.org",
-        pathname: "/b/id/**",
+        source: "/media-shelves/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
       },
-      {
-        protocol: "https",
-        hostname: "media.themoviedb.org",
-        pathname: "/t/p/**",
-      },
-      {
-        protocol: "https",
-        hostname: "static.tvmaze.com",
-        pathname: "/uploads/images/**",
-      },
-    ],
+    ];
   },
   reactStrictMode: true,
 };

@@ -51,6 +51,12 @@ portfolio. Add, remove, or manually reorder entries in `media/books.ts`,
 `media/movies.ts`, and `media/tv-shows.ts`; the endless tracks and reflections
 adapt to any non-empty item count automatically.
 
+After changing a catalog entry or its artwork source, run `npm run media:sync`.
+The command generates content-hashed WebP variants in `public/media-shelves/`
+and updates `media/artwork-manifest.json`; commit both outputs with the catalog
+change. Runtime shelves use only those local assets, while the source URL stays
+in the catalog as provenance and as input for future syncs.
+
 `mediaShelfOrder` in `media-shelves.ts` controls the three row order. Change a
 value in `mediaShelfSortModes` to `oldest-first`, `newest-first`,
 `alphabetical`, or `manual`. The `manual` mode preserves the array order in that

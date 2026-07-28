@@ -1,28 +1,64 @@
 "use client";
 
-import Image from "next/image";
 import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 
 import type { MediaShelfDefinition } from "@/config/media-shelves";
-import { useInertialHorizontalScroll } from "@/features/media-shelves/use-inertial-horizontal-scroll";
+import type { MediaShelfItem } from "@/config/media/types";
+import {
+  getMediaArtworkSources,
+} from "@/features/media-shelves/media-artwork";
+import { decodeMediaArtwork } from "@/features/media-shelves/media-artwork-preloader";
+import { useMediaShelfCarousel } from "@/features/media-shelves/use-media-shelf-carousel";
 
-const shelfCopies = [0, 1, 2] as const;
 const UNFADED_EDGE_INSET_PX = 8;
+const PRELOAD_NEIGHBOR_COUNT = 2;
 
 type HoveredTitle = {
   title: string;
   x: number;
 };
 
+function MediaArtworkImage({
+  item,
+  reflection = false,
+}: {
+  item: MediaShelfItem;
+  reflection?: boolean;
+}) {
+  const sources = getMediaArtworkSources(item);
+
+  return (
+    // Local variants are generated ahead of time; bypassing Next's optimizer
+    // avoids a second transform and lets the browser select by display density.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      className={
+        reflection ? "media-shelf__reflection-image" : "media-shelf__cover"
+      }
+      src={sources.src}
+      srcSet={sources.srcSet || undefined}
+      width={item.artwork.width}
+      height={item.artwork.height}
+      alt=""
+      decoding="async"
+      fetchPriority="low"
+      loading="lazy"
+      draggable={false}
+    />
+  );
+}
+
 function ShelfItems({
+  items,
   shelf,
   reflection = false,
   onArtworkPointerEnter,
   onArtworkPointerLeave,
 }: {
+  items: readonly MediaShelfItem[];
   shelf: MediaShelfDefinition;
   reflection?: boolean;
   onArtworkPointerEnter?: (
@@ -31,78 +67,86 @@ function ShelfItems({
   ) => void;
   onArtworkPointerLeave?: () => void;
 }) {
-  return shelfCopies.flatMap((copyIndex) =>
-    shelf.items.map((item, itemIndex) => {
-      const isPrimaryCopy = copyIndex === 1;
+  return items.map((item) => {
+    const itemIndex = shelf.items.indexOf(item);
 
-      if (reflection) {
-        return (
-          <li
-            className="media-shelf__reflection-item"
-            key={`reflection-${copyIndex}-${item.id}`}
-            data-media-item-index={itemIndex}
-          >
-            <Image
-              className="media-shelf__reflection-image"
-              src={item.artwork.src}
-              width={item.artwork.width}
-              height={item.artwork.height}
-              sizes="(max-width: 640px) 26vw, (max-width: 1100px) 18vw, 13vw"
-              alt=""
-              draggable={false}
-            />
-          </li>
-        );
-      }
-
+    if (reflection) {
       return (
         <li
-          className="media-shelf__item"
-          key={`${copyIndex}-${item.id}`}
-          data-media-copy={isPrimaryCopy ? "primary" : "clone"}
+          className="media-shelf__reflection-item"
+          key={`reflection-${item.id}`}
           data-media-item-index={itemIndex}
-          aria-hidden={!isPrimaryCopy}
         >
-          <figure
-            className="media-shelf__artwork"
-            onPointerEnter={(event) =>
-              onArtworkPointerEnter?.(event, item.title)
-            }
-            onPointerLeave={onArtworkPointerLeave}
-          >
-            <Image
-              className="media-shelf__cover"
-              src={item.artwork.src}
-              width={item.artwork.width}
-              height={item.artwork.height}
-              sizes="(max-width: 640px) 26vw, (max-width: 1100px) 18vw, 13vw"
-              alt=""
-              draggable={false}
-            />
-            <figcaption className="sr-only">
-              {itemIndex + 1}. {item.title}
-              {item.creator ? ` by ${item.creator}` : ""}
-            </figcaption>
-          </figure>
+          <MediaArtworkImage item={item} reflection />
         </li>
       );
-    }),
-  );
+    }
+
+    return (
+      <li
+        className="media-shelf__item"
+        key={item.id}
+        data-media-item-index={itemIndex}
+      >
+        <figure
+          className="media-shelf__artwork"
+          onPointerEnter={(event) =>
+            onArtworkPointerEnter?.(event, item.title)
+          }
+          onPointerLeave={onArtworkPointerLeave}
+        >
+          <MediaArtworkImage item={item} />
+          <figcaption className="sr-only">
+            {itemIndex + 1}. {item.title}
+            {item.creator ? ` by ${item.creator}` : ""}
+          </figcaption>
+        </figure>
+      </li>
+    );
+  });
+}
+
+function getNearbyItems(
+  items: readonly MediaShelfItem[],
+  visibleIndexes: readonly number[],
+) {
+  const nearbyIndexes = new Set<number>();
+
+  for (const visibleIndex of visibleIndexes) {
+    for (
+      let offset = -PRELOAD_NEIGHBOR_COUNT;
+      offset <= PRELOAD_NEIGHBOR_COUNT;
+      offset += 1
+    ) {
+      nearbyIndexes.add(
+        (visibleIndex + offset + items.length) % items.length,
+      );
+    }
+  }
+
+  return [...nearbyIndexes].flatMap((index) => items[index] ?? []);
+}
+
+function getCarouselItems(shelf: MediaShelfDefinition) {
+  const finalItem = shelf.items.at(-1);
+
+  return finalItem ? [finalItem, ...shelf.items.slice(0, -1)] : [];
 }
 
 export function MediaShelf({ shelf }: { shelf: MediaShelfDefinition }) {
+  const carouselItems = getCarouselItems(shelf);
   const [hoveredTitle, setHoveredTitle] = useState<HoveredTitle | null>(null);
   const {
-    viewportRef,
-    reflectionTrackRef,
     isDragging,
-    onPointerDown,
-    onPointerMove,
-    onPointerUp,
-    onPointerCancel,
-    onLostPointerCapture,
     onKeyDown,
-  } = useInertialHorizontalScroll();
+    reflectionTrackRef,
+    viewportRef,
+  } = useMediaShelfCarousel({
+    onScroll: () => setHoveredTitle(null),
+    onSlidesInView: (indexes) => {
+      decodeMediaArtwork(getNearbyItems(carouselItems, indexes));
+    },
+  });
   const headingId = `media-shelf-${shelf.id}-heading`;
   const instructionsId = `media-shelf-${shelf.id}-instructions`;
 
@@ -167,16 +211,11 @@ export function MediaShelf({ shelf }: { shelf: MediaShelfDefinition }) {
           tabIndex={0}
           aria-labelledby={headingId}
           aria-describedby={instructionsId}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerCancel}
-          onLostPointerCapture={onLostPointerCapture}
           onKeyDown={onKeyDown}
-          onScroll={() => setHoveredTitle(null)}
         >
           <ol className="media-shelf__track">
             <ShelfItems
+              items={carouselItems}
               shelf={shelf}
               onArtworkPointerEnter={handleArtworkPointerEnter}
               onArtworkPointerLeave={() => setHoveredTitle(null)}
@@ -185,7 +224,7 @@ export function MediaShelf({ shelf }: { shelf: MediaShelfDefinition }) {
         </div>
         <div className="media-shelf__reflection-plane" aria-hidden>
           <ol ref={reflectionTrackRef} className="media-shelf__reflection-track">
-            <ShelfItems shelf={shelf} reflection />
+            <ShelfItems items={carouselItems} shelf={shelf} reflection />
           </ol>
         </div>
       </div>
