@@ -2,6 +2,7 @@
   --media-shelf-surface-top: #20211f;
   --media-shelf-surface-front: #111210;
   --media-shelf-edge: rgba(255, 255, 255, 0.16);
+  --media-shelf-edge-width: 1px;
   --media-shelf-shadow: rgba(0, 0, 0, 0.58);
 }
 
@@ -238,7 +239,7 @@
 .media-shelf__surface {
   top: 0;
   height: var(--media-shelf-surface-depth);
-  border: 1px solid var(--media-shelf-edge);
+  border: 0;
   background: var(--media-shelf-surface-top);
   clip-path: polygon(
     var(--media-shelf-back-inset) 0,
@@ -246,16 +247,23 @@
     100% 100%,
     0 100%
   );
+  filter: drop-shadow(0 0 0.55px var(--media-shelf-edge));
 }
 
 .media-shelf__front {
   top: calc(var(--media-shelf-surface-depth) - 1px);
   height: var(--media-shelf-front-height);
-  border: 1px solid var(--media-shelf-edge);
+  border: 0;
   border-radius: 0 0 clamp(0.16rem, 0.22cqi, 0.28rem)
     clamp(0.16rem, 0.22cqi, 0.28rem);
   background: var(--media-shelf-surface-front);
   box-shadow:
+    inset 0 var(--media-shelf-edge-width) 0 var(--media-shelf-edge),
+    inset var(--media-shelf-edge-width) 0 0 var(--media-shelf-edge),
+    inset calc(0px - var(--media-shelf-edge-width)) 0 0
+      var(--media-shelf-edge),
+    inset 0 calc(0px - var(--media-shelf-edge-width)) 0
+      var(--media-shelf-edge),
     0 0.5cqi 0.72cqi -0.42cqi var(--media-shelf-shadow),
     0 1.35cqi 1.8cqi -0.65cqi var(--media-shelf-shadow);
 }
