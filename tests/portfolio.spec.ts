@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 
+import { mediaShelves } from "../config/media-shelves";
 import { projects, type ProjectEntry } from "../config/projects";
 import { portfolioSections } from "../config/sections";
 import { outroLinks } from "../config/site";
@@ -27,6 +28,162 @@ test.describe("portfolio behavior contract", () => {
       "href",
       "#main-content",
     );
+  });
+
+  test("renders three complete, responsive media shelves", async ({
+    page,
+  }) => {
+    await openPortfolio(page);
+    await scrollToSection(page, "media-shelves-stage");
+
+    const section = page.locator("#media-shelves-stage");
+    const shelves = section.locator("[data-media-shelf]");
+
+    await expect(shelves).toHaveCount(mediaShelves.length);
+    await expectNoHorizontalOverflow(page);
+
+    for (const shelf of mediaShelves) {
+      const shelfElement = section.locator(`[data-media-shelf="${shelf.id}"]`);
+      const viewport = shelfElement.locator(".media-shelf__viewport");
+      const covers = shelfElement.locator(".media-shelf__cover");
+
+      await expect(shelfElement.getByRole("heading", { name: shelf.label })).toBeVisible();
+      await expect(shelfElement.locator(".media-shelf__item")).toHaveCount(10);
+      await expect(covers).toHaveCount(10);
+      await expect(viewport).toHaveAttribute("tabindex", "0");
+
+      const geometry = await shelfElement.evaluate((element) => {
+        const shelfViewport = element.querySelector<HTMLElement>(
+          ".media-shelf__viewport",
+        )!;
+        const coverElements = Array.from(
+          element.querySelectorAll<HTMLElement>(".media-shelf__cover"),
+        );
+        const bottoms = coverElements.map(
+          (cover) => cover.getBoundingClientRect().bottom,
+        );
+        const visibleCovers = coverElements.filter((cover) => {
+          const coverRect = cover.getBoundingClientRect();
+          const viewportRect = shelfViewport.getBoundingClientRect();
+
+          return (
+            coverRect.right > viewportRect.left &&
+            coverRect.left < viewportRect.right
+          );
+        }).length;
+
+        return {
+          baselineSpread: Math.max(...bottoms) - Math.min(...bottoms),
+          canOverflow: shelfViewport.scrollWidth > shelfViewport.clientWidth,
+          visibleCovers,
+        };
+      });
+
+      expect(geometry.baselineSpread).toBeLessThan(1);
+      expect(geometry.canOverflow).toBe(true);
+      expect(geometry.visibleCovers).toBeGreaterThanOrEqual(2);
+      expect(geometry.visibleCovers).toBeLessThan(10);
+    }
+  });
+
+  test("continues a fast shelf drag with inertia without trapping vertical scroll", async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== "desktop");
+    await openPortfolio(page, { reducedMotion: "no-preference" });
+    await scrollToSection(page, "media-shelves-stage");
+
+    const viewport = page.locator(
+      '[data-media-shelf="songs"] .media-shelf__viewport',
+    );
+    const box = await viewport.boundingBox();
+
+    expect(box).not.toBeNull();
+    if (!box) {
+      return;
+    }
+
+    await page.mouse.move(box.x + box.width * 0.72, box.y + box.height * 0.45);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.34, box.y + box.height * 0.45, {
+      steps: 5,
+    });
+    await page.mouse.up();
+
+    const releasedScroll = await viewport.evaluate((element) => element.scrollLeft);
+    await page.waitForTimeout(180);
+    const inertialScroll = await viewport.evaluate((element) => element.scrollLeft);
+
+    expect(releasedScroll).toBeGreaterThan(20);
+    expect(inertialScroll).toBeGreaterThan(releasedScroll + 4);
+
+    const pageScrollBefore = await page.evaluate(() => window.scrollY);
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, 180);
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY))
+      .toBeGreaterThan(pageScrollBefore + 20);
+  });
+
+  test("supports shelf arrows and keyboard navigation", async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== "desktop");
+    await openPortfolio(page);
+    await scrollToSection(page, "media-shelves-stage");
+
+    const shelf = page.locator('[data-media-shelf="songs"]');
+    const viewport = shelf.locator(".media-shelf__viewport");
+    const forward = shelf.getByRole("button", {
+      name: "Scroll songs forward",
+    });
+
+    await expect(forward).toBeEnabled();
+    await forward.click();
+    await expect
+      .poll(() => viewport.evaluate((element) => element.scrollLeft))
+      .toBeGreaterThan(100);
+
+    await viewport.focus();
+    await page.keyboard.press("Home");
+    await expect
+      .poll(() => viewport.evaluate((element) => element.scrollLeft))
+      .toBeLessThan(2);
+    await page.keyboard.press("ArrowRight");
+    await expect
+      .poll(() => viewport.evaluate((element) => element.scrollLeft))
+      .toBeGreaterThan(100);
+  });
+
+  test("disables post-release shelf inertia for reduced motion", async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== "desktop");
+    await openPortfolio(page, { reducedMotion: "reduce" });
+    await scrollToSection(page, "media-shelves-stage");
+
+    const viewport = page.locator(
+      '[data-media-shelf="songs"] .media-shelf__viewport',
+    );
+    const box = await viewport.boundingBox();
+
+    expect(box).not.toBeNull();
+    if (!box) {
+      return;
+    }
+
+    await page.mouse.move(box.x + box.width * 0.72, box.y + box.height * 0.45);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.34, box.y + box.height * 0.45, {
+      steps: 3,
+    });
+    await page.mouse.up();
+
+    const releasedScroll = await viewport.evaluate((element) => element.scrollLeft);
+    await page.waitForTimeout(180);
+    const settledScroll = await viewport.evaluate((element) => element.scrollLeft);
+
+    expect(settledScroll).toBeCloseTo(releasedScroll, 0);
   });
 
   test("uses the configured default and persists explicit themes", async ({ page }) => {

@@ -8,6 +8,11 @@ import {
 } from "./helpers";
 
 const themes: readonly PortfolioTheme[] = ["dark", "light"];
+const responsiveCheckpointIds = new Set([
+  "about-stage",
+  stableCheckpoints[3].id,
+  "media-shelves-stage",
+]);
 
 test.describe("stable visual checkpoints", () => {
   for (const theme of themes) {
@@ -33,7 +38,9 @@ test.describe("stable visual checkpoints", () => {
       test.skip(testInfo.project.name === "desktop");
       await openPortfolio(page, { theme, particleBackend: "gpu" });
 
-      for (const checkpoint of [stableCheckpoints[1], stableCheckpoints[3]]) {
+      for (const checkpoint of stableCheckpoints.filter(({ id }) =>
+        responsiveCheckpointIds.has(id),
+      )) {
         await scrollToSection(page, checkpoint.id, checkpoint.progress);
         await expect(page).toHaveScreenshot(`${checkpoint.id}-${theme}.png`, {
           animations: "disabled",

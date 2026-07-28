@@ -122,7 +122,7 @@ test.describe("scene engine contract", () => {
     expect(sample.next.cloud.shape).toBe("face");
   });
 
-  test("morphs continuously from the Skills field into the outro face", () => {
+  test("morphs continuously from the media field into the outro face", () => {
     const timeline = createSceneTimeline();
     const phaseIndexRef = { current: 0 };
     const sample = createSampledScene(timeline.phases);
@@ -146,7 +146,7 @@ test.describe("scene engine contract", () => {
     });
 
     for (const checkpoint of checkpoints) {
-      expect(checkpoint.currentKey).toBe("skills-to-contact");
+      expect(checkpoint.currentKey).toBe("media-shelves-to-contact");
       expect(checkpoint.nextKey).toBe("contact");
       expect(checkpoint.currentShape).toBe("project-field");
       expect(checkpoint.nextShape).toBe("face");

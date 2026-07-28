@@ -25,6 +25,7 @@ type StaticScenePresetId =
   | "projects-hero"
   | "projects-reveal"
   | "skills-ambient"
+  | "media-shelves-ambient"
   | "outro-face";
 type ProjectScenePresetId = `project-${ProjectFieldPresetId}`;
 export type ScenePresetId = StaticScenePresetId | ProjectScenePresetId;
@@ -187,6 +188,15 @@ const skillsAmbientPreset = extendScenePreset(
   },
 );
 
+const mediaShelvesAmbientPreset = extendScenePreset(skillsAmbientPreset, {
+  cloud: {
+    pointSize: 0.0124,
+    noise: 0.02,
+    intensity: 0.075,
+    opacity: 0.17,
+  },
+});
+
 const staticPresets: Record<StaticScenePresetId, ScenePreset> = {
   "intro-face": introFacePreset,
   "about-transform": extendScenePreset(aboutTitlePreset, {
@@ -225,6 +235,7 @@ const staticPresets: Record<StaticScenePresetId, ScenePreset> = {
     },
   }),
   "skills-ambient": skillsAmbientPreset,
+  "media-shelves-ambient": mediaShelvesAmbientPreset,
   "outro-face": createScenePreset(
     { position: [0, 0.02, 4.62], target: [0, 0.02, 0], fov: 29 },
     {

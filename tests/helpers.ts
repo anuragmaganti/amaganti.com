@@ -11,6 +11,7 @@ export const stableCheckpoints = [
   { id: "projects-stage", progress: 0.45 },
   { id: projects[0].slug, progress: 0 },
   { id: "skills-stage", progress: 0.42 },
+  { id: "media-shelves-stage", progress: 0 },
   { id: "outro", progress: 0.78 },
 ] as const;
 
@@ -88,11 +89,22 @@ export async function scrollToSection(
     await expect
       .poll(() =>
         sectionImages.evaluateAll((images) =>
-          images.every(
-            (image) =>
-              (image as HTMLImageElement).complete &&
-              (image as HTMLImageElement).naturalWidth > 0,
-          ),
+          images
+            .filter((image) => {
+              const rect = image.getBoundingClientRect();
+
+              return (
+                rect.right > 0 &&
+                rect.left < window.innerWidth &&
+                rect.bottom > 0 &&
+                rect.top < window.innerHeight
+              );
+            })
+            .every(
+              (image) =>
+                (image as HTMLImageElement).complete &&
+                (image as HTMLImageElement).naturalWidth > 0,
+            ),
         ),
       )
       .toBe(true);

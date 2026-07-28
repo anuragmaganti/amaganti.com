@@ -10,6 +10,7 @@ copy or visual preferences themselves.
 - `projects.ts`: project content and display order.
 - `content-sections.ts`: About and future editorial section content.
 - `skills.ts`: the primary Skills rail and technology ticker.
+- `media-shelves.ts`: dated Songs, Books, and Movies chart snapshots and artwork.
 
 Array order is display order. Keep project slugs, content ids, and skill ids
 unique because they are used as stable section and accessibility identifiers.
@@ -40,3 +41,12 @@ high-level particle tuning here.
 
 Low-level projection, smoothing, and allocation-sensitive render-loop constants
 remain internal by design.
+
+## Media shelves
+
+`media-shelves.ts` is a static snapshot rather than a runtime feed. Each shelf
+records its source URL and capture date, which keeps page rendering deterministic
+and avoids delaying the portfolio on a third-party request. Replace an item's
+metadata and intrinsic artwork dimensions in this file to refresh a chart or use
+a personal list. Keep all three shelf definitions present; their order is the
+rendered order.

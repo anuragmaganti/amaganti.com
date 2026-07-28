@@ -2,6 +2,7 @@ import type { MotionValue } from "motion";
 import type { ComponentType } from "react";
 
 import type { SectionDefinition } from "@/config/sections";
+import { MediaShelvesSection } from "@/features/media-shelves/media-shelves-section";
 import type { SceneTimeline } from "@/lib/scene-types";
 
 export type CustomSectionRendererProps = {
@@ -12,7 +13,9 @@ export type CustomSectionRendererProps = {
 
 // Add custom section components here, then reference the key with
 // `render: { type: "custom", rendererId: "your-key" }` in `sections.ts`.
-export const customSectionRenderers = {} satisfies Record<
+export const customSectionRenderers = {
+  "media-shelves": MediaShelvesSection,
+} satisfies Record<
   string,
   ComponentType<CustomSectionRendererProps>
 >;

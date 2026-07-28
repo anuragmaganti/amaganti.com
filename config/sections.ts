@@ -13,6 +13,7 @@ type SectionLayout =
   | "content"
   | "project"
   | "skills"
+  | "media-shelves"
   | "outro";
 
 export type BuiltInSectionRendererId =
@@ -142,7 +143,17 @@ export const sectionsAfterProjects = [
         `project-${finalProject.particlePreset}`,
         8,
       ),
-      sceneBeat("skills-ambient", "skills-ambient", 92),
+      sceneBeat("skills-ambient", "skills-ambient", 87),
+      sceneBeat("skills-media-handoff", "skills-ambient", 5),
+    ],
+  }),
+  defineSection({
+    id: "media-shelves-stage",
+    layout: "media-shelves",
+    render: { type: "custom", rendererId: "media-shelves" },
+    ariaLabel: "Top songs, books, and movies",
+    sceneBeats: [
+      sceneBeat("media-shelves-ambient", "media-shelves-ambient", 1),
     ],
   }),
   defineSection({
@@ -151,7 +162,12 @@ export const sectionsAfterProjects = [
     render: { type: "outro" },
     ariaLabel: "Contact links",
     sceneBeats: [
-      sceneBeat("skills-to-contact", "skills-ambient", 68, "direct"),
+      sceneBeat(
+        "media-shelves-to-contact",
+        "media-shelves-ambient",
+        68,
+        "direct",
+      ),
       sceneBeat("contact", "outro-face", 32),
     ],
   }),
