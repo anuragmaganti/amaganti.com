@@ -10,7 +10,8 @@ copy or visual preferences themselves.
 - `projects.ts`: project content and display order.
 - `content-sections.ts`: About and future editorial section content.
 - `skills.ts`: the primary Skills rail and technology ticker.
-- `media-shelves.ts`: dated Books, Movies, and TV Shows chart snapshots and artwork.
+- `media-shelves.ts`: shelf order, metadata sources, and sort modes.
+- `media/`: rich Books, Movies, and TV Shows catalog entries and artwork.
 
 Array order is display order. Keep project slugs, content ids, and skill ids
 unique because they are used as stable section and accessibility identifiers.
@@ -44,9 +45,14 @@ remain internal by design.
 
 ## Media shelves
 
-`media-shelves.ts` is a static snapshot rather than a runtime feed. Each shelf
-records its source URL and capture date, which keeps page rendering deterministic
-and avoids delaying the portfolio on a third-party request. Replace an item's
-metadata and intrinsic artwork dimensions in this file to refresh a chart or use
-a personal list. Keep all three shelf definitions present; their order is the
-rendered order.
+The media library is static rather than a runtime feed. This keeps rendering
+deterministic and prevents third-party metadata requests from delaying the
+portfolio. Add, remove, or manually reorder entries in `media/books.ts`,
+`media/movies.ts`, and `media/tv-shows.ts`; the endless tracks and reflections
+adapt to any non-empty item count automatically.
+
+`mediaShelfOrder` in `media-shelves.ts` controls the three row order. Change a
+value in `mediaShelfSortModes` to `oldest-first`, `newest-first`,
+`alphabetical`, or `manual`. The `manual` mode preserves the array order in that
+category's catalog file. Each entry keeps rich metadata and a stable source id
+for future detail panels without introducing a runtime API dependency.

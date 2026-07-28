@@ -151,7 +151,7 @@ export const sectionsAfterProjects = [
     id: "media-shelves-stage",
     layout: "media-shelves",
     render: { type: "custom", rendererId: "media-shelves" },
-    ariaLabel: "Top books, movies, and TV shows",
+    ariaLabel: "Favorite books, movies, and TV shows",
     sceneBeats: [
       sceneBeat("media-shelves-ambient", "media-shelves-ambient", 1),
     ],

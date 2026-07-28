@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-import { mediaShelves } from "../config/media-shelves";
+import {
+  mediaShelves,
+  mediaShelfSortModes,
+} from "../config/media-shelves";
 import { projects, type ProjectEntry } from "../config/projects";
 import { portfolioSections } from "../config/sections";
 import { outroLinks } from "../config/site";
@@ -13,6 +16,44 @@ import {
 } from "./helpers";
 
 test.describe("portfolio behavior contract", () => {
+  test("keeps media catalogs unique and applies their configured order", () => {
+    const titleCollator = new Intl.Collator("en", {
+      numeric: true,
+      sensitivity: "base",
+    });
+
+    for (const shelf of mediaShelves) {
+      const ids = shelf.items.map((item) => item.id);
+      const mode = mediaShelfSortModes[shelf.id];
+
+      expect(shelf.items.length).toBeGreaterThan(0);
+      expect(new Set(ids).size).toBe(ids.length);
+
+      if (mode === "manual") {
+        continue;
+      }
+
+      if (mode === "alphabetical") {
+        const titles = shelf.items.map((item) => item.title);
+        const expectedTitles = [...titles].sort(titleCollator.compare);
+
+        expect(titles).toEqual(expectedTitles);
+        continue;
+      }
+
+      const releaseDates = shelf.items.map(
+        (item) => item.releaseDate ?? `${item.releaseYear}-00-00`,
+      );
+      const expectedReleaseDates = [...releaseDates].sort();
+
+      if (mode === "newest-first") {
+        expectedReleaseDates.reverse();
+      }
+
+      expect(releaseDates).toEqual(expectedReleaseDates);
+    }
+  });
+
   test("renders the registry in one accessible DOM order", async ({ page }) => {
     await openPortfolio(page);
 
@@ -71,12 +112,14 @@ test.describe("portfolio behavior contract", () => {
       const covers = primaryItems.locator(".media-shelf__cover");
 
       await expect(shelfElement.getByRole("heading", { name: shelf.label })).toBeVisible();
-      await expect(primaryItems).toHaveCount(10);
-      await expect(shelfElement.locator(".media-shelf__item")).toHaveCount(30);
+      await expect(primaryItems).toHaveCount(shelf.items.length);
+      await expect(shelfElement.locator(".media-shelf__item")).toHaveCount(
+        shelf.items.length * 3,
+      );
       await expect(
         shelfElement.locator(".media-shelf__reflection-item"),
-      ).toHaveCount(30);
-      await expect(covers).toHaveCount(10);
+      ).toHaveCount(shelf.items.length * 3);
+      await expect(covers).toHaveCount(shelf.items.length);
       await expect(viewport).toHaveAttribute("tabindex", "0");
       await expect(shelfElement.locator(".media-shelf__arrow")).toHaveCount(0);
       await expect(
@@ -173,7 +216,7 @@ test.describe("portfolio behavior contract", () => {
       expect(geometry.hasSoftEdgeMask).toBe(true);
       expect(geometry.trackGapSpread).toBeLessThanOrEqual(1);
       expect(geometry.visibleCovers).toBeGreaterThanOrEqual(2);
-      expect(geometry.visibleCovers).toBeLessThan(10);
+      expect(geometry.visibleCovers).toBeLessThan(shelf.items.length);
     }
   });
 
@@ -215,9 +258,12 @@ test.describe("portfolio behavior contract", () => {
       const primaryItem = element.querySelector<HTMLElement>(
         '[data-media-copy="primary"]',
       )!;
+      const primaryItemCount = element.querySelectorAll(
+        '[data-media-copy="primary"]',
+      ).length;
       const reflectionItem = shelf.querySelectorAll<HTMLElement>(
         ".media-shelf__reflection-item",
-      )[10];
+      )[primaryItemCount];
 
       return Math.abs(
         primaryItem.getBoundingClientRect().left -
@@ -252,12 +298,21 @@ test.describe("portfolio behavior contract", () => {
     });
     await page.mouse.up();
 
+    const cycleWidth = await viewport.evaluate((element) => {
+      const firstItems = element.querySelectorAll<HTMLElement>(
+        '[data-media-item-index="0"]',
+      );
+
+      return firstItems[1].offsetLeft - firstItems[0].offsetLeft;
+    });
     const releasedScroll = await viewport.evaluate((element) => element.scrollLeft);
     await page.waitForTimeout(180);
     const inertialScroll = await viewport.evaluate((element) => element.scrollLeft);
+    const inertialDistance =
+      ((inertialScroll - releasedScroll) % cycleWidth + cycleWidth) % cycleWidth;
 
     expect(releasedScroll).toBeGreaterThan(20);
-    expect(inertialScroll).toBeGreaterThan(releasedScroll + 4);
+    expect(inertialDistance).toBeGreaterThan(4);
 
     const pageScrollBefore = await page.evaluate(() => window.scrollY);
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);

@@ -193,7 +193,7 @@ export function MediaShelf({ shelf }: { shelf: MediaShelfDefinition }) {
       <p className="sr-only" id={instructionsId}>
         Drag horizontally, use a two-finger horizontal trackpad gesture, or use
         the left and right arrow keys to browse the endlessly repeating list of
-        ten ranked items.
+        {shelf.items.length} items.
       </p>
     </article>
   );

@@ -5,8 +5,18 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "is1-ssl.mzstatic.com",
-        pathname: "/image/thumb/**",
+        hostname: "covers.openlibrary.org",
+        pathname: "/b/id/**",
+      },
+      {
+        protocol: "https",
+        hostname: "media.themoviedb.org",
+        pathname: "/t/p/**",
+      },
+      {
+        protocol: "https",
+        hostname: "static.tvmaze.com",
+        pathname: "/uploads/images/**",
       },
     ],
   },
