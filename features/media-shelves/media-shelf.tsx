@@ -1,35 +1,35 @@
 "use client";
 
-import {
-  BookOpenText,
-  CaretLeft,
-  CaretRight,
-  FilmSlate,
-  MusicNote,
-  type Icon,
-} from "@phosphor-icons/react";
 import Image from "next/image";
+import {
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 
-import type {
-  MediaShelfDefinition,
-  MediaShelfId,
-} from "@/config/media-shelves";
+import type { MediaShelfDefinition } from "@/config/media-shelves";
 import { useInertialHorizontalScroll } from "@/features/media-shelves/use-inertial-horizontal-scroll";
 
-const shelfIcons = {
-  songs: MusicNote,
-  books: BookOpenText,
-  movies: FilmSlate,
-} satisfies Record<MediaShelfId, Icon>;
-
 const shelfCopies = [0, 1, 2] as const;
+const UNFADED_EDGE_INSET_PX = 8;
+
+type HoveredTitle = {
+  title: string;
+  x: number;
+};
 
 function ShelfItems({
   shelf,
   reflection = false,
+  onArtworkPointerEnter,
+  onArtworkPointerLeave,
 }: {
   shelf: MediaShelfDefinition;
   reflection?: boolean;
+  onArtworkPointerEnter?: (
+    event: ReactPointerEvent<HTMLElement>,
+    title: string,
+  ) => void;
+  onArtworkPointerLeave?: () => void;
 }) {
   return shelfCopies.flatMap((copyIndex) =>
     shelf.items.map((item, itemIndex) => {
@@ -63,7 +63,13 @@ function ShelfItems({
           data-media-item-index={itemIndex}
           aria-hidden={!isPrimaryCopy}
         >
-          <figure className="media-shelf__artwork">
+          <figure
+            className="media-shelf__artwork"
+            onPointerEnter={(event) =>
+              onArtworkPointerEnter?.(event, item.title)
+            }
+            onPointerLeave={onArtworkPointerLeave}
+          >
             <Image
               className="media-shelf__cover"
               src={item.artwork.src}
@@ -85,25 +91,48 @@ function ShelfItems({
 }
 
 export function MediaShelf({ shelf }: { shelf: MediaShelfDefinition }) {
+  const [hoveredTitle, setHoveredTitle] = useState<HoveredTitle | null>(null);
   const {
     viewportRef,
     reflectionTrackRef,
     isDragging,
-    isScrolling,
-    activeIndex,
-    activeLabelX,
     onPointerDown,
     onPointerMove,
     onPointerUp,
     onPointerCancel,
     onLostPointerCapture,
     onKeyDown,
-    scrollByPage,
-  } = useInertialHorizontalScroll(shelf.items.length);
+  } = useInertialHorizontalScroll();
   const headingId = `media-shelf-${shelf.id}-heading`;
   const instructionsId = `media-shelf-${shelf.id}-instructions`;
-  const activeItem = shelf.items[activeIndex] ?? shelf.items[0];
-  const ShelfIcon = shelfIcons[shelf.id];
+
+  const handleArtworkPointerEnter = (
+    event: ReactPointerEvent<HTMLElement>,
+    title: string,
+  ) => {
+    const shelfElement = event.currentTarget.closest<HTMLElement>(
+      ".media-shelf",
+    );
+
+    if (!shelfElement) {
+      return;
+    }
+
+    const artworkRect = event.currentTarget.getBoundingClientRect();
+    const shelfRect = shelfElement.getBoundingClientRect();
+    const isInsideUnfadedBounds =
+      artworkRect.left >= shelfRect.left + UNFADED_EDGE_INSET_PX &&
+      artworkRect.right <= shelfRect.right - UNFADED_EDGE_INSET_PX;
+
+    setHoveredTitle(
+      isInsideUnfadedBounds
+        ? {
+            title,
+            x: artworkRect.left + artworkRect.width / 2 - shelfRect.left,
+          }
+        : null,
+    );
+  };
 
   return (
     <article
@@ -122,25 +151,14 @@ export function MediaShelf({ shelf }: { shelf: MediaShelfDefinition }) {
           <span className="media-shelf__surface" />
           <span className="media-shelf__front" />
         </div>
-        <div
-          className="media-shelf__active-label"
-          data-visible={!isScrolling}
-          style={{ left: activeLabelX ?? "50%" }}
+        <span
+          className="media-shelf__hover-title"
+          data-visible={hoveredTitle !== null}
+          style={{ left: hoveredTitle?.x ?? "50%" }}
           aria-hidden
         >
-          <span className="media-shelf__active-label-content" key={activeItem.id}>
-            <ShelfIcon aria-hidden weight="regular" />
-            <span>{activeItem.title}</span>
-          </span>
-        </div>
-        <button
-          className="media-shelf__arrow media-shelf__arrow--backward"
-          type="button"
-          aria-label={`Scroll ${shelf.label.toLowerCase()} backward`}
-          onClick={() => scrollByPage(-1)}
-        >
-          <CaretLeft aria-hidden weight="regular" />
-        </button>
+          {hoveredTitle?.title}
+        </span>
         <div
           ref={viewportRef}
           className="media-shelf__viewport"
@@ -155,9 +173,14 @@ export function MediaShelf({ shelf }: { shelf: MediaShelfDefinition }) {
           onPointerCancel={onPointerCancel}
           onLostPointerCapture={onLostPointerCapture}
           onKeyDown={onKeyDown}
+          onScroll={() => setHoveredTitle(null)}
         >
           <ol className="media-shelf__track">
-            <ShelfItems shelf={shelf} />
+            <ShelfItems
+              shelf={shelf}
+              onArtworkPointerEnter={handleArtworkPointerEnter}
+              onArtworkPointerLeave={() => setHoveredTitle(null)}
+            />
           </ol>
         </div>
         <div className="media-shelf__reflection-plane" aria-hidden>
@@ -165,14 +188,6 @@ export function MediaShelf({ shelf }: { shelf: MediaShelfDefinition }) {
             <ShelfItems shelf={shelf} reflection />
           </ol>
         </div>
-        <button
-          className="media-shelf__arrow media-shelf__arrow--forward"
-          type="button"
-          aria-label={`Scroll ${shelf.label.toLowerCase()} forward`}
-          onClick={() => scrollByPage(1)}
-        >
-          <CaretRight aria-hidden weight="regular" />
-        </button>
       </div>
 
       <p className="sr-only" id={instructionsId}>

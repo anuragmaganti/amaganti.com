@@ -1,4 +1,4 @@
-export type MediaShelfId = "songs" | "books" | "movies";
+export type MediaShelfId = "books" | "movies" | "tv-shows";
 
 export type MediaShelfItem = {
   id: string;
@@ -22,6 +22,7 @@ export type MediaShelfDefinition = {
 };
 
 const capturedAt = "2026-07-28";
+const mediaShelfOrder = ["books", "movies", "tv-shows"] as const;
 
 function defineShelf(shelf: MediaShelfDefinition) {
   return shelf;
@@ -45,104 +46,103 @@ function mediaItem(
   };
 }
 
-export const mediaShelves = [
+const mediaShelfCatalog = [
   defineShelf({
-    id: "songs",
-    label: "Songs",
-    sourceLabel: "Apple Music: Top Songs in the United States",
-    sourceUrl:
-      "https://rss.marketingtools.apple.com/api/v2/us/music/most-played/10/songs.json",
+    id: "tv-shows",
+    label: "TV Shows",
+    sourceLabel: "iTunes Store: Top TV Seasons in the United States",
+    sourceUrl: "https://itunes.apple.com/us/rss/toptvseasons/limit=10/json",
     capturedAt,
     items: [
       mediaItem(
-        "6792676860",
-        "Been By Now",
-        "Morgan Wallen",
-        "https://music.apple.com/us/album/been-by-now/6792676858?i=6792676860",
-        "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/9f/8d/52/9f8d52a0-b6d9-d038-327b-4fe58bedce67/26UMGIM94572.rgb.jpg/420x420bb.jpg",
-        420,
-        420,
+        "1889898691",
+        "World War II with Tom Hanks, Season 1",
+        "World War II with Tom Hanks",
+        "https://itunes.apple.com/us/tv-season/world-war-ii-with-tom-hanks-season-1/id1889898691?uo=2",
+        "https://is1-ssl.mzstatic.com/image/thumb/Video211/v4/41/6a/51/416a513c-c370-2b5c-c2bd-7c37f9b226e1/World_War_II_with_Tom_Hanks_S1_3000x3000.jpg/600x600bb.png",
+        600,
+        600,
       ),
       mediaItem(
-        "1844932150",
-        "Choosin' Texas",
-        "Ella Langley",
-        "https://music.apple.com/us/album/choosin-texas/1844932149?i=1844932150",
-        "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/e2/91/4d/e2914d0a-7f1d-f04c-fbf4-c50b38548838/196873638690.jpg/420x420bb.jpg",
-        420,
-        420,
+        "1061810188",
+        "Knight Rider (Original), The Complete Series",
+        "Knight Rider (Original)",
+        "https://itunes.apple.com/us/tv-season/knight-rider-original-the-complete-series/id1061810188?uo=2",
+        "https://is1-ssl.mzstatic.com/image/thumb/Video221/v4/ba/21/01/ba210157-64f4-3ed6-e008-f9991948dbb4/mzl.kdzmrvqf.png/600x600bb.png",
+        600,
+        600,
       ),
       mediaItem(
-        "6790569133",
-        "Dead Fresh",
-        "Lil Baby",
-        "https://music.apple.com/us/album/dead-fresh/6790569132?i=6790569133",
-        "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/74/80/37/748037d7-71c1-feff-4d38-3ef0a25578b6/26UMGIM85451.rgb.jpg/420x420bb.jpg",
-        420,
-        420,
+        "1834971229",
+        "Arcane League of Legends, The Complete Series",
+        "Arcane League of Legends",
+        "https://itunes.apple.com/us/tv-season/arcane-league-of-legends-the-complete-series/id1834971229?uo=2",
+        "https://is1-ssl.mzstatic.com/image/thumb/Video211/v4/01/62/bc/0162bc30-d48c-ff5e-d7f7-fb83f2e705b5/ARCN_3000x3000.jpg/600x600bb.png",
+        600,
+        600,
       ),
       mediaItem(
-        "6769568596",
-        "Janice STFU",
-        "Drake",
-        "https://music.apple.com/us/album/janice-stfu/6769568449?i=6769568596",
-        "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/35/b9/06/35b90629-a873-14f8-4789-ffc324960038/26UMGIM63614.rgb.jpg/420x420bb.jpg",
-        420,
-        420,
+        "6779321681",
+        "Tales from the Crypt, The Complete Original Series",
+        "Tales from the Crypt",
+        "https://itunes.apple.com/us/tv-season/tales-from-the-crypt-the-complete-original-series/id6779321681?uo=2",
+        "https://is1-ssl.mzstatic.com/image/thumb/Video211/v4/37/d8/32/37d83242-7081-8acb-6ab3-7379d410a682/TFTC_Bundle_3000x3000_ca__U00281_U0029.png/600x600bb.png",
+        600,
+        600,
       ),
       mediaItem(
-        "6763091996",
-        "I Can't Love You Anymore",
-        "Ella Langley & Morgan Wallen",
-        "https://music.apple.com/us/album/i-cant-love-you-anymore/1895158676?i=6763091996",
-        "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/d9/7a/6e/d97a6e25-ef5c-0c26-64e9-266c18641a57/196874324103.jpg/420x420bb.jpg",
-        420,
-        420,
+        "1893091452",
+        "Rick and Morty, Season 9",
+        "Rick and Morty",
+        "https://itunes.apple.com/us/tv-season/rick-and-morty-season-9/id1893091452?uo=2",
+        "https://is1-ssl.mzstatic.com/image/thumb/Video211/v4/9b/4e/c5/9b4ec522-a0a2-86ab-bc51-6d04db97eead/RickMorty_S9_S_KA_TT_3000x3000_300dpi_EN.jpg/600x600bb.png",
+        600,
+        600,
       ),
       mediaItem(
-        "1869436845",
-        "Be Her",
-        "Ella Langley",
-        "https://music.apple.com/us/album/be-her/1869436835?i=1869436845",
-        "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/a1/ba/64/a1ba6484-f462-1b88-ddff-d4c014d5f265/196874018361.jpg/420x420bb.jpg",
-        420,
-        420,
+        "1701118918",
+        "Teenage Mutant Ninja Turtles (1987), The Complete Series",
+        "Teenage Mutant Ninja Turtles (1987)",
+        "https://itunes.apple.com/us/tv-season/teenage-mutant-ninja-turtles-1987-the-complete-series/id1701118918?uo=2",
+        "https://is1-ssl.mzstatic.com/image/thumb/Video126/v4/12/ea/05/12ea0538-e0eb-8999-963c-4ba4937755cd/dfdcf405-09f6-43bd-855a-c56da63356a4_TMNT_CL_Bundle_ITUNES_COVER_ART_3000x3000.jpg/600x600bb.png",
+        600,
+        600,
       ),
       mediaItem(
-        "6769568598",
-        "Shabang",
-        "Drake",
-        "https://music.apple.com/us/album/shabang/6769568449?i=6769568598",
-        "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/35/b9/06/35b90629-a873-14f8-4789-ffc324960038/26UMGIM63614.rgb.jpg/420x420bb.jpg",
-        420,
-        420,
+        "6788493540",
+        "President Curtis, Season 1",
+        "President Curtis",
+        "https://itunes.apple.com/us/tv-season/president-curtis-season-1/id6788493540?uo=2",
+        "https://is1-ssl.mzstatic.com/image/thumb/Video211/v4/d8/36/21/d83621c4-38b5-c7f6-2689-eccf1abbd534/PresidentCurtis_S1_S_KA_TT_3000x3000_300dpi_EN.jpg/600x600bb.png",
+        600,
+        600,
       ),
       mediaItem(
-        "1889992115",
-        "stupid song",
-        "Olivia Rodrigo",
-        "https://music.apple.com/us/album/stupid-song/1889992111?i=1889992115",
-        "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/1d/1b/f9/1d1bf9b1-44c6-9a6c-6ffb-c158488c06ce/26UMGIM39303.rgb.jpg/420x420bb.jpg",
-        420,
-        420,
+        "1438574362",
+        "House: The Complete Series",
+        "House",
+        "https://itunes.apple.com/us/tv-season/house-the-complete-series/id1438574362?uo=2",
+        "https://is1-ssl.mzstatic.com/image/thumb/Video118/v4/43/8a/36/438a3696-ce52-eca4-080f-4133d1ac57d2/mzl.sclfonxk.lsr/600x600bb.png",
+        600,
+        600,
       ),
       mediaItem(
-        "1892189612",
-        "Spend Dat",
-        "Yung Miami",
-        "https://music.apple.com/us/album/spend-dat/1892189610?i=1892189612",
-        "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/bd/54/8d/bd548d85-4c33-2432-ecd8-e26f0585bdfd/26UMGIM41443.rgb.jpg/420x420bb.jpg",
-        420,
-        420,
+        "6792876570",
+        "The Walking Dead: Dead City, Season 3",
+        "The Walking Dead: Dead City",
+        "https://itunes.apple.com/us/tv-season/the-walking-dead-dead-city-season-3/id6792876570?uo=2",
+        "https://is1-ssl.mzstatic.com/image/thumb/Video221/v4/60/18/89/601889d2-436b-1471-b241-a63c6bfd7af8/iTunes_3000x3000.png/600x600bb.png",
+        600,
+        600,
       ),
       mediaItem(
-        "1802104400",
-        "Don't We",
-        "Morgan Wallen",
-        "https://music.apple.com/us/album/dont-we/1802103958?i=1802104400",
-        "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/1e/ef/26/1eef2600-29f4-5423-3052-26874afd2947/25UMGIM46050.rgb.jpg/420x420bb.jpg",
-        420,
-        420,
+        "6787311097",
+        "Reacher, Season 3",
+        "Reacher",
+        "https://itunes.apple.com/us/tv-season/reacher-season-3/id6787311097?uo=2",
+        "https://is1-ssl.mzstatic.com/image/thumb/Video211/v4/5c/da/3d/5cda3d5e-1073-4341-6f79-57a7cc3790c1/Reacher_S03_CoverArt_3000x3000.png/600x600bb.png",
+        600,
+        600,
       ),
     ],
   }),
@@ -347,3 +347,12 @@ export const mediaShelves = [
   }),
 ] as const satisfies readonly MediaShelfDefinition[];
 
+export const mediaShelves = mediaShelfOrder.map((id) => {
+  const shelf = mediaShelfCatalog.find((candidate) => candidate.id === id);
+
+  if (!shelf) {
+    throw new Error(`Missing media shelf configuration for ${id}`);
+  }
+
+  return shelf;
+});

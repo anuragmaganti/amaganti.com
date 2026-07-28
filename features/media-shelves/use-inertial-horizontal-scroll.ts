@@ -25,48 +25,28 @@ type DragState = {
 };
 
 const COPY_COUNT = 3;
-const IDLE_LABEL_DELAY_MS = 180;
 
 function modulo(value: number, divisor: number) {
   return ((value % divisor) + divisor) % divisor;
 }
 
-export function useInertialHorizontalScroll(itemCount: number) {
+export function useInertialHorizontalScroll() {
   const viewportRef = useRef<HTMLDivElement>(null);
   const reflectionTrackRef = useRef<HTMLOListElement>(null);
   const dragStateRef = useRef<DragState | null>(null);
   const inertiaFrameRef = useRef<number | null>(null);
   const viewportStateFrameRef = useRef<number | null>(null);
-  const labelIdleTimerRef = useRef<number | null>(null);
   const cycleWidthRef = useRef(0);
-  const activeCenterRef = useRef(0);
   const initializedRef = useRef(false);
   const reflectionOffsetRef = useRef(0);
   const reducedMotion = Boolean(useReducedMotion());
   const [isDragging, setIsDragging] = useState(false);
-  const [isScrolling, setIsScrolling] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [activeLabelX, setActiveLabelX] = useState<number | null>(null);
 
   const cancelInertia = () => {
     if (inertiaFrameRef.current !== null) {
       window.cancelAnimationFrame(inertiaFrameRef.current);
       inertiaFrameRef.current = null;
     }
-  };
-
-  const markScrolling = () => {
-    setIsScrolling(true);
-
-    if (labelIdleTimerRef.current !== null) {
-      window.clearTimeout(labelIdleTimerRef.current);
-    }
-
-    labelIdleTimerRef.current = window.setTimeout(() => {
-      labelIdleTimerRef.current = null;
-      setActiveLabelX(activeCenterRef.current);
-      setIsScrolling(false);
-    }, IDLE_LABEL_DELAY_MS);
   };
 
   const measureCycle = () => {
@@ -134,47 +114,9 @@ export function useInertialHorizontalScroll(itemCount: number) {
     }
   };
 
-  const updateActiveItem = () => {
-    const viewport = viewportRef.current;
-
-    if (!viewport) {
-      return;
-    }
-
-    const viewportCenter = viewport.scrollLeft + viewport.clientWidth / 2;
-    const display = viewport.closest<HTMLElement>(".media-shelf__display");
-    const viewportOffset = display
-      ? viewport.getBoundingClientRect().left -
-        display.getBoundingClientRect().left
-      : 0;
-    const items = viewport.querySelectorAll<HTMLElement>(
-      "[data-media-item-index]",
-    );
-    let nearestIndex = activeIndex;
-    let nearestDistance = Number.POSITIVE_INFINITY;
-    let nearestCenter = viewport.clientWidth / 2;
-
-    for (const item of items) {
-      const itemCenter = item.offsetLeft + item.offsetWidth / 2;
-      const distance = Math.abs(itemCenter - viewportCenter);
-
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearestCenter = itemCenter - viewport.scrollLeft + viewportOffset;
-        nearestIndex = Number(item.dataset.mediaItemIndex ?? 0) % itemCount;
-      }
-    }
-
-    activeCenterRef.current = nearestCenter;
-    setActiveIndex((currentIndex) =>
-      currentIndex === nearestIndex ? currentIndex : nearestIndex,
-    );
-  };
-
   const updateViewportState = () => {
     normalizeInfiniteScroll();
     syncReflectionTrack();
-    updateActiveItem();
   };
 
   const scheduleViewportStateUpdate = () => {
@@ -214,7 +156,6 @@ export function useInertialHorizontalScroll(itemCount: number) {
       syncReflectionTrack();
       velocity = decayMediaShelfVelocity(velocity, elapsed);
       previousTime = time;
-      markScrolling();
       scheduleViewportStateUpdate();
 
       if (Math.abs(velocity) >= MEDIA_SHELF_INERTIA.stopVelocity) {
@@ -245,7 +186,6 @@ export function useInertialHorizontalScroll(itemCount: number) {
     }
 
     cancelInertia();
-    markScrolling();
     event.currentTarget.setPointerCapture(event.pointerId);
     dragStateRef.current = {
       pointerId: event.pointerId,
@@ -276,7 +216,6 @@ export function useInertialHorizontalScroll(itemCount: number) {
       dragState.velocity * 0.64 + instantaneousVelocity * 0.36;
     dragState.previousClientX = event.clientX;
     dragState.previousTime = event.timeStamp;
-    markScrolling();
     scheduleViewportStateUpdate();
   };
 
@@ -300,7 +239,6 @@ export function useInertialHorizontalScroll(itemCount: number) {
     }
 
     cancelInertia();
-    markScrolling();
     viewport.scrollBy({
       left: viewport.clientWidth * 0.68 * direction,
       behavior: reducedMotion ? "auto" : "smooth",
@@ -323,7 +261,6 @@ export function useInertialHorizontalScroll(itemCount: number) {
     if (event.key === "Home" || event.key === "End") {
       event.preventDefault();
       cancelInertia();
-      markScrolling();
       const cycleWidth = cycleWidthRef.current;
       viewport.scrollTo({
         left:
@@ -336,7 +273,6 @@ export function useInertialHorizontalScroll(itemCount: number) {
   };
 
   const cancelInertiaFromEffect = useEffectEvent(cancelInertia);
-  const markScrollingFromEffect = useEffectEvent(markScrolling);
   const measureCycleFromEffect = useEffectEvent(measureCycle);
   const scheduleViewportStateUpdateFromEffect = useEffectEvent(
     scheduleViewportStateUpdate,
@@ -352,7 +288,6 @@ export function useInertialHorizontalScroll(itemCount: number) {
     const track = viewport.querySelector<HTMLElement>(".media-shelf__track");
     const handleScroll = () => {
       syncReflectionTrack();
-      markScrollingFromEffect();
       scheduleViewportStateUpdateFromEffect();
     };
     const handleWheel = () => cancelInertiaFromEffect();
@@ -385,9 +320,6 @@ export function useInertialHorizontalScroll(itemCount: number) {
       if (viewportStateFrameRef.current !== null) {
         window.cancelAnimationFrame(viewportStateFrameRef.current);
       }
-      if (labelIdleTimerRef.current !== null) {
-        window.clearTimeout(labelIdleTimerRef.current);
-      }
       resizeObserver.disconnect();
       viewport.removeEventListener("scroll", handleScroll);
       viewport.removeEventListener("wheel", handleWheel);
@@ -399,15 +331,11 @@ export function useInertialHorizontalScroll(itemCount: number) {
     viewportRef,
     reflectionTrackRef,
     isDragging,
-    isScrolling,
-    activeIndex,
-    activeLabelX,
     onPointerDown,
     onPointerMove,
     onPointerUp,
     onPointerCancel,
     onLostPointerCapture,
     onKeyDown,
-    scrollByPage,
   };
 }

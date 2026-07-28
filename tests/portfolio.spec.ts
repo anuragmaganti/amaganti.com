@@ -78,9 +78,11 @@ test.describe("portfolio behavior contract", () => {
       ).toHaveCount(30);
       await expect(covers).toHaveCount(10);
       await expect(viewport).toHaveAttribute("tabindex", "0");
+      await expect(shelfElement.locator(".media-shelf__arrow")).toHaveCount(0);
       await expect(
-        shelfElement.locator('.media-shelf__active-label[data-visible="true"]'),
-      ).toBeVisible();
+        shelfElement.locator(".media-shelf__active-label"),
+      ).toHaveCount(0);
+      await expect(shelfElement.locator(".media-shelf__hover-title")).toHaveCount(1);
 
       const geometry = await shelfElement.evaluate((element) => {
         const shelfViewport = element.querySelector<HTMLElement>(
@@ -100,11 +102,12 @@ test.describe("portfolio behavior contract", () => {
           ),
         );
         const measureGapSpread = (items: HTMLElement[]) => {
-          const gaps = items.slice(1).map(
-            (item, index) =>
-              item.offsetLeft -
-              (items[index].offsetLeft + items[index].offsetWidth),
-          );
+          const gaps = items.slice(1).map((item, index) => {
+            const previousRect = items[index].getBoundingClientRect();
+            const itemRect = item.getBoundingClientRect();
+
+            return itemRect.left - previousRect.right;
+          });
 
           return Math.max(...gaps) - Math.min(...gaps);
         };
@@ -182,10 +185,7 @@ test.describe("portfolio behavior contract", () => {
     await scrollToSection(page, "media-shelves-stage");
 
     const viewport = page.locator(
-      '[data-media-shelf="songs"] .media-shelf__viewport',
-    );
-    const activeLabel = page.locator(
-      '[data-media-shelf="songs"] .media-shelf__active-label',
+      '[data-media-shelf="books"] .media-shelf__viewport',
     );
     const cycleWidth = await viewport.evaluate((element) => {
       const firstItems = element.querySelectorAll<HTMLElement>(
@@ -199,7 +199,6 @@ test.describe("portfolio behavior contract", () => {
       element.scrollLeft = cycle * 1.51;
       element.dispatchEvent(new Event("scroll"));
     }, cycleWidth);
-    await expect(activeLabel).toHaveAttribute("data-visible", "false");
     await expect
       .poll(() => viewport.evaluate((element) => element.scrollLeft))
       .toBeLessThan(cycleWidth);
@@ -211,8 +210,6 @@ test.describe("portfolio behavior contract", () => {
     await expect
       .poll(() => viewport.evaluate((element) => element.scrollLeft))
       .toBeGreaterThan(cycleWidth);
-    await expect(activeLabel).toHaveAttribute("data-visible", "true");
-
     const reflectionAlignment = await viewport.evaluate((element) => {
       const shelf = element.closest<HTMLElement>("[data-media-shelf]")!;
       const primaryItem = element.querySelector<HTMLElement>(
@@ -239,7 +236,7 @@ test.describe("portfolio behavior contract", () => {
     await scrollToSection(page, "media-shelves-stage");
 
     const viewport = page.locator(
-      '[data-media-shelf="songs"] .media-shelf__viewport',
+      '[data-media-shelf="books"] .media-shelf__viewport',
     );
     const box = await viewport.boundingBox();
 
@@ -270,29 +267,16 @@ test.describe("portfolio behavior contract", () => {
       .toBeGreaterThan(pageScrollBefore + 20);
   });
 
-  test("supports shelf arrows and keyboard navigation", async ({
+  test("supports shelf keyboard navigation without persistent controls", async ({
     page,
   }, testInfo) => {
     test.skip(testInfo.project.name !== "desktop");
     await openPortfolio(page);
     await scrollToSection(page, "media-shelves-stage");
 
-    const shelf = page.locator('[data-media-shelf="songs"]');
+    const shelf = page.locator('[data-media-shelf="books"]');
     const viewport = shelf.locator(".media-shelf__viewport");
-    const backward = shelf.getByRole("button", {
-      name: "Scroll songs backward",
-    });
-    const forward = shelf.getByRole("button", {
-      name: "Scroll songs forward",
-    });
-
-    await expect(backward).toBeEnabled();
-    await expect(forward).toBeEnabled();
-    const initialScroll = await viewport.evaluate((element) => element.scrollLeft);
-    await forward.click();
-    await expect
-      .poll(() => viewport.evaluate((element) => element.scrollLeft))
-      .toBeGreaterThan(initialScroll + 100);
+    await expect(shelf.locator("button")).toHaveCount(0);
 
     await viewport.focus();
     await page.keyboard.press("Home");
@@ -308,8 +292,14 @@ test.describe("portfolio behavior contract", () => {
       .toBeCloseTo(cycleWidth, -1);
     await page.keyboard.press("ArrowRight");
     await expect
-      .poll(() => viewport.evaluate((element) => element.scrollLeft))
-      .toBeGreaterThan(cycleWidth + 100);
+      .poll(() =>
+        viewport.evaluate(
+          (element, cycle) =>
+            ((element.scrollLeft - cycle) % cycle + cycle) % cycle,
+          cycleWidth,
+        ),
+      )
+      .toBeGreaterThan(100);
   });
 
   test("disables post-release shelf inertia for reduced motion", async ({
@@ -320,7 +310,7 @@ test.describe("portfolio behavior contract", () => {
     await scrollToSection(page, "media-shelves-stage");
 
     const viewport = page.locator(
-      '[data-media-shelf="songs"] .media-shelf__viewport',
+      '[data-media-shelf="books"] .media-shelf__viewport',
     );
     const box = await viewport.boundingBox();
 

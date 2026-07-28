@@ -10,7 +10,7 @@ copy or visual preferences themselves.
 - `projects.ts`: project content and display order.
 - `content-sections.ts`: About and future editorial section content.
 - `skills.ts`: the primary Skills rail and technology ticker.
-- `media-shelves.ts`: dated Songs, Books, and Movies chart snapshots and artwork.
+- `media-shelves.ts`: dated Books, Movies, and TV Shows chart snapshots and artwork.
 
 Array order is display order. Keep project slugs, content ids, and skill ids
 unique because they are used as stable section and accessibility identifiers.
