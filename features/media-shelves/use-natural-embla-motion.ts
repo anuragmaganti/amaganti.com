@@ -13,11 +13,16 @@ const KINETICS = {
 } as const;
 
 type PointerMotion = {
+  axis: "pending" | "horizontal" | "vertical";
   id: number;
   lastTime: number;
   lastX: number;
+  startX: number;
+  startY: number;
   velocity: number;
 };
+
+const POINTER_AXIS_THRESHOLD = 3;
 
 function normalizedWheelDelta(
   delta: number,
@@ -56,6 +61,11 @@ function settleAtRenderedPosition(engine: EngineType) {
   engine.previousLocation.set(renderedPosition);
   engine.offsetLocation.set(renderedPosition);
   engine.target.set(renderedPosition);
+  engine.scrollBody
+    .useDuration(0)
+    .seek()
+    .useBaseDuration()
+    .useBaseFriction();
 }
 
 function moveEngine(engine: EngineType, distance: number) {
@@ -172,17 +182,29 @@ export function useNaturalEmblaMotion(
     };
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (event.pointerType === "mouse" && event.button !== 0) {
+      if (
+        !event.isPrimary ||
+        (event.pointerType === "mouse" && event.button !== 0)
+      ) {
         return;
       }
 
       stopInertia();
+      settleAtRenderedPosition(engine);
       pointerMotion = {
+        axis: event.pointerType === "mouse" ? "horizontal" : "pending",
         id: event.pointerId,
         lastTime: event.timeStamp,
         lastX: event.clientX,
+        startX: event.clientX,
+        startY: event.clientY,
         velocity: 0,
       };
+
+      if (pointerMotion.axis === "horizontal") {
+        viewport.setPointerCapture(event.pointerId);
+        engine.eventHandler.emit("pointerDown");
+      }
     };
 
     const handlePointerMove = (event: PointerEvent) => {
@@ -190,39 +212,92 @@ export function useNaturalEmblaMotion(
         return;
       }
 
-      const elapsed = Math.max(1, event.timeStamp - pointerMotion.lastTime);
+      const coalescedEvents = event.getCoalescedEvents?.() ?? [];
+      const sample = coalescedEvents.at(-1) ?? event;
+
+      if (pointerMotion.axis === "pending") {
+        const totalX = sample.clientX - pointerMotion.startX;
+        const totalY = sample.clientY - pointerMotion.startY;
+
+        if (
+          Math.max(Math.abs(totalX), Math.abs(totalY)) <
+          POINTER_AXIS_THRESHOLD
+        ) {
+          return;
+        }
+
+        if (Math.abs(totalY) >= Math.abs(totalX)) {
+          pointerMotion.axis = "vertical";
+          return;
+        }
+
+        pointerMotion.axis = "horizontal";
+        viewport.setPointerCapture(event.pointerId);
+        engine.eventHandler.emit("pointerDown");
+      }
+
+      if (pointerMotion.axis !== "horizontal") {
+        return;
+      }
+
+      event.preventDefault();
+      const elapsed = Math.max(1, sample.timeStamp - pointerMotion.lastTime);
       const instantaneousVelocity =
-        (event.clientX - pointerMotion.lastX) / elapsed;
+        (sample.clientX - pointerMotion.lastX) / elapsed;
+
+      moveEngine(engine, sample.clientX - pointerMotion.lastX);
 
       pointerMotion.velocity =
         pointerMotion.velocity * (1 - KINETICS.velocityBlend) +
         instantaneousVelocity * KINETICS.velocityBlend;
-      pointerMotion.lastTime = event.timeStamp;
-      pointerMotion.lastX = event.clientX;
+      pointerMotion.lastTime = sample.timeStamp;
+      pointerMotion.lastX = sample.clientX;
     };
 
-    const handlePointerCancel = (event: PointerEvent) => {
-      if (pointerMotion?.id === event.pointerId) {
-        pointerMotion = null;
-        stopInertia();
+    const finishPointerGesture = (
+      event: PointerEvent,
+      shouldStartInertia: boolean,
+    ) => {
+      if (!pointerMotion || pointerMotion.id !== event.pointerId) {
+        return;
       }
-    };
 
-    const handleEmblaPointerUp = () => {
-      if (!pointerMotion) {
+      const completedMotion = pointerMotion;
+      pointerMotion = null;
+
+      if (viewport.hasPointerCapture(event.pointerId)) {
+        viewport.releasePointerCapture(event.pointerId);
+      }
+
+      if (completedMotion.axis !== "horizontal") {
         return;
       }
 
       const idleTime = Math.max(
         0,
-        ownerWindow.performance.now() - pointerMotion.lastTime,
+        ownerWindow.performance.now() - completedMotion.lastTime,
       );
       const releaseVelocity =
-        pointerMotion.velocity *
+        completedMotion.velocity *
         Math.exp(-KINETICS.dampingPerMillisecond * idleTime);
 
-      pointerMotion = null;
-      startInertia(releaseVelocity);
+      engine.eventHandler.emit("pointerUp");
+
+      if (shouldStartInertia) {
+        startInertia(releaseVelocity);
+      } else {
+        stopInertia();
+        settleAtRenderedPosition(engine);
+        engine.eventHandler.emit("settle");
+      }
+    };
+
+    const handlePointerUp = (event: PointerEvent) => {
+      finishPointerGesture(event, true);
+    };
+
+    const handlePointerCancel = (event: PointerEvent) => {
+      finishPointerGesture(event, false);
     };
 
     const handleWheel = (event: WheelEvent) => {
@@ -264,6 +339,9 @@ export function useNaturalEmblaMotion(
       passive: true,
     });
     ownerDocument.addEventListener("pointermove", handlePointerMove, {
+      passive: false,
+    });
+    ownerDocument.addEventListener("pointerup", handlePointerUp, {
       passive: true,
     });
     ownerDocument.addEventListener("pointercancel", handlePointerCancel, {
@@ -271,7 +349,7 @@ export function useNaturalEmblaMotion(
     });
     viewport.addEventListener("wheel", handleWheel, { passive: false });
     ownerDocument.addEventListener("visibilitychange", handleVisibilityChange);
-    emblaApi.on("pointerUp", handleEmblaPointerUp).on("reInit", handleReInit);
+    emblaApi.on("reInit", handleReInit);
 
     return () => {
       stopInertia();
@@ -281,15 +359,14 @@ export function useNaturalEmblaMotion(
       viewport.classList.remove("is-wheel-dragging");
       viewport.removeEventListener("pointerdown", handlePointerDown);
       ownerDocument.removeEventListener("pointermove", handlePointerMove);
+      ownerDocument.removeEventListener("pointerup", handlePointerUp);
       ownerDocument.removeEventListener("pointercancel", handlePointerCancel);
       viewport.removeEventListener("wheel", handleWheel);
       ownerDocument.removeEventListener(
         "visibilitychange",
         handleVisibilityChange,
       );
-      emblaApi
-        .off("pointerUp", handleEmblaPointerUp)
-        .off("reInit", handleReInit);
+      emblaApi.off("reInit", handleReInit);
     };
   }, [emblaApi, reducedMotion]);
 }

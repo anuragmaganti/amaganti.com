@@ -101,6 +101,7 @@ export function useMediaShelfCarousel({
       loop: true,
       slidesToScroll: 1,
       startIndex: 1,
+      watchDrag: false,
     }),
     [reducedMotion],
   );

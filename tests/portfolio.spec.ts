@@ -487,6 +487,55 @@ test.describe("portfolio behavior contract", () => {
     expect(Math.abs(coastPosition - releasePosition)).toBeGreaterThan(1);
   });
 
+  test("maps tiny shelf pointer and wheel deltas directly to the rail", async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== "desktop");
+    await openPortfolio(page, { reducedMotion: "reduce" });
+    await scrollToSection(page, "media-shelves-stage");
+
+    const viewport = page.locator(
+      '[data-media-shelf="books"] .media-shelf__viewport',
+    );
+    const track = viewport.locator(".media-shelf__track");
+    const box = await viewport.boundingBox();
+
+    expect(box).not.toBeNull();
+    if (!box) {
+      return;
+    }
+
+    const readTrackX = () =>
+      track.evaluate((element) =>
+        new DOMMatrix(getComputedStyle(element).transform).m41,
+      );
+    const startX = box.x + box.width * 0.6;
+    const y = box.y + box.height * 0.45;
+
+    await page.mouse.move(startX, y);
+    await page.mouse.down();
+    const pointerPositions: number[] = [];
+
+    for (let step = 1; step <= 6; step += 1) {
+      await page.mouse.move(startX - step * 2, y);
+      pointerPositions.push(await readTrackX());
+    }
+
+    await page.mouse.up();
+
+    for (let index = 1; index < pointerPositions.length; index += 1) {
+      expect(pointerPositions[index]).toBeLessThan(
+        pointerPositions[index - 1] - 1,
+      );
+    }
+
+    const beforeWheel = await readTrackX();
+    await page.mouse.wheel(2, 0);
+    const afterWheel = await readTrackX();
+
+    expect(afterWheel).toBeLessThan(beforeWheel - 1);
+  });
+
   test("supports shelf keyboard navigation without persistent controls", async ({
     page,
   }, testInfo) => {
@@ -573,6 +622,55 @@ test.describe("portfolio behavior contract", () => {
     const stablePosition = (await track.boundingBox())!.x;
 
     expect(stablePosition).toBeCloseTo(settledPosition, 0);
+  });
+
+  test("drives the Embla rail directly from a horizontal touch gesture", async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile");
+    await openPortfolio(page, { reducedMotion: "no-preference" });
+    await scrollToSection(page, "media-shelves-stage");
+
+    const viewport = page.locator(
+      '[data-media-shelf="books"] .media-shelf__viewport',
+    );
+    const track = viewport.locator(".media-shelf__track");
+    const box = await viewport.boundingBox();
+
+    expect(box).not.toBeNull();
+    if (!box) {
+      return;
+    }
+
+    const session = await page.context().newCDPSession(page);
+    const startX = box.x + box.width * 0.68;
+    const y = box.y + box.height * 0.45;
+    const beforeTouch = (await track.boundingBox())!.x;
+
+    try {
+      await session.send("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [{ id: 1, x: startX, y }],
+      });
+
+      for (let step = 1; step <= 6; step += 1) {
+        await session.send("Input.dispatchTouchEvent", {
+          type: "touchMove",
+          touchPoints: [{ id: 1, x: startX - step * 8, y }],
+        });
+      }
+
+      await session.send("Input.dispatchTouchEvent", {
+        type: "touchEnd",
+        touchPoints: [],
+      });
+    } finally {
+      await session.detach();
+    }
+
+    const afterTouch = (await track.boundingBox())!.x;
+
+    expect(afterTouch).toBeLessThan(beforeTouch - 20);
   });
 
   test("uses the configured default and persists explicit themes", async ({ page }) => {
