@@ -42,23 +42,83 @@ test.describe("portfolio behavior contract", () => {
     await expect(shelves).toHaveCount(mediaShelves.length);
     await expectNoHorizontalOverflow(page);
 
+    const sectionGeometry = await section.evaluate((element) => {
+      const stage = element.querySelector<HTMLElement>(".media-shelves-stage")!;
+      const stageRect = stage.getBoundingClientRect();
+
+      return {
+        top: stageRect.top,
+        bottom: stageRect.bottom,
+        height: stageRect.height,
+        viewportHeight: window.innerHeight,
+      };
+    });
+
+    expect(sectionGeometry.top).toBeGreaterThanOrEqual(-1);
+    expect(sectionGeometry.bottom).toBeLessThanOrEqual(
+      sectionGeometry.viewportHeight + 1,
+    );
+    expect(
+      sectionGeometry.height / sectionGeometry.viewportHeight,
+    ).toBeGreaterThan(0.88);
+
     for (const shelf of mediaShelves) {
       const shelfElement = section.locator(`[data-media-shelf="${shelf.id}"]`);
       const viewport = shelfElement.locator(".media-shelf__viewport");
-      const covers = shelfElement.locator(".media-shelf__cover");
+      const primaryItems = shelfElement.locator(
+        '.media-shelf__item[data-media-copy="primary"]',
+      );
+      const covers = primaryItems.locator(".media-shelf__cover");
 
       await expect(shelfElement.getByRole("heading", { name: shelf.label })).toBeVisible();
-      await expect(shelfElement.locator(".media-shelf__item")).toHaveCount(10);
+      await expect(primaryItems).toHaveCount(10);
+      await expect(shelfElement.locator(".media-shelf__item")).toHaveCount(30);
+      await expect(
+        shelfElement.locator(".media-shelf__reflection-item"),
+      ).toHaveCount(30);
       await expect(covers).toHaveCount(10);
       await expect(viewport).toHaveAttribute("tabindex", "0");
+      await expect(
+        shelfElement.locator('.media-shelf__active-label[data-visible="true"]'),
+      ).toBeVisible();
 
       const geometry = await shelfElement.evaluate((element) => {
         const shelfViewport = element.querySelector<HTMLElement>(
           ".media-shelf__viewport",
         )!;
         const coverElements = Array.from(
-          element.querySelectorAll<HTMLElement>(".media-shelf__cover"),
+          element.querySelectorAll<HTMLElement>(
+            '[data-media-copy="primary"] .media-shelf__cover',
+          ),
         );
+        const trackItems = Array.from(
+          element.querySelectorAll<HTMLElement>(".media-shelf__item"),
+        );
+        const reflectionItems = Array.from(
+          element.querySelectorAll<HTMLElement>(
+            ".media-shelf__reflection-item",
+          ),
+        );
+        const measureGapSpread = (items: HTMLElement[]) => {
+          const gaps = items.slice(1).map(
+            (item, index) =>
+              item.offsetLeft -
+              (items[index].offsetLeft + items[index].offsetWidth),
+          );
+
+          return Math.max(...gaps) - Math.min(...gaps);
+        };
+        const shelfRect = element.getBoundingClientRect();
+        const viewportRect = shelfViewport.getBoundingClientRect();
+        const reflectionPlaneRect = element
+          .querySelector<HTMLElement>(".media-shelf__reflection-plane")!
+          .getBoundingClientRect();
+        const surfaceRect = element
+          .querySelector<HTMLElement>(".media-shelf__surface")!
+          .getBoundingClientRect();
+        const frontRect = element
+          .querySelector<HTMLElement>(".media-shelf__front")!
+          .getBoundingClientRect();
         const bottoms = coverElements.map(
           (cover) => cover.getBoundingClientRect().bottom,
         );
@@ -75,15 +135,100 @@ test.describe("portfolio behavior contract", () => {
         return {
           baselineSpread: Math.max(...bottoms) - Math.min(...bottoms),
           canOverflow: shelfViewport.scrollWidth > shelfViewport.clientWidth,
+          coverDepthFraction:
+            (Math.min(...bottoms) - surfaceRect.top) / surfaceRect.height,
+          frontHeightRatio: frontRect.height / shelfRect.width,
+          shelfWidthRatio: shelfRect.width / window.innerWidth,
+          surfaceToFrontRatio: surfaceRect.height / frontRect.height,
+          viewportBleedsLeft: viewportRect.left < shelfRect.left,
+          viewportBleedsRight: viewportRect.right > shelfRect.right,
+          reflectionInsideShelf:
+            reflectionPlaneRect.left >= shelfRect.left - 1 &&
+            reflectionPlaneRect.right <= shelfRect.right + 1 &&
+            reflectionPlaneRect.top >= Math.min(...bottoms) - 1 &&
+            reflectionPlaneRect.bottom <= surfaceRect.bottom + 1,
+          reflectionTrackGapSpread: measureGapSpread(reflectionItems),
+          hasSoftEdgeMask:
+            getComputedStyle(shelfViewport).maskImage !== "none" ||
+            getComputedStyle(shelfViewport).webkitMaskImage !== "none",
+          trackGapSpread: measureGapSpread(trackItems),
           visibleCovers,
         };
       });
 
       expect(geometry.baselineSpread).toBeLessThan(1);
       expect(geometry.canOverflow).toBe(true);
+      expect(geometry.coverDepthFraction).toBeGreaterThan(0.22);
+      expect(geometry.coverDepthFraction).toBeLessThan(0.28);
+      expect(geometry.frontHeightRatio).toBeLessThan(0.035);
+      expect(geometry.shelfWidthRatio).toBeGreaterThan(0.82);
+      expect(geometry.surfaceToFrontRatio).toBeGreaterThan(0.75);
+      expect(geometry.viewportBleedsLeft).toBe(true);
+      expect(geometry.viewportBleedsRight).toBe(true);
+      expect(geometry.reflectionInsideShelf).toBe(true);
+      expect(geometry.reflectionTrackGapSpread).toBeLessThanOrEqual(1);
+      expect(geometry.hasSoftEdgeMask).toBe(true);
+      expect(geometry.trackGapSpread).toBeLessThanOrEqual(1);
       expect(geometry.visibleCovers).toBeGreaterThanOrEqual(2);
       expect(geometry.visibleCovers).toBeLessThan(10);
     }
+  });
+
+  test("wraps every shelf seamlessly in both directions", async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== "desktop");
+    await openPortfolio(page);
+    await scrollToSection(page, "media-shelves-stage");
+
+    const viewport = page.locator(
+      '[data-media-shelf="songs"] .media-shelf__viewport',
+    );
+    const activeLabel = page.locator(
+      '[data-media-shelf="songs"] .media-shelf__active-label',
+    );
+    const cycleWidth = await viewport.evaluate((element) => {
+      const firstItems = element.querySelectorAll<HTMLElement>(
+        '[data-media-item-index="0"]',
+      );
+
+      return firstItems[1].offsetLeft - firstItems[0].offsetLeft;
+    });
+
+    await viewport.evaluate((element, cycle) => {
+      element.scrollLeft = cycle * 1.51;
+      element.dispatchEvent(new Event("scroll"));
+    }, cycleWidth);
+    await expect(activeLabel).toHaveAttribute("data-visible", "false");
+    await expect
+      .poll(() => viewport.evaluate((element) => element.scrollLeft))
+      .toBeLessThan(cycleWidth);
+
+    await viewport.evaluate((element, cycle) => {
+      element.scrollLeft = cycle * 0.49;
+      element.dispatchEvent(new Event("scroll"));
+    }, cycleWidth);
+    await expect
+      .poll(() => viewport.evaluate((element) => element.scrollLeft))
+      .toBeGreaterThan(cycleWidth);
+    await expect(activeLabel).toHaveAttribute("data-visible", "true");
+
+    const reflectionAlignment = await viewport.evaluate((element) => {
+      const shelf = element.closest<HTMLElement>("[data-media-shelf]")!;
+      const primaryItem = element.querySelector<HTMLElement>(
+        '[data-media-copy="primary"]',
+      )!;
+      const reflectionItem = shelf.querySelectorAll<HTMLElement>(
+        ".media-shelf__reflection-item",
+      )[10];
+
+      return Math.abs(
+        primaryItem.getBoundingClientRect().left -
+          reflectionItem.getBoundingClientRect().left,
+      );
+    });
+
+    expect(reflectionAlignment).toBeLessThan(1);
   });
 
   test("continues a fast shelf drag with inertia without trapping vertical scroll", async ({
@@ -134,25 +279,37 @@ test.describe("portfolio behavior contract", () => {
 
     const shelf = page.locator('[data-media-shelf="songs"]');
     const viewport = shelf.locator(".media-shelf__viewport");
+    const backward = shelf.getByRole("button", {
+      name: "Scroll songs backward",
+    });
     const forward = shelf.getByRole("button", {
       name: "Scroll songs forward",
     });
 
+    await expect(backward).toBeEnabled();
     await expect(forward).toBeEnabled();
+    const initialScroll = await viewport.evaluate((element) => element.scrollLeft);
     await forward.click();
     await expect
       .poll(() => viewport.evaluate((element) => element.scrollLeft))
-      .toBeGreaterThan(100);
+      .toBeGreaterThan(initialScroll + 100);
 
     await viewport.focus();
     await page.keyboard.press("Home");
+    const cycleWidth = await viewport.evaluate((element) => {
+      const firstItems = element.querySelectorAll<HTMLElement>(
+        '[data-media-item-index="0"]',
+      );
+
+      return firstItems[1].offsetLeft - firstItems[0].offsetLeft;
+    });
     await expect
       .poll(() => viewport.evaluate((element) => element.scrollLeft))
-      .toBeLessThan(2);
+      .toBeCloseTo(cycleWidth, -1);
     await page.keyboard.press("ArrowRight");
     await expect
       .poll(() => viewport.evaluate((element) => element.scrollLeft))
-      .toBeGreaterThan(100);
+      .toBeGreaterThan(cycleWidth + 100);
   });
 
   test("disables post-release shelf inertia for reduced motion", async ({

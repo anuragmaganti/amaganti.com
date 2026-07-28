@@ -1,17 +1,97 @@
 "use client";
 
-import { CaretLeft, CaretRight } from "@phosphor-icons/react";
+import {
+  BookOpenText,
+  CaretLeft,
+  CaretRight,
+  FilmSlate,
+  MusicNote,
+  type Icon,
+} from "@phosphor-icons/react";
 import Image from "next/image";
 
-import type { MediaShelfDefinition } from "@/config/media-shelves";
+import type {
+  MediaShelfDefinition,
+  MediaShelfId,
+} from "@/config/media-shelves";
 import { useInertialHorizontalScroll } from "@/features/media-shelves/use-inertial-horizontal-scroll";
+
+const shelfIcons = {
+  songs: MusicNote,
+  books: BookOpenText,
+  movies: FilmSlate,
+} satisfies Record<MediaShelfId, Icon>;
+
+const shelfCopies = [0, 1, 2] as const;
+
+function ShelfItems({
+  shelf,
+  reflection = false,
+}: {
+  shelf: MediaShelfDefinition;
+  reflection?: boolean;
+}) {
+  return shelfCopies.flatMap((copyIndex) =>
+    shelf.items.map((item, itemIndex) => {
+      const isPrimaryCopy = copyIndex === 1;
+
+      if (reflection) {
+        return (
+          <li
+            className="media-shelf__reflection-item"
+            key={`reflection-${copyIndex}-${item.id}`}
+            data-media-item-index={itemIndex}
+          >
+            <Image
+              className="media-shelf__reflection-image"
+              src={item.artwork.src}
+              width={item.artwork.width}
+              height={item.artwork.height}
+              sizes="(max-width: 640px) 26vw, (max-width: 1100px) 18vw, 13vw"
+              alt=""
+              draggable={false}
+            />
+          </li>
+        );
+      }
+
+      return (
+        <li
+          className="media-shelf__item"
+          key={`${copyIndex}-${item.id}`}
+          data-media-copy={isPrimaryCopy ? "primary" : "clone"}
+          data-media-item-index={itemIndex}
+          aria-hidden={!isPrimaryCopy}
+        >
+          <figure className="media-shelf__artwork">
+            <Image
+              className="media-shelf__cover"
+              src={item.artwork.src}
+              width={item.artwork.width}
+              height={item.artwork.height}
+              sizes="(max-width: 640px) 26vw, (max-width: 1100px) 18vw, 13vw"
+              alt=""
+              draggable={false}
+            />
+            <figcaption className="sr-only">
+              {itemIndex + 1}. {item.title}
+              {item.creator ? ` by ${item.creator}` : ""}
+            </figcaption>
+          </figure>
+        </li>
+      );
+    }),
+  );
+}
 
 export function MediaShelf({ shelf }: { shelf: MediaShelfDefinition }) {
   const {
     viewportRef,
+    reflectionTrackRef,
     isDragging,
-    canScrollBackward,
-    canScrollForward,
+    isScrolling,
+    activeIndex,
+    activeLabelX,
     onPointerDown,
     onPointerMove,
     onPointerUp,
@@ -19,9 +99,11 @@ export function MediaShelf({ shelf }: { shelf: MediaShelfDefinition }) {
     onLostPointerCapture,
     onKeyDown,
     scrollByPage,
-  } = useInertialHorizontalScroll();
+  } = useInertialHorizontalScroll(shelf.items.length);
   const headingId = `media-shelf-${shelf.id}-heading`;
   const instructionsId = `media-shelf-${shelf.id}-instructions`;
+  const activeItem = shelf.items[activeIndex] ?? shelf.items[0];
+  const ShelfIcon = shelfIcons[shelf.id];
 
   return (
     <article
@@ -36,12 +118,25 @@ export function MediaShelf({ shelf }: { shelf: MediaShelfDefinition }) {
       </header>
 
       <div className="media-shelf__display">
-        <div className="media-shelf__slab" aria-hidden />
+        <div className="media-shelf__slab" aria-hidden>
+          <span className="media-shelf__surface" />
+          <span className="media-shelf__front" />
+        </div>
+        <div
+          className="media-shelf__active-label"
+          data-visible={!isScrolling}
+          style={{ left: activeLabelX ?? "50%" }}
+          aria-hidden
+        >
+          <span className="media-shelf__active-label-content" key={activeItem.id}>
+            <ShelfIcon aria-hidden weight="regular" />
+            <span>{activeItem.title}</span>
+          </span>
+        </div>
         <button
           className="media-shelf__arrow media-shelf__arrow--backward"
           type="button"
           aria-label={`Scroll ${shelf.label.toLowerCase()} backward`}
-          disabled={!canScrollBackward}
           onClick={() => scrollByPage(-1)}
         >
           <CaretLeft aria-hidden weight="regular" />
@@ -62,42 +157,18 @@ export function MediaShelf({ shelf }: { shelf: MediaShelfDefinition }) {
           onKeyDown={onKeyDown}
         >
           <ol className="media-shelf__track">
-            {shelf.items.map((item, index) => (
-              <li className="media-shelf__item" key={item.id}>
-                <figure className="media-shelf__artwork">
-                  <Image
-                    className="media-shelf__cover"
-                    src={item.artwork.src}
-                    width={item.artwork.width}
-                    height={item.artwork.height}
-                    sizes="(max-width: 640px) 34vw, (max-width: 1100px) 23vw, 15vw"
-                    alt=""
-                    draggable={false}
-                  />
-                  <span className="media-shelf__reflection" aria-hidden>
-                    <Image
-                      src={item.artwork.src}
-                      width={item.artwork.width}
-                      height={item.artwork.height}
-                      sizes="(max-width: 640px) 34vw, (max-width: 1100px) 23vw, 15vw"
-                      alt=""
-                      draggable={false}
-                    />
-                  </span>
-                  <figcaption className="sr-only">
-                    {index + 1}. {item.title}
-                    {item.creator ? ` by ${item.creator}` : ""}
-                  </figcaption>
-                </figure>
-              </li>
-            ))}
+            <ShelfItems shelf={shelf} />
+          </ol>
+        </div>
+        <div className="media-shelf__reflection-plane" aria-hidden>
+          <ol ref={reflectionTrackRef} className="media-shelf__reflection-track">
+            <ShelfItems shelf={shelf} reflection />
           </ol>
         </div>
         <button
           className="media-shelf__arrow media-shelf__arrow--forward"
           type="button"
           aria-label={`Scroll ${shelf.label.toLowerCase()} forward`}
-          disabled={!canScrollForward}
           onClick={() => scrollByPage(1)}
         >
           <CaretRight aria-hidden weight="regular" />
@@ -106,7 +177,8 @@ export function MediaShelf({ shelf }: { shelf: MediaShelfDefinition }) {
 
       <p className="sr-only" id={instructionsId}>
         Drag horizontally, use a two-finger horizontal trackpad gesture, or use
-        the left and right arrow keys to browse the ten ranked items.
+        the left and right arrow keys to browse the endlessly repeating list of
+        ten ranked items.
       </p>
     </article>
   );

@@ -11,7 +11,6 @@ import {
 } from "react";
 
 import {
-  clampMediaShelfScroll,
   decayMediaShelfVelocity,
   MEDIA_SHELF_INERTIA,
 } from "@/features/media-shelves/inertia";
@@ -25,15 +24,29 @@ type DragState = {
   velocity: number;
 };
 
-export function useInertialHorizontalScroll() {
+const COPY_COUNT = 3;
+const IDLE_LABEL_DELAY_MS = 180;
+
+function modulo(value: number, divisor: number) {
+  return ((value % divisor) + divisor) % divisor;
+}
+
+export function useInertialHorizontalScroll(itemCount: number) {
   const viewportRef = useRef<HTMLDivElement>(null);
+  const reflectionTrackRef = useRef<HTMLOListElement>(null);
   const dragStateRef = useRef<DragState | null>(null);
   const inertiaFrameRef = useRef<number | null>(null);
-  const scrollStateFrameRef = useRef<number | null>(null);
+  const viewportStateFrameRef = useRef<number | null>(null);
+  const labelIdleTimerRef = useRef<number | null>(null);
+  const cycleWidthRef = useRef(0);
+  const activeCenterRef = useRef(0);
+  const initializedRef = useRef(false);
+  const reflectionOffsetRef = useRef(0);
   const reducedMotion = Boolean(useReducedMotion());
   const [isDragging, setIsDragging] = useState(false);
-  const [canScrollBackward, setCanScrollBackward] = useState(false);
-  const [canScrollForward, setCanScrollForward] = useState(false);
+  const [isScrolling, setIsScrolling] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeLabelX, setActiveLabelX] = useState<number | null>(null);
 
   const cancelInertia = () => {
     if (inertiaFrameRef.current !== null) {
@@ -42,30 +55,136 @@ export function useInertialHorizontalScroll() {
     }
   };
 
-  const updateScrollState = () => {
+  const markScrolling = () => {
+    setIsScrolling(true);
+
+    if (labelIdleTimerRef.current !== null) {
+      window.clearTimeout(labelIdleTimerRef.current);
+    }
+
+    labelIdleTimerRef.current = window.setTimeout(() => {
+      labelIdleTimerRef.current = null;
+      setActiveLabelX(activeCenterRef.current);
+      setIsScrolling(false);
+    }, IDLE_LABEL_DELAY_MS);
+  };
+
+  const measureCycle = () => {
+    const viewport = viewportRef.current;
+    const reflectionTrack = reflectionTrackRef.current;
+
+    if (!viewport) {
+      return;
+    }
+
+    const firstItems = viewport.querySelectorAll<HTMLElement>(
+      '[data-media-item-index="0"]',
+    );
+
+    if (firstItems.length < COPY_COUNT) {
+      return;
+    }
+
+    const previousCycleWidth = cycleWidthRef.current;
+    const nextCycleWidth = firstItems[1].offsetLeft - firstItems[0].offsetLeft;
+
+    if (nextCycleWidth <= 0) {
+      return;
+    }
+
+    const cycleProgress = previousCycleWidth
+      ? modulo(viewport.scrollLeft, previousCycleWidth) / previousCycleWidth
+      : 0;
+
+    cycleWidthRef.current = nextCycleWidth;
+    viewport.scrollLeft = nextCycleWidth * (1 + cycleProgress);
+    const reflectionPlane = reflectionTrack?.parentElement;
+
+    if (reflectionPlane) {
+      reflectionOffsetRef.current =
+        viewport.getBoundingClientRect().left -
+        reflectionPlane.getBoundingClientRect().left;
+    }
+    initializedRef.current = true;
+  };
+
+  const syncReflectionTrack = () => {
+    const viewport = viewportRef.current;
+    const reflectionTrack = reflectionTrackRef.current;
+
+    if (!viewport || !reflectionTrack) {
+      return;
+    }
+
+    reflectionTrack.style.transform = `translate3d(${reflectionOffsetRef.current - viewport.scrollLeft}px, 0, 0)`;
+  };
+
+  const normalizeInfiniteScroll = () => {
+    const viewport = viewportRef.current;
+    const cycleWidth = cycleWidthRef.current;
+
+    if (!viewport || !initializedRef.current || cycleWidth <= 0) {
+      return;
+    }
+
+    if (viewport.scrollLeft < cycleWidth * 0.5) {
+      viewport.scrollLeft += cycleWidth;
+    } else if (viewport.scrollLeft >= cycleWidth * 1.5) {
+      viewport.scrollLeft -= cycleWidth;
+    }
+  };
+
+  const updateActiveItem = () => {
     const viewport = viewportRef.current;
 
     if (!viewport) {
       return;
     }
 
-    const maximumScroll = Math.max(
-      0,
-      viewport.scrollWidth - viewport.clientWidth,
+    const viewportCenter = viewport.scrollLeft + viewport.clientWidth / 2;
+    const display = viewport.closest<HTMLElement>(".media-shelf__display");
+    const viewportOffset = display
+      ? viewport.getBoundingClientRect().left -
+        display.getBoundingClientRect().left
+      : 0;
+    const items = viewport.querySelectorAll<HTMLElement>(
+      "[data-media-item-index]",
     );
+    let nearestIndex = activeIndex;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    let nearestCenter = viewport.clientWidth / 2;
 
-    setCanScrollBackward(viewport.scrollLeft > 1);
-    setCanScrollForward(viewport.scrollLeft < maximumScroll - 1);
+    for (const item of items) {
+      const itemCenter = item.offsetLeft + item.offsetWidth / 2;
+      const distance = Math.abs(itemCenter - viewportCenter);
+
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestCenter = itemCenter - viewport.scrollLeft + viewportOffset;
+        nearestIndex = Number(item.dataset.mediaItemIndex ?? 0) % itemCount;
+      }
+    }
+
+    activeCenterRef.current = nearestCenter;
+    setActiveIndex((currentIndex) =>
+      currentIndex === nearestIndex ? currentIndex : nearestIndex,
+    );
   };
 
-  const scheduleScrollStateUpdate = () => {
-    if (scrollStateFrameRef.current !== null) {
+  const updateViewportState = () => {
+    normalizeInfiniteScroll();
+    syncReflectionTrack();
+    updateActiveItem();
+  };
+
+  const scheduleViewportStateUpdate = () => {
+    if (viewportStateFrameRef.current !== null) {
       return;
     }
 
-    scrollStateFrameRef.current = window.requestAnimationFrame(() => {
-      scrollStateFrameRef.current = null;
-      updateScrollState();
+    viewportStateFrameRef.current = window.requestAnimationFrame(() => {
+      viewportStateFrameRef.current = null;
+      updateViewportState();
     });
   };
 
@@ -89,22 +208,16 @@ export function useInertialHorizontalScroll() {
         time - previousTime,
         MEDIA_SHELF_INERTIA.maximumFrameDuration,
       );
-      const nextScroll = clampMediaShelfScroll(
-        viewport.scrollLeft + velocity * elapsed,
-        viewport.clientWidth,
-        viewport.scrollWidth,
-      );
-      const reachedBoundary = nextScroll === viewport.scrollLeft;
 
-      viewport.scrollLeft = nextScroll;
+      viewport.scrollLeft += velocity * elapsed;
+      normalizeInfiniteScroll();
+      syncReflectionTrack();
       velocity = decayMediaShelfVelocity(velocity, elapsed);
       previousTime = time;
-      scheduleScrollStateUpdate();
+      markScrolling();
+      scheduleViewportStateUpdate();
 
-      if (
-        !reachedBoundary &&
-        Math.abs(velocity) >= MEDIA_SHELF_INERTIA.stopVelocity
-      ) {
+      if (Math.abs(velocity) >= MEDIA_SHELF_INERTIA.stopVelocity) {
         inertiaFrameRef.current = window.requestAnimationFrame(tick);
       } else {
         inertiaFrameRef.current = null;
@@ -132,6 +245,7 @@ export function useInertialHorizontalScroll() {
     }
 
     cancelInertia();
+    markScrolling();
     event.currentTarget.setPointerCapture(event.pointerId);
     dragStateRef.current = {
       pointerId: event.pointerId,
@@ -146,11 +260,7 @@ export function useInertialHorizontalScroll() {
     const viewport = viewportRef.current;
     const dragState = dragStateRef.current;
 
-    if (
-      !viewport ||
-      !dragState ||
-      dragState.pointerId !== event.pointerId
-    ) {
+    if (!viewport || !dragState || dragState.pointerId !== event.pointerId) {
       return;
     }
 
@@ -159,16 +269,15 @@ export function useInertialHorizontalScroll() {
     const scrollDelta = dragState.previousClientX - event.clientX;
     const instantaneousVelocity = scrollDelta / elapsed;
 
-    viewport.scrollLeft = clampMediaShelfScroll(
-      viewport.scrollLeft + scrollDelta,
-      viewport.clientWidth,
-      viewport.scrollWidth,
-    );
+    viewport.scrollLeft += scrollDelta;
+    normalizeInfiniteScroll();
+    syncReflectionTrack();
     dragState.velocity =
       dragState.velocity * 0.64 + instantaneousVelocity * 0.36;
     dragState.previousClientX = event.clientX;
     dragState.previousTime = event.timeStamp;
-    scheduleScrollStateUpdate();
+    markScrolling();
+    scheduleViewportStateUpdate();
   };
 
   const onPointerUp = (event: PointerEvent<HTMLDivElement>) => {
@@ -191,8 +300,9 @@ export function useInertialHorizontalScroll() {
     }
 
     cancelInertia();
+    markScrolling();
     viewport.scrollBy({
-      left: viewport.clientWidth * 0.78 * direction,
+      left: viewport.clientWidth * 0.68 * direction,
       behavior: reducedMotion ? "auto" : "smooth",
     });
   };
@@ -213,21 +323,24 @@ export function useInertialHorizontalScroll() {
     if (event.key === "Home" || event.key === "End") {
       event.preventDefault();
       cancelInertia();
+      markScrolling();
+      const cycleWidth = cycleWidthRef.current;
       viewport.scrollTo({
         left:
           event.key === "Home"
-            ? 0
-            : viewport.scrollWidth - viewport.clientWidth,
+            ? cycleWidth
+            : cycleWidth * 2 - viewport.clientWidth,
         behavior: reducedMotion ? "auto" : "smooth",
       });
     }
   };
 
   const cancelInertiaFromEffect = useEffectEvent(cancelInertia);
-  const scheduleScrollStateUpdateFromEffect = useEffectEvent(
-    scheduleScrollStateUpdate,
+  const markScrollingFromEffect = useEffectEvent(markScrolling);
+  const measureCycleFromEffect = useEffectEvent(measureCycle);
+  const scheduleViewportStateUpdateFromEffect = useEffectEvent(
+    scheduleViewportStateUpdate,
   );
-  const updateScrollStateFromEffect = useEffectEvent(updateScrollState);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -236,9 +349,17 @@ export function useInertialHorizontalScroll() {
       return;
     }
 
-    const handleScroll = () => scheduleScrollStateUpdateFromEffect();
+    const track = viewport.querySelector<HTMLElement>(".media-shelf__track");
+    const handleScroll = () => {
+      syncReflectionTrack();
+      markScrollingFromEffect();
+      scheduleViewportStateUpdateFromEffect();
+    };
     const handleWheel = () => cancelInertiaFromEffect();
-    const resizeObserver = new ResizeObserver(handleScroll);
+    const resizeObserver = new ResizeObserver(() => {
+      measureCycleFromEffect();
+      scheduleViewportStateUpdateFromEffect();
+    });
     const handleVisibilityChange = () => {
       if (document.hidden) {
         cancelInertiaFromEffect();
@@ -246,17 +367,26 @@ export function useInertialHorizontalScroll() {
     };
 
     resizeObserver.observe(viewport);
-    viewport.addEventListener("scroll", handleScroll, {
-      passive: true,
-    });
+    if (track) {
+      resizeObserver.observe(track);
+    }
+    viewport.addEventListener("scroll", handleScroll, { passive: true });
     viewport.addEventListener("wheel", handleWheel, { passive: true });
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    updateScrollStateFromEffect();
+
+    const initialFrame = window.requestAnimationFrame(() => {
+      measureCycleFromEffect();
+      scheduleViewportStateUpdateFromEffect();
+    });
 
     return () => {
       cancelInertiaFromEffect();
-      if (scrollStateFrameRef.current !== null) {
-        window.cancelAnimationFrame(scrollStateFrameRef.current);
+      window.cancelAnimationFrame(initialFrame);
+      if (viewportStateFrameRef.current !== null) {
+        window.cancelAnimationFrame(viewportStateFrameRef.current);
+      }
+      if (labelIdleTimerRef.current !== null) {
+        window.clearTimeout(labelIdleTimerRef.current);
       }
       resizeObserver.disconnect();
       viewport.removeEventListener("scroll", handleScroll);
@@ -267,9 +397,11 @@ export function useInertialHorizontalScroll() {
 
   return {
     viewportRef,
+    reflectionTrackRef,
     isDragging,
-    canScrollBackward,
-    canScrollForward,
+    isScrolling,
+    activeIndex,
+    activeLabelX,
     onPointerDown,
     onPointerMove,
     onPointerUp,
