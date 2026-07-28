@@ -1,14 +1,20 @@
 :root {
-  --media-shelf-surface-top: #20211f;
-  --media-shelf-surface-front: #111210;
+  --media-shelf-surface-top-back: #181916;
+  --media-shelf-surface-top-front: #292a26;
+  --media-shelf-surface-front-top: #232420;
+  --media-shelf-surface-front-middle: #181916;
+  --media-shelf-surface-front-bottom: #0d0e0c;
   --media-shelf-edge: rgba(255, 255, 255, 0.16);
   --media-shelf-edge-width: 1px;
   --media-shelf-shadow: rgba(0, 0, 0, 0.58);
 }
 
 [data-theme="light"] {
-  --media-shelf-surface-top: #fbfbf8;
-  --media-shelf-surface-front: #eeeeea;
+  --media-shelf-surface-top-back: #e8e8e5;
+  --media-shelf-surface-top-front: #f7f7f3;
+  --media-shelf-surface-front-top: #fafaf7;
+  --media-shelf-surface-front-middle: #f0f0ec;
+  --media-shelf-surface-front-bottom: #dedfdb;
   --media-shelf-edge: rgba(17, 19, 24, 0.12);
   --media-shelf-shadow: rgba(35, 38, 44, 0.2);
 }
@@ -240,7 +246,11 @@
   top: 0;
   height: var(--media-shelf-surface-depth);
   border: 0;
-  background: var(--media-shelf-surface-top);
+  background: linear-gradient(
+    to bottom,
+    var(--media-shelf-surface-top-back),
+    var(--media-shelf-surface-top-front)
+  );
   clip-path: polygon(
     var(--media-shelf-back-inset) 0,
     calc(100% - var(--media-shelf-back-inset)) 0,
@@ -256,7 +266,20 @@
   border: 0;
   border-radius: 0 0 clamp(0.16rem, 0.22cqi, 0.28rem)
     clamp(0.16rem, 0.22cqi, 0.28rem);
-  background: var(--media-shelf-surface-front);
+  background:
+    linear-gradient(
+      to right,
+      rgba(0, 0, 0, 0.025),
+      transparent 8%,
+      transparent 92%,
+      rgba(0, 0, 0, 0.025)
+    ),
+    linear-gradient(
+      to bottom,
+      var(--media-shelf-surface-front-top) 0%,
+      var(--media-shelf-surface-front-middle) 38%,
+      var(--media-shelf-surface-front-bottom) 100%
+    );
   box-shadow:
     inset 0 var(--media-shelf-edge-width) 0 var(--media-shelf-edge),
     inset var(--media-shelf-edge-width) 0 0 var(--media-shelf-edge),
