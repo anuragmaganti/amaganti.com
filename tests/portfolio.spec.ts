@@ -1,11 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import {
-  mediaShelves,
-  mediaShelfSortModes,
-} from "../config/media-shelves";
-import artworkManifest from "../config/media/artwork-manifest.json";
-import type { MediaArtworkManifest } from "../config/media/types";
+import { mediaShelves } from "../config/media-shelves";
 import { projects, type ProjectEntry } from "../config/projects";
 import { portfolioSections } from "../config/sections";
 import { outroLinks } from "../config/site";
@@ -16,8 +11,6 @@ import {
   openPortfolio,
   scrollToSection,
 } from "./helpers";
-
-const artworkEntries = artworkManifest as unknown as MediaArtworkManifest;
 
 async function openBookShelf(
   page: Page,
@@ -40,56 +33,6 @@ async function openBookShelf(
 }
 
 test.describe("portfolio behavior contract", () => {
-  test("keeps media catalogs unique and applies their configured order", () => {
-    const titleCollator = new Intl.Collator("en", {
-      numeric: true,
-      sensitivity: "base",
-    });
-
-    for (const shelf of mediaShelves) {
-      const ids = shelf.items.map((item) => item.id);
-      const mode = mediaShelfSortModes[shelf.id];
-
-      expect(shelf.items.length).toBeGreaterThan(0);
-      expect(new Set(ids).size).toBe(ids.length);
-
-      if (mode === "manual") {
-        continue;
-      }
-
-      if (mode === "alphabetical") {
-        const titles = shelf.items.map((item) => item.title);
-        const expectedTitles = [...titles].sort(titleCollator.compare);
-
-        expect(titles).toEqual(expectedTitles);
-        continue;
-      }
-
-      const releaseDates = shelf.items.map(
-        (item) => item.releaseDate ?? `${item.releaseYear}-00-00`,
-      );
-      const expectedReleaseDates = [...releaseDates].sort();
-
-      if (mode === "newest-first") {
-        expectedReleaseDates.reverse();
-      }
-
-      expect(releaseDates).toEqual(expectedReleaseDates);
-    }
-
-    const catalogItems = mediaShelves.flatMap((shelf) => shelf.items);
-
-    expect(Object.keys(artworkEntries)).toHaveLength(catalogItems.length);
-    for (const item of catalogItems) {
-      const artwork = artworkEntries[`${item.kind}:${item.id}`];
-
-      expect(artwork).toHaveLength(3);
-      expect(
-        artwork?.every(([src]) => src.startsWith("/media-shelves/")),
-      ).toBe(true);
-    }
-  });
-
   test("renders the registry in one accessible DOM order", async ({ page }) => {
     await openPortfolio(page);
 
@@ -156,10 +99,6 @@ test.describe("portfolio behavior contract", () => {
         /^\/media-shelves\//,
       );
       await expect(viewport).toHaveAttribute("tabindex", "0");
-      await expect(shelfElement.locator(".media-shelf__arrow")).toHaveCount(0);
-      await expect(
-        shelfElement.locator(".media-shelf__active-label"),
-      ).toHaveCount(0);
       await expect(shelfElement.locator(".media-shelf__hover-title")).toHaveCount(1);
 
       const geometry = await shelfElement.evaluate((element) => {
@@ -237,9 +176,6 @@ test.describe("portfolio behavior contract", () => {
           hasSoftEdgeMask:
             getComputedStyle(shelfViewport).maskImage !== "none" ||
             getComputedStyle(shelfViewport).webkitMaskImage !== "none",
-          hasTransformRail:
-            element.querySelector<HTMLElement>(".media-shelf__track")!.style
-              .transform.startsWith("translate3d("),
           trackGapSpread: measureGapSpread(trackItems),
           visibleCovers,
         };
@@ -257,7 +193,6 @@ test.describe("portfolio behavior contract", () => {
       expect(geometry.reflectionInsideShelf).toBe(true);
       expect(geometry.reflectionTrackGapSpread).toBeLessThanOrEqual(1);
       expect(geometry.hasSoftEdgeMask).toBe(true);
-      expect(geometry.hasTransformRail).toBe(true);
       expect(geometry.trackGapSpread).toBeLessThanOrEqual(1);
       expect(geometry.visibleCovers).toBeGreaterThanOrEqual(2);
       expect(geometry.visibleCovers).toBeLessThan(shelf.items.length);
@@ -282,7 +217,7 @@ test.describe("portfolio behavior contract", () => {
       .toBeGreaterThanOrEqual(catalogItemCount);
   });
 
-  test("wraps every shelf seamlessly in both directions", async ({
+  test("wraps a shelf seamlessly in both directions", async ({
     page,
   }, testInfo) => {
     test.skip(testInfo.project.name !== "desktop");

@@ -1,6 +1,15 @@
 import { defineConfig } from "@playwright/test";
 
 const isCi = Boolean(process.env.CI);
+const contractTestFiles = [
+  "**/floating-project-layout.spec.ts",
+  "**/floating-project-simulation.spec.ts",
+  "**/gpu-particle-textures.spec.ts",
+  "**/media-catalog.spec.ts",
+  "**/particle-obstacle.spec.ts",
+  "**/pointer-particle-interaction.spec.ts",
+  "**/scene-engine.spec.ts",
+];
 
 export default defineConfig({
   testDir: "./tests",
@@ -24,15 +33,22 @@ export default defineConfig({
   },
   projects: [
     {
+      name: "contracts",
+      testMatch: contractTestFiles,
+    },
+    {
       name: "desktop",
+      testIgnore: contractTestFiles,
       use: { viewport: { width: 1440, height: 900 } },
     },
     {
       name: "tablet",
+      testIgnore: contractTestFiles,
       use: { viewport: { width: 768, height: 900 } },
     },
     {
       name: "mobile",
+      testIgnore: contractTestFiles,
       use: {
         hasTouch: true,
         isMobile: true,
