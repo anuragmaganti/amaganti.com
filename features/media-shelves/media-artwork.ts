@@ -1,45 +1,39 @@
 import artworkManifest from "@/config/media/artwork-manifest.json";
-import type { MediaShelfItem } from "@/config/media/types";
+import { getMediaArtworkKey } from "@/config/media/artwork";
+import type {
+  MediaArtworkManifest,
+  MediaArtworkVariant,
+  MediaShelfItem,
+} from "@/config/media/types";
 
-export const MEDIA_ARTWORK_HEIGHTS = [256, 512, 768] as const;
-
-type MediaArtworkVariant = {
-  height: number;
-  src: string;
-  width: number;
-};
-
-type MediaArtworkManifestEntry = {
+type MediaArtworkSources = {
   src: string;
   srcSet: string;
   variants: readonly MediaArtworkVariant[];
 };
 
-type MediaArtworkManifest = {
-  entries: Readonly<Record<string, MediaArtworkManifestEntry>>;
-  version: number;
-};
-
-const localArtwork = artworkManifest as MediaArtworkManifest;
-
-export function getMediaArtworkKey(item: MediaShelfItem) {
-  return `${item.kind}:${item.id}`;
-}
+const manifest = artworkManifest as unknown as MediaArtworkManifest;
+const localArtwork = Object.fromEntries(
+  Object.entries(manifest).map(([key, variants]) => [
+    key,
+    {
+      src: variants[1]?.[0] ?? variants[0]?.[0] ?? "",
+      srcSet: variants
+        .map(([src], index) => `${src} ${index + 1}x`)
+        .join(", "),
+      variants,
+    },
+  ]),
+) as Readonly<Record<string, MediaArtworkSources>>;
 
 export function getMediaArtworkSources(
   item: MediaShelfItem,
-): MediaArtworkManifestEntry {
+): MediaArtworkSources {
   return (
-    localArtwork.entries[getMediaArtworkKey(item)] ?? {
+    localArtwork[getMediaArtworkKey(item)] ?? {
       src: item.artwork.src,
       srcSet: "",
-      variants: [
-        {
-          height: item.artwork.height,
-          src: item.artwork.src,
-          width: item.artwork.width,
-        },
-      ],
+      variants: [[item.artwork.src, item.artwork.width, item.artwork.height]],
     }
   );
 }
@@ -54,5 +48,5 @@ export function getPreferredMediaArtworkSource(
     Math.max(0, Math.ceil(devicePixelRatio) - 1),
   );
 
-  return variants[densityIndex]?.src ?? variants[0]?.src ?? item.artwork.src;
+  return variants[densityIndex]?.[0] ?? variants[0]?.[0] ?? item.artwork.src;
 }

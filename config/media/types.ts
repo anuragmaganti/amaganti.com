@@ -25,6 +25,18 @@ type BaseMediaShelfItem = {
   artwork: MediaArtwork;
 };
 
+export type MediaArtworkTuple = readonly [
+  src: string,
+  width: number,
+  height: number,
+];
+
+export type MediaArtworkVariant = MediaArtworkTuple;
+
+export type MediaArtworkManifest = Readonly<
+  Record<string, readonly MediaArtworkVariant[]>
+>;
+
 export type BookMediaShelfItem = BaseMediaShelfItem & {
   kind: "book";
   authors: readonly string[];

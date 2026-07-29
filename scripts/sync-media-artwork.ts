@@ -4,12 +4,16 @@ import path from "node:path";
 
 import sharp from "sharp";
 
-import { mediaShelves } from "../config/media-shelves";
-import type { MediaShelfItem } from "../config/media/types";
 import {
   getMediaArtworkKey,
   MEDIA_ARTWORK_HEIGHTS,
-} from "../features/media-shelves/media-artwork";
+} from "../config/media/artwork";
+import { mediaShelves } from "../config/media-shelves";
+import type {
+  MediaArtworkManifest,
+  MediaArtworkVariant,
+  MediaShelfItem,
+} from "../config/media/types";
 
 const OUTPUT_ROOT = path.join(process.cwd(), "public", "media-shelves");
 const TEMP_ROOT = path.join(
@@ -24,18 +28,6 @@ const MANIFEST_PATH = path.join(
   "artwork-manifest.json",
 );
 const DOWNLOAD_CONCURRENCY = 4;
-
-type ArtworkVariant = {
-  height: number;
-  src: string;
-  width: number;
-};
-
-type ArtworkManifestEntry = {
-  src: string;
-  srcSet: string;
-  variants: readonly ArtworkVariant[];
-};
 
 async function downloadArtwork(item: MediaShelfItem) {
   const response = await fetch(item.artwork.src);
@@ -70,21 +62,15 @@ async function optimizeArtwork(item: MediaShelfItem) {
 
       await writeFile(path.join(outputDirectory, filename), data);
 
-      return {
-        height: info.height,
-        src: `/media-shelves/${item.kind}/${filename}`,
-        width: info.width,
-      } satisfies ArtworkVariant;
+      return [
+        `/media-shelves/${item.kind}/${filename}`,
+        info.width,
+        info.height,
+      ] as const satisfies MediaArtworkVariant;
     }),
   );
 
-  return {
-    src: variants[1]?.src ?? variants[0]?.src ?? item.artwork.src,
-    srcSet: variants
-      .map((variant, index) => `${variant.src} ${index + 1}x`)
-      .join(", "),
-    variants,
-  } satisfies ArtworkManifestEntry;
+  return variants;
 }
 
 async function mapWithConcurrency<T, R>(
@@ -126,16 +112,15 @@ async function main() {
       DOWNLOAD_CONCURRENCY,
       async (item) => [getMediaArtworkKey(item), await optimizeArtwork(item)] as const,
     );
-    const manifest = {
-      version: 1,
-      entries: Object.fromEntries(optimizedArtwork),
-    };
+    const manifest = Object.fromEntries(
+      optimizedArtwork,
+    ) satisfies MediaArtworkManifest;
 
     await rm(OUTPUT_ROOT, { force: true, recursive: true });
     await rename(TEMP_ROOT, OUTPUT_ROOT);
     await writeFile(
       MANIFEST_PATH,
-      `${JSON.stringify(manifest, null, 2)}\n`,
+      `${JSON.stringify(manifest)}\n`,
       "utf8",
     );
 

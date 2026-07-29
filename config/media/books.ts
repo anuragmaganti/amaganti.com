@@ -1,11 +1,9 @@
-import type { BookMediaShelfItem } from "@/config/media/types";
+import { defineBooks } from "@/config/media/define-catalog";
 
-export const books = [
+export const books = defineBooks([
   {
     id: "the-story-of-the-human-body",
-    kind: "book",
     title: "The Story of the Human Body",
-    creator: "Daniel E. Lieberman",
     authors: ["Daniel E. Lieberman"],
     summary:
       "An evolutionary account of the human body and why ancient adaptations can conflict with modern environments, producing many chronic diseases.",
@@ -16,17 +14,11 @@ export const books = [
     isbn13: "9780141399959",
     href: "https://openlibrary.org/isbn/9780141399959",
     sourceId: "OL21084943W",
-    artwork: {
-      src: "https://covers.openlibrary.org/b/id/12626418-L.jpg",
-      width: 312,
-      height: 500,
-    },
+    artwork: ["https://covers.openlibrary.org/b/id/12626418-L.jpg", 312, 500],
   },
   {
     id: "1776",
-    kind: "book",
     title: "1776",
-    creator: "David McCullough",
     authors: ["David McCullough"],
     summary:
       "A narrative history of the American Revolution's pivotal first year, centered on George Washington, the Continental Army, and the British forces opposing them.",
@@ -37,17 +29,11 @@ export const books = [
     isbn13: "9780743226714",
     href: "https://openlibrary.org/isbn/9780743226714",
     sourceId: "OL2820748W",
-    artwork: {
-      src: "https://covers.openlibrary.org/b/id/6619411-L.jpg",
-      width: 325,
-      height: 500,
-    },
+    artwork: ["https://covers.openlibrary.org/b/id/6619411-L.jpg", 325, 500],
   },
   {
     id: "narrative-of-frederick-douglass",
-    kind: "book",
     title: "Narrative of the Life of Frederick Douglass",
-    creator: "Frederick Douglass",
     authors: ["Frederick Douglass"],
     summary:
       "Douglass recounts his enslavement, pursuit of literacy, resistance, and escape while exposing the violence and contradictions of American slavery.",
@@ -58,17 +44,11 @@ export const books = [
     isbn13: "9780140390124",
     href: "https://openlibrary.org/isbn/9780140390124",
     sourceId: "OL69178W",
-    artwork: {
-      src: "https://covers.openlibrary.org/b/id/6942299-L.jpg",
-      width: 316,
-      height: 500,
-    },
+    artwork: ["https://covers.openlibrary.org/b/id/6942299-L.jpg", 316, 500],
   },
   {
     id: "the-history-of-money",
-    kind: "book",
     title: "The History of Money",
-    creator: "Jack Weatherford",
     authors: ["Jack Weatherford"],
     summary:
       "An anthropological history of how currency evolved from barter and coins into banking, credit, and the global financial system.",
@@ -79,17 +59,11 @@ export const books = [
     isbn13: "9780609801727",
     href: "https://openlibrary.org/isbn/9780609801727",
     sourceId: "OL8162624W",
-    artwork: {
-      src: "https://covers.openlibrary.org/b/id/390985-L.jpg",
-      width: 314,
-      height: 475,
-    },
+    artwork: ["https://covers.openlibrary.org/b/id/390985-L.jpg", 314, 475],
   },
   {
     id: "autobiography-of-benjamin-franklin",
-    kind: "book",
     title: "The Autobiography of Benjamin Franklin",
-    creator: "Benjamin Franklin",
     authors: ["Benjamin Franklin"],
     summary:
       "Franklin traces his rise from apprentice printer to public figure through experiments in self-improvement, work, civic life, and practical philosophy.",
@@ -100,17 +74,11 @@ export const books = [
     isbn13: "9781604501841",
     href: "https://openlibrary.org/isbn/9781604501841",
     sourceId: "OL26492W",
-    artwork: {
-      src: "https://covers.openlibrary.org/b/id/10731492-L.jpg",
-      width: 330,
-      height: 500,
-    },
+    artwork: ["https://covers.openlibrary.org/b/id/10731492-L.jpg", 330, 500],
   },
   {
     id: "why-we-sleep",
-    kind: "book",
     title: "Why We Sleep",
-    creator: "Matthew Walker",
     authors: ["Matthew Walker"],
     summary:
       "A survey of sleep science covering how sleep shapes memory, emotion, metabolism, immunity, and the health costs of chronic deprivation.",
@@ -121,17 +89,11 @@ export const books = [
     isbn13: "9781501144318",
     href: "https://openlibrary.org/isbn/9781501144318",
     sourceId: "OL20168133W",
-    artwork: {
-      src: "https://covers.openlibrary.org/b/id/15208018-L.jpg",
-      width: 331,
-      height: 500,
-    },
+    artwork: ["https://covers.openlibrary.org/b/id/15208018-L.jpg", 331, 500],
   },
   {
     id: "genghis-khan-and-the-making-of-the-modern-world",
-    kind: "book",
     title: "Genghis Khan and the Making of the Modern World",
-    creator: "Jack Weatherford",
     authors: ["Jack Weatherford"],
     summary:
       "A reassessment of Genghis Khan and the Mongol Empire's role in expanding trade, diplomacy, law, and cultural exchange across Eurasia.",
@@ -142,17 +104,11 @@ export const books = [
     isbn13: "9780609809648",
     href: "https://openlibrary.org/isbn/9780609809648",
     sourceId: "OL8162628W",
-    artwork: {
-      src: "https://covers.openlibrary.org/b/id/390818-L.jpg",
-      width: 317,
-      height: 475,
-    },
+    artwork: ["https://covers.openlibrary.org/b/id/390818-L.jpg", 317, 475],
   },
   {
     id: "when-breath-becomes-air",
-    kind: "book",
     title: "When Breath Becomes Air",
-    creator: "Paul Kalanithi",
     authors: ["Paul Kalanithi"],
     summary:
       "A neurosurgeon facing terminal lung cancer reflects on medicine, identity, mortality, and what makes a life meaningful.",
@@ -163,17 +119,11 @@ export const books = [
     isbn13: "9780812988406",
     href: "https://openlibrary.org/isbn/9780812988406",
     sourceId: "OL17356252W",
-    artwork: {
-      src: "https://covers.openlibrary.org/b/id/12390254-L.jpg",
-      width: 293,
-      height: 432,
-    },
+    artwork: ["https://covers.openlibrary.org/b/id/12390254-L.jpg", 293, 432],
   },
   {
     id: "the-man-who-mistook-his-wife-for-a-hat",
-    kind: "book",
     title: "The Man Who Mistook His Wife for a Hat",
-    creator: "Oliver Sacks",
     authors: ["Oliver Sacks"],
     summary:
       "Clinical case studies of unusual neurological conditions that reveal how perception, memory, language, and identity shape a person's world.",
@@ -184,17 +134,11 @@ export const books = [
     isbn13: "9780684853949",
     href: "https://openlibrary.org/isbn/9780684853949",
     sourceId: "OL1811898W",
-    artwork: {
-      src: "https://covers.openlibrary.org/b/id/10104616-L.jpg",
-      width: 318,
-      height: 500,
-    },
+    artwork: ["https://covers.openlibrary.org/b/id/10104616-L.jpg", 318, 500],
   },
   {
     id: "mountains-beyond-mountains",
-    kind: "book",
     title: "Mountains Beyond Mountains",
-    creator: "Tracy Kidder",
     authors: ["Tracy Kidder"],
     summary:
       "A portrait of physician Paul Farmer's work against infectious disease in Haiti and his challenge to the assumptions behind global health inequality.",
@@ -205,17 +149,11 @@ export const books = [
     isbn13: "9780812973013",
     href: "https://openlibrary.org/isbn/9780812973013",
     sourceId: "OL98216W",
-    artwork: {
-      src: "https://covers.openlibrary.org/b/id/606360-L.jpg",
-      width: 324,
-      height: 500,
-    },
+    artwork: ["https://covers.openlibrary.org/b/id/606360-L.jpg", 324, 500],
   },
   {
     id: "waking-up",
-    kind: "book",
     title: "Waking Up",
-    creator: "Sam Harris",
     authors: ["Sam Harris"],
     summary:
       "A secular exploration of meditation, consciousness, and spiritual experience that separates contemplative practice from religious belief.",
@@ -226,17 +164,11 @@ export const books = [
     isbn13: "9781451636024",
     href: "https://openlibrary.org/isbn/9781451636024",
     sourceId: "OL17068760W",
-    artwork: {
-      src: "https://covers.openlibrary.org/b/id/10829925-L.jpg",
-      width: 324,
-      height: 500,
-    },
+    artwork: ["https://covers.openlibrary.org/b/id/10829925-L.jpg", 324, 500],
   },
   {
     id: "the-souls-of-black-folk",
-    kind: "book",
     title: "The Souls of Black Folk",
-    creator: "W. E. B. Du Bois",
     authors: ["W. E. B. Du Bois"],
     summary:
       "Essays on Black life after emancipation that introduce double consciousness and examine education, citizenship, culture, and the color line.",
@@ -247,17 +179,11 @@ export const books = [
     isbn13: "9780140189988",
     href: "https://openlibrary.org/isbn/9780140189988",
     sourceId: "OL28577W",
-    artwork: {
-      src: "https://covers.openlibrary.org/b/id/6564090-L.jpg",
-      width: 277,
-      height: 500,
-    },
+    artwork: ["https://covers.openlibrary.org/b/id/6564090-L.jpg", 277, 500],
   },
   {
     id: "walden",
-    kind: "book",
     title: "Walden",
-    creator: "Henry David Thoreau",
     authors: ["Henry David Thoreau"],
     summary:
       "Thoreau's account of living beside Walden Pond uses nature and deliberate simplicity to question work, consumption, society, and freedom.",
@@ -268,17 +194,11 @@ export const books = [
     isbn13: "9780140390445",
     href: "https://openlibrary.org/isbn/9780140390445",
     sourceId: "OL55649W",
-    artwork: {
-      src: "https://covers.openlibrary.org/b/id/11025288-L.jpg",
-      width: 302,
-      height: 500,
-    },
+    artwork: ["https://covers.openlibrary.org/b/id/11025288-L.jpg", 302, 500],
   },
   {
     id: "mans-search-for-meaning",
-    kind: "book",
     title: "Man's Search for Meaning",
-    creator: "Viktor E. Frankl",
     authors: ["Viktor E. Frankl"],
     summary:
       "Frankl combines his concentration-camp memoir with an introduction to logotherapy and the human capacity to find meaning through suffering.",
@@ -289,17 +209,11 @@ export const books = [
     isbn13: "9780807014295",
     href: "https://openlibrary.org/isbn/9780807014295",
     sourceId: "OL1268413W",
-    artwork: {
-      src: "https://covers.openlibrary.org/b/id/8513458-L.jpg",
-      width: 302,
-      height: 500,
-    },
+    artwork: ["https://covers.openlibrary.org/b/id/8513458-L.jpg", 302, 500],
   },
   {
     id: "delivering-happiness",
-    kind: "book",
     title: "Delivering Happiness",
-    creator: "Tony Hsieh",
     authors: ["Tony Hsieh"],
     summary:
       "Tony Hsieh explains how Zappos made customer service and company culture operating principles rather than slogans while scaling the business.",
@@ -310,10 +224,6 @@ export const books = [
     isbn13: "9780446563048",
     href: "https://openlibrary.org/isbn/9780446563048",
     sourceId: "OL15582623W",
-    artwork: {
-      src: "https://covers.openlibrary.org/b/id/6450379-L.jpg",
-      width: 183,
-      height: 280,
-    },
+    artwork: ["https://covers.openlibrary.org/b/id/6450379-L.jpg", 183, 280],
   },
-] as const satisfies readonly BookMediaShelfItem[];
+]);

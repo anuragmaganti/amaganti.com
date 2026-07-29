@@ -119,6 +119,8 @@ export function useNaturalEmblaMotion(
     let inertiaFrame: number | null = null;
     let pointerMotion: PointerMotion | null = null;
     let wheelIdleTimer: number | null = null;
+    const eventController = new AbortController();
+    const { signal } = eventController;
 
     const stopInertia = () => {
       if (inertiaFrame !== null) {
@@ -292,12 +294,8 @@ export function useNaturalEmblaMotion(
       }
     };
 
-    const handlePointerUp = (event: PointerEvent) => {
-      finishPointerGesture(event, true);
-    };
-
-    const handlePointerCancel = (event: PointerEvent) => {
-      finishPointerGesture(event, false);
+    const handlePointerEnd = (event: PointerEvent) => {
+      finishPointerGesture(event, event.type === "pointerup");
     };
 
     const handleWheel = (event: WheelEvent) => {
@@ -337,18 +335,27 @@ export function useNaturalEmblaMotion(
 
     viewport.addEventListener("pointerdown", handlePointerDown, {
       passive: true,
+      signal,
     });
     ownerDocument.addEventListener("pointermove", handlePointerMove, {
       passive: false,
+      signal,
     });
-    ownerDocument.addEventListener("pointerup", handlePointerUp, {
+    ownerDocument.addEventListener("pointerup", handlePointerEnd, {
       passive: true,
+      signal,
     });
-    ownerDocument.addEventListener("pointercancel", handlePointerCancel, {
+    ownerDocument.addEventListener("pointercancel", handlePointerEnd, {
       passive: true,
+      signal,
     });
-    viewport.addEventListener("wheel", handleWheel, { passive: false });
-    ownerDocument.addEventListener("visibilitychange", handleVisibilityChange);
+    viewport.addEventListener("wheel", handleWheel, {
+      passive: false,
+      signal,
+    });
+    ownerDocument.addEventListener("visibilitychange", handleVisibilityChange, {
+      signal,
+    });
     emblaApi.on("reInit", handleReInit);
 
     return () => {
@@ -357,15 +364,7 @@ export function useNaturalEmblaMotion(
         ownerWindow.clearTimeout(wheelIdleTimer);
       }
       viewport.classList.remove("is-wheel-dragging");
-      viewport.removeEventListener("pointerdown", handlePointerDown);
-      ownerDocument.removeEventListener("pointermove", handlePointerMove);
-      ownerDocument.removeEventListener("pointerup", handlePointerUp);
-      ownerDocument.removeEventListener("pointercancel", handlePointerCancel);
-      viewport.removeEventListener("wheel", handleWheel);
-      ownerDocument.removeEventListener(
-        "visibilitychange",
-        handleVisibilityChange,
-      );
+      eventController.abort();
       emblaApi.off("reInit", handleReInit);
     };
   }, [emblaApi, reducedMotion]);

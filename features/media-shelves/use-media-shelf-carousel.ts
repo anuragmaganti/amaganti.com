@@ -75,13 +75,12 @@ function findCatalogBoundarySlide(
   emblaApi: EmblaCarouselApi,
   boundary: "first" | "last",
 ) {
-  const slideIndexes = emblaApi.slideNodes().map((slide) =>
-    Number(slide.dataset.mediaItemIndex),
-  );
-  const catalogIndex =
-    boundary === "first" ? Math.min(...slideIndexes) : Math.max(...slideIndexes);
+  const slides = emblaApi.slideNodes();
+  const catalogIndex = boundary === "first" ? 0 : slides.length - 1;
 
-  return slideIndexes.indexOf(catalogIndex);
+  return slides.findIndex(
+    (slide) => Number(slide.dataset.mediaItemIndex) === catalogIndex,
+  );
 }
 
 export function useMediaShelfCarousel({
@@ -190,7 +189,6 @@ export function useMediaShelfCarousel({
   };
 
   return {
-    emblaApi,
     isDragging,
     onKeyDown,
     reflectionTrackRef,

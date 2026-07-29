@@ -1,15 +1,12 @@
 "use client";
 
-import {
-  useState,
-  type PointerEvent as ReactPointerEvent,
-} from "react";
+import { useState, type PointerEvent as ReactPointerEvent } from "react";
 
-import type { MediaShelfDefinition } from "@/config/media-shelves";
-import type { MediaShelfItem } from "@/config/media/types";
-import {
-  getMediaArtworkSources,
-} from "@/features/media-shelves/media-artwork";
+import type {
+  MediaShelfDefinition,
+  MediaShelfItem,
+} from "@/config/media/types";
+import { getMediaArtworkSources } from "@/features/media-shelves/media-artwork";
 import { decodeMediaArtwork } from "@/features/media-shelves/media-artwork-preloader";
 import { useMediaShelfCarousel } from "@/features/media-shelves/use-media-shelf-carousel";
 
@@ -53,13 +50,11 @@ function MediaArtworkImage({
 
 function ShelfItems({
   items,
-  shelf,
   reflection = false,
   onArtworkPointerEnter,
   onArtworkPointerLeave,
 }: {
   items: readonly MediaShelfItem[];
-  shelf: MediaShelfDefinition;
   reflection?: boolean;
   onArtworkPointerEnter?: (
     event: ReactPointerEvent<HTMLElement>,
@@ -67,8 +62,8 @@ function ShelfItems({
   ) => void;
   onArtworkPointerLeave?: () => void;
 }) {
-  return items.map((item) => {
-    const itemIndex = shelf.items.indexOf(item);
+  return items.map((item, carouselIndex) => {
+    const itemIndex = (carouselIndex + items.length - 1) % items.length;
 
     if (reflection) {
       return (
@@ -127,14 +122,14 @@ function getNearbyItems(
   return [...nearbyIndexes].flatMap((index) => items[index] ?? []);
 }
 
-function getCarouselItems(shelf: MediaShelfDefinition) {
-  const finalItem = shelf.items.at(-1);
+function getCarouselItems(items: readonly MediaShelfItem[]) {
+  const finalItem = items.at(-1);
 
-  return finalItem ? [finalItem, ...shelf.items.slice(0, -1)] : [];
+  return finalItem ? [finalItem, ...items.slice(0, -1)] : [];
 }
 
 export function MediaShelf({ shelf }: { shelf: MediaShelfDefinition }) {
-  const carouselItems = getCarouselItems(shelf);
+  const carouselItems = getCarouselItems(shelf.items);
   const [hoveredTitle, setHoveredTitle] = useState<HoveredTitle | null>(null);
   const {
     isDragging,
@@ -216,7 +211,6 @@ export function MediaShelf({ shelf }: { shelf: MediaShelfDefinition }) {
           <ol className="media-shelf__track">
             <ShelfItems
               items={carouselItems}
-              shelf={shelf}
               onArtworkPointerEnter={handleArtworkPointerEnter}
               onArtworkPointerLeave={() => setHoveredTitle(null)}
             />
@@ -224,7 +218,7 @@ export function MediaShelf({ shelf }: { shelf: MediaShelfDefinition }) {
         </div>
         <div className="media-shelf__reflection-plane" aria-hidden>
           <ol ref={reflectionTrackRef} className="media-shelf__reflection-track">
-            <ShelfItems items={carouselItems} shelf={shelf} reflection />
+            <ShelfItems items={carouselItems} reflection />
           </ol>
         </div>
       </div>

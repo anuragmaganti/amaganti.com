@@ -49,13 +49,16 @@ The media library is static rather than a runtime feed. This keeps rendering
 deterministic and prevents third-party metadata requests from delaying the
 portfolio. Add, remove, or manually reorder entries in `media/books.ts`,
 `media/movies.ts`, and `media/tv-shows.ts`; the endless tracks and reflections
-adapt to any non-empty item count automatically.
+adapt to any non-empty item count automatically. The catalog helpers in
+`media/define-catalog.ts` supply repeated fields such as item kind, creator
+labels, default TV metadata, and standard movie artwork dimensions.
 
 After changing a catalog entry or its artwork source, run `npm run media:sync`.
 The command generates content-hashed WebP variants in `public/media-shelves/`
 and updates `media/artwork-manifest.json`; commit both outputs with the catalog
-change. Runtime shelves use only those local assets, while the source URL stays
-in the catalog as provenance and as input for future syncs.
+change. The manifest is intentionally compact generated data. Runtime shelves
+use only those local assets, while the source URL stays in the catalog as
+provenance and as input for future syncs.
 
 `mediaShelfOrder` in `media-shelves.ts` controls the three row order. Change a
 value in `mediaShelfSortModes` to `oldest-first`, `newest-first`,

@@ -1,11 +1,9 @@
-import type { MovieMediaShelfItem } from "@/config/media/types";
+import { defineMovies } from "@/config/media/define-catalog";
 
-export const movies = [
+export const movies = defineMovies([
   {
     id: "the-two-popes",
-    kind: "movie",
     title: "The Two Popes",
-    creator: "Fernando Meirelles",
     directors: ["Fernando Meirelles"],
     summary:
       "An imagined series of private conversations between Pope Benedict XVI and the future Pope Francis as the church faces scandal and change.",
@@ -15,17 +13,11 @@ export const movies = [
     runtimeMinutes: 125,
     href: "https://www.themoviedb.org/movie/551332-the-two-popes",
     sourceId: "551332",
-    artwork: {
-      src: "https://media.themoviedb.org/t/p/w500/4d4mTSfDIFIbUbMLUfaKodvxYXA.jpg",
-      width: 500,
-      height: 750,
-    },
+    artwork: "https://media.themoviedb.org/t/p/w500/4d4mTSfDIFIbUbMLUfaKodvxYXA.jpg",
   },
   {
     id: "the-perks-of-being-a-wallflower",
-    kind: "movie",
     title: "The Perks of Being a Wallflower",
-    creator: "Stephen Chbosky",
     directors: ["Stephen Chbosky"],
     summary:
       "A withdrawn high-school freshman finds friendship and belonging while confronting the trauma and mental-health struggles he has kept buried.",
@@ -35,17 +27,11 @@ export const movies = [
     runtimeMinutes: 103,
     href: "https://www.themoviedb.org/movie/84892-the-perks-of-being-a-wallflower",
     sourceId: "84892",
-    artwork: {
-      src: "https://media.themoviedb.org/t/p/w500/aKCvdFFF5n80P2VdS7d8YBwbCjh.jpg",
-      width: 500,
-      height: 750,
-    },
+    artwork: "https://media.themoviedb.org/t/p/w500/aKCvdFFF5n80P2VdS7d8YBwbCjh.jpg",
   },
   {
     id: "dune-2021",
-    kind: "movie",
     title: "Dune",
-    creator: "Denis Villeneuve",
     directors: ["Denis Villeneuve"],
     summary:
       "Paul Atreides enters a conflict over Arrakis, the desert planet whose spice controls interstellar travel and the balance of imperial power.",
@@ -55,17 +41,11 @@ export const movies = [
     runtimeMinutes: 155,
     href: "https://www.themoviedb.org/movie/438631-dune",
     sourceId: "438631",
-    artwork: {
-      src: "https://media.themoviedb.org/t/p/w500/gDzOcq0pfeCeqMBwKIJlSmQpjkZ.jpg",
-      width: 500,
-      height: 750,
-    },
+    artwork: "https://media.themoviedb.org/t/p/w500/gDzOcq0pfeCeqMBwKIJlSmQpjkZ.jpg",
   },
   {
     id: "your-name",
-    kind: "movie",
     title: "Your Name.",
-    creator: "Makoto Shinkai",
     directors: ["Makoto Shinkai"],
     summary:
       "Two teenagers begin swapping bodies across distance and time, then race to understand their connection before a disaster separates them permanently.",
@@ -75,17 +55,11 @@ export const movies = [
     runtimeMinutes: 106,
     href: "https://www.themoviedb.org/movie/372058-your-name",
     sourceId: "372058",
-    artwork: {
-      src: "https://media.themoviedb.org/t/p/w500/q719jXXEzOoYaps6babgKnONONX.jpg",
-      width: 500,
-      height: 750,
-    },
+    artwork: "https://media.themoviedb.org/t/p/w500/q719jXXEzOoYaps6babgKnONONX.jpg",
   },
   {
     id: "there-will-be-blood",
-    kind: "movie",
     title: "There Will Be Blood",
-    creator: "Paul Thomas Anderson",
     directors: ["Paul Thomas Anderson"],
     summary:
       "An oilman's ambition turns a California drilling boom into a study of greed, faith, family, and the cost of absolute self-reliance.",
@@ -95,17 +69,11 @@ export const movies = [
     runtimeMinutes: 158,
     href: "https://www.themoviedb.org/movie/7345-there-will-be-blood",
     sourceId: "7345",
-    artwork: {
-      src: "https://media.themoviedb.org/t/p/w500/fa0RDkAlCec0STeMNAhPaF89q6U.jpg",
-      width: 500,
-      height: 750,
-    },
+    artwork: "https://media.themoviedb.org/t/p/w500/fa0RDkAlCec0STeMNAhPaF89q6U.jpg",
   },
   {
     id: "lost-in-translation",
-    kind: "movie",
     title: "Lost in Translation",
-    creator: "Sofia Coppola",
     directors: ["Sofia Coppola"],
     summary:
       "Two isolated Americans form an intimate, temporary friendship while drifting through unfamiliar lives and sleepless nights in Tokyo.",
@@ -115,17 +83,11 @@ export const movies = [
     runtimeMinutes: 102,
     href: "https://www.themoviedb.org/movie/153-lost-in-translation",
     sourceId: "153",
-    artwork: {
-      src: "https://media.themoviedb.org/t/p/w500/3jCLmYDIIiSMPujbwygNpqdpM8N.jpg",
-      width: 500,
-      height: 750,
-    },
+    artwork: "https://media.themoviedb.org/t/p/w500/3jCLmYDIIiSMPujbwygNpqdpM8N.jpg",
   },
   {
     id: "iron-man-2008",
-    kind: "movie",
     title: "Iron Man",
-    creator: "Jon Favreau",
     directors: ["Jon Favreau"],
     summary:
       "After captivity exposes the human cost of his weapons business, Tony Stark builds an armored suit and turns his engineering against his own legacy.",
@@ -135,17 +97,11 @@ export const movies = [
     runtimeMinutes: 126,
     href: "https://www.themoviedb.org/movie/1726-iron-man",
     sourceId: "1726",
-    artwork: {
-      src: "https://media.themoviedb.org/t/p/w500/78lPtwv72eTNqFW9COBYI0dWDJa.jpg",
-      width: 500,
-      height: 750,
-    },
+    artwork: "https://media.themoviedb.org/t/p/w500/78lPtwv72eTNqFW9COBYI0dWDJa.jpg",
   },
   {
     id: "interstellar",
-    kind: "movie",
     title: "Interstellar",
-    creator: "Christopher Nolan",
     directors: ["Christopher Nolan"],
     summary:
       "As Earth becomes uninhabitable, a team crosses a wormhole in search of a future for humanity while time pulls one family apart.",
@@ -155,17 +111,11 @@ export const movies = [
     runtimeMinutes: 169,
     href: "https://www.themoviedb.org/movie/157336-interstellar",
     sourceId: "157336",
-    artwork: {
-      src: "https://media.themoviedb.org/t/p/w500/yQvGrMoipbRoddT0ZR8tPoR7NfX.jpg",
-      width: 500,
-      height: 750,
-    },
+    artwork: "https://media.themoviedb.org/t/p/w500/yQvGrMoipbRoddT0ZR8tPoR7NfX.jpg",
   },
   {
     id: "inglourious-basterds",
-    kind: "movie",
     title: "Inglourious Basterds",
-    creator: "Quentin Tarantino",
     directors: ["Quentin Tarantino"],
     summary:
       "A revenge plot, a covert Allied unit, and Nazi leadership converge at a Paris film premiere in an alternate version of World War II.",
@@ -175,17 +125,11 @@ export const movies = [
     runtimeMinutes: 153,
     href: "https://www.themoviedb.org/movie/16869-inglourious-basterds",
     sourceId: "16869",
-    artwork: {
-      src: "https://media.themoviedb.org/t/p/w500/aupnPtagH9JVBuMrGEanf4iqXEQ.jpg",
-      width: 500,
-      height: 750,
-    },
+    artwork: "https://media.themoviedb.org/t/p/w500/aupnPtagH9JVBuMrGEanf4iqXEQ.jpg",
   },
   {
     id: "prometheus",
-    kind: "movie",
     title: "Prometheus",
-    creator: "Ridley Scott",
     directors: ["Ridley Scott"],
     summary:
       "A scientific expedition follows ancient clues to humanity's origins and discovers that its possible creators may be a threat rather than an answer.",
@@ -195,17 +139,11 @@ export const movies = [
     runtimeMinutes: 124,
     href: "https://www.themoviedb.org/movie/70981-prometheus",
     sourceId: "70981",
-    artwork: {
-      src: "https://media.themoviedb.org/t/p/w500/qsYQflQhOuhDpQ0W2aOcwqgDAeI.jpg",
-      width: 500,
-      height: 750,
-    },
+    artwork: "https://media.themoviedb.org/t/p/w500/qsYQflQhOuhDpQ0W2aOcwqgDAeI.jpg",
   },
   {
     id: "free-solo",
-    kind: "movie",
     title: "Free Solo",
-    creator: "Elizabeth Chai Vasarhelyi and Jimmy Chin",
     directors: ["Elizabeth Chai Vasarhelyi", "Jimmy Chin"],
     summary:
       "A documentary following Alex Honnold's preparation for a ropeless ascent of El Capitan and the physical and emotional stakes surrounding it.",
@@ -215,17 +153,11 @@ export const movies = [
     runtimeMinutes: 100,
     href: "https://www.themoviedb.org/movie/515042-free-solo",
     sourceId: "515042",
-    artwork: {
-      src: "https://media.themoviedb.org/t/p/w500/v4QfYZMACODlWul9doN9RxE99ag.jpg",
-      width: 500,
-      height: 750,
-    },
+    artwork: "https://media.themoviedb.org/t/p/w500/v4QfYZMACODlWul9doN9RxE99ag.jpg",
   },
   {
     id: "wall-e",
-    kind: "movie",
     title: "WALL-E",
-    creator: "Andrew Stanton",
     directors: ["Andrew Stanton"],
     summary:
       "A solitary cleanup robot leaves an abandoned Earth after meeting EVE and helps humanity rediscover responsibility, curiosity, and home.",
@@ -235,17 +167,11 @@ export const movies = [
     runtimeMinutes: 98,
     href: "https://www.themoviedb.org/movie/10681-wall-e",
     sourceId: "10681",
-    artwork: {
-      src: "https://media.themoviedb.org/t/p/w500/hbhFnRzzg6ZDmm8YAmxBnQpQIPh.jpg",
-      width: 500,
-      height: 750,
-    },
+    artwork: "https://media.themoviedb.org/t/p/w500/hbhFnRzzg6ZDmm8YAmxBnQpQIPh.jpg",
   },
   {
     id: "catch-me-if-you-can",
-    kind: "movie",
     title: "Catch Me If You Can",
-    creator: "Steven Spielberg",
     directors: ["Steven Spielberg"],
     summary:
       "A gifted teenage con artist impersonates professionals and forges checks while an FBI agent turns their pursuit into a long-running duel.",
@@ -255,17 +181,11 @@ export const movies = [
     runtimeMinutes: 141,
     href: "https://www.themoviedb.org/movie/640-catch-me-if-you-can",
     sourceId: "640",
-    artwork: {
-      src: "https://media.themoviedb.org/t/p/w500/ctjEj2xM32OvBXCq8zAdK3ZrsAj.jpg",
-      width: 500,
-      height: 750,
-    },
+    artwork: "https://media.themoviedb.org/t/p/w500/ctjEj2xM32OvBXCq8zAdK3ZrsAj.jpg",
   },
   {
     id: "fargo-1996",
-    kind: "movie",
     title: "Fargo",
-    creator: "Joel Coen and Ethan Coen",
     directors: ["Joel Coen", "Ethan Coen"],
     summary:
       "A desperate car salesman's staged kidnapping unravels into violence while a quietly persistent Minnesota police chief follows the evidence.",
@@ -275,10 +195,6 @@ export const movies = [
     runtimeMinutes: 98,
     href: "https://www.themoviedb.org/movie/275-fargo",
     sourceId: "275",
-    artwork: {
-      src: "https://media.themoviedb.org/t/p/w500/rt7cpEr1uP6RTZykBFhBTcRaKvG.jpg",
-      width: 500,
-      height: 750,
-    },
+    artwork: "https://media.themoviedb.org/t/p/w500/rt7cpEr1uP6RTZykBFhBTcRaKvG.jpg",
   },
-] as const satisfies readonly MovieMediaShelfItem[];
+]);

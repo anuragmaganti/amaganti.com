@@ -2,13 +2,6 @@ import { books } from "@/config/media/books";
 import { movies } from "@/config/media/movies";
 import { tvShows } from "@/config/media/tv-shows";
 import type {
-  MediaShelfDefinition as ShelfDefinition,
-  MediaShelfId as ShelfId,
-  MediaShelfItem,
-  MediaShelfSortMode,
-} from "@/config/media/types";
-
-export type {
   MediaShelfDefinition,
   MediaShelfId,
   MediaShelfItem,
@@ -22,7 +15,7 @@ export const mediaShelfOrder = ["books", "movies", "tv-shows"] as const;
 // Change any value to "newest-first", "alphabetical", or "manual".
 // "manual" preserves the order authored in that category's catalog file.
 export const mediaShelfSortModes: Readonly<
-  Record<ShelfId, MediaShelfSortMode>
+  Record<MediaShelfId, MediaShelfSortMode>
 > = {
   books: "oldest-first",
   movies: "oldest-first",
@@ -48,7 +41,7 @@ function compareReleaseDates(a: MediaShelfItem, b: MediaShelfItem) {
   return 0;
 }
 
-export function sortMediaShelfItems<T extends MediaShelfItem>(
+function sortMediaShelfItems<T extends MediaShelfItem>(
   items: readonly T[],
   mode: MediaShelfSortMode,
 ): readonly T[] {
@@ -56,27 +49,24 @@ export function sortMediaShelfItems<T extends MediaShelfItem>(
     return items;
   }
 
-  return items
-    .map((item, manualIndex) => ({ item, manualIndex }))
-    .sort((a, b) => {
-      let comparison = 0;
+  return [...items].sort((a, b) => {
+    let comparison = 0;
 
-      if (mode === "alphabetical") {
-        comparison = titleCollator.compare(a.item.title, b.item.title);
-      } else {
-        comparison = compareReleaseDates(a.item, b.item);
+    if (mode === "alphabetical") {
+      comparison = titleCollator.compare(a.title, b.title);
+    } else {
+      comparison = compareReleaseDates(a, b);
 
-        if (mode === "newest-first") {
-          comparison *= -1;
-        }
+      if (mode === "newest-first") {
+        comparison *= -1;
       }
+    }
 
-      return comparison || a.manualIndex - b.manualIndex;
-    })
-    .map(({ item }) => item);
+    return comparison;
+  });
 }
 
-const mediaShelfCatalog: Record<ShelfId, ShelfDefinition> = {
+const mediaShelfCatalog: Record<MediaShelfId, MediaShelfDefinition> = {
   books: {
     id: "books",
     label: "Books",
@@ -103,7 +93,7 @@ const mediaShelfCatalog: Record<ShelfId, ShelfDefinition> = {
   },
 };
 
-export const mediaShelves: readonly ShelfDefinition[] = mediaShelfOrder.map(
+export const mediaShelves: readonly MediaShelfDefinition[] = mediaShelfOrder.map(
   (id) => {
     const shelf = mediaShelfCatalog[id];
 

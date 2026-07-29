@@ -1,10 +1,11 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import {
   mediaShelves,
   mediaShelfSortModes,
 } from "../config/media-shelves";
 import artworkManifest from "../config/media/artwork-manifest.json";
+import type { MediaArtworkManifest } from "../config/media/types";
 import { projects, type ProjectEntry } from "../config/projects";
 import { portfolioSections } from "../config/sections";
 import { outroLinks } from "../config/site";
@@ -16,13 +17,27 @@ import {
   scrollToSection,
 } from "./helpers";
 
-const artworkEntries = artworkManifest.entries as Record<
-  string,
-  {
-    src: string;
-    variants: readonly { src: string }[];
+const artworkEntries = artworkManifest as unknown as MediaArtworkManifest;
+
+async function openBookShelf(
+  page: Page,
+  reducedMotion: "no-preference" | "reduce" = "reduce",
+) {
+  await openPortfolio(page, { reducedMotion });
+  await scrollToSection(page, "media-shelves-stage");
+
+  const shelf = page.locator('[data-media-shelf="books"]');
+  const viewport = shelf.locator(".media-shelf__viewport");
+  const track = viewport.locator(".media-shelf__track");
+  const box = await viewport.boundingBox();
+
+  expect(box).not.toBeNull();
+  if (!box) {
+    throw new Error("Books shelf viewport is not measurable");
   }
->;
+
+  return { box, shelf, track, viewport };
+}
 
 test.describe("portfolio behavior contract", () => {
   test("keeps media catalogs unique and applies their configured order", () => {
@@ -68,12 +83,9 @@ test.describe("portfolio behavior contract", () => {
     for (const item of catalogItems) {
       const artwork = artworkEntries[`${item.kind}:${item.id}`];
 
-      expect(artwork?.src).toMatch(/^\/media-shelves\//);
-      expect(artwork?.variants).toHaveLength(3);
+      expect(artwork).toHaveLength(3);
       expect(
-        artwork?.variants.every(({ src }) =>
-          src.startsWith("/media-shelves/"),
-        ),
+        artwork?.every(([src]) => src.startsWith("/media-shelves/")),
       ).toBe(true);
     }
   });
@@ -274,18 +286,7 @@ test.describe("portfolio behavior contract", () => {
     page,
   }, testInfo) => {
     test.skip(testInfo.project.name !== "desktop");
-    await openPortfolio(page);
-    await scrollToSection(page, "media-shelves-stage");
-
-    const viewport = page.locator(
-      '[data-media-shelf="books"] .media-shelf__viewport',
-    );
-    const box = await viewport.boundingBox();
-
-    expect(box).not.toBeNull();
-    if (!box) {
-      return;
-    }
+    const { box, viewport } = await openBookShelf(page);
 
     const drag = async (from: number, to: number) => {
       await page.mouse.move(
@@ -385,19 +386,10 @@ test.describe("portfolio behavior contract", () => {
     page,
   }, testInfo) => {
     test.skip(testInfo.project.name !== "desktop");
-    await openPortfolio(page, { reducedMotion: "no-preference" });
-    await scrollToSection(page, "media-shelves-stage");
-
-    const viewport = page.locator(
-      '[data-media-shelf="books"] .media-shelf__viewport',
+    const { box, track, viewport } = await openBookShelf(
+      page,
+      "no-preference",
     );
-    const track = viewport.locator(".media-shelf__track");
-    const box = await viewport.boundingBox();
-
-    expect(box).not.toBeNull();
-    if (!box) {
-      return;
-    }
 
     await viewport.evaluate((element) => {
       const track = element.querySelector<HTMLElement>(
@@ -455,19 +447,7 @@ test.describe("portfolio behavior contract", () => {
     page,
   }, testInfo) => {
     test.skip(testInfo.project.name !== "desktop");
-    await openPortfolio(page, { reducedMotion: "no-preference" });
-    await scrollToSection(page, "media-shelves-stage");
-
-    const viewport = page.locator(
-      '[data-media-shelf="books"] .media-shelf__viewport',
-    );
-    const track = viewport.locator(".media-shelf__track");
-    const box = await viewport.boundingBox();
-
-    expect(box).not.toBeNull();
-    if (!box) {
-      return;
-    }
+    const { box, track } = await openBookShelf(page, "no-preference");
 
     const startX = box.x + box.width * 0.62;
     const y = box.y + box.height * 0.45;
@@ -491,19 +471,7 @@ test.describe("portfolio behavior contract", () => {
     page,
   }, testInfo) => {
     test.skip(testInfo.project.name !== "desktop");
-    await openPortfolio(page, { reducedMotion: "reduce" });
-    await scrollToSection(page, "media-shelves-stage");
-
-    const viewport = page.locator(
-      '[data-media-shelf="books"] .media-shelf__viewport',
-    );
-    const track = viewport.locator(".media-shelf__track");
-    const box = await viewport.boundingBox();
-
-    expect(box).not.toBeNull();
-    if (!box) {
-      return;
-    }
+    const { box, track } = await openBookShelf(page);
 
     const readTrackX = () =>
       track.evaluate((element) =>
@@ -540,12 +508,7 @@ test.describe("portfolio behavior contract", () => {
     page,
   }, testInfo) => {
     test.skip(testInfo.project.name !== "desktop");
-    await openPortfolio(page);
-    await scrollToSection(page, "media-shelves-stage");
-
-    const shelf = page.locator('[data-media-shelf="books"]');
-    const viewport = shelf.locator(".media-shelf__viewport");
-    const track = viewport.locator(".media-shelf__track");
+    const { shelf, track, viewport } = await openBookShelf(page);
     await expect(shelf.locator("button")).toHaveCount(0);
 
     await viewport.focus();
@@ -595,19 +558,7 @@ test.describe("portfolio behavior contract", () => {
     page,
   }, testInfo) => {
     test.skip(testInfo.project.name !== "desktop");
-    await openPortfolio(page, { reducedMotion: "reduce" });
-    await scrollToSection(page, "media-shelves-stage");
-
-    const viewport = page.locator(
-      '[data-media-shelf="books"] .media-shelf__viewport',
-    );
-    const track = viewport.locator(".media-shelf__track");
-    const box = await viewport.boundingBox();
-
-    expect(box).not.toBeNull();
-    if (!box) {
-      return;
-    }
+    const { box, track } = await openBookShelf(page);
 
     await page.mouse.move(box.x + box.width * 0.72, box.y + box.height * 0.45);
     await page.mouse.down();
@@ -628,19 +579,7 @@ test.describe("portfolio behavior contract", () => {
     page,
   }, testInfo) => {
     test.skip(testInfo.project.name !== "mobile");
-    await openPortfolio(page, { reducedMotion: "no-preference" });
-    await scrollToSection(page, "media-shelves-stage");
-
-    const viewport = page.locator(
-      '[data-media-shelf="books"] .media-shelf__viewport',
-    );
-    const track = viewport.locator(".media-shelf__track");
-    const box = await viewport.boundingBox();
-
-    expect(box).not.toBeNull();
-    if (!box) {
-      return;
-    }
+    const { box, track } = await openBookShelf(page, "no-preference");
 
     const session = await page.context().newCDPSession(page);
     const startX = box.x + box.width * 0.68;
