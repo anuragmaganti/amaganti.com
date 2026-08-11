@@ -295,4 +295,24 @@ export const tvShows = defineTvShows([
       3000,
     ],
   },
+  {
+    id: "landman",
+    title: "Landman",
+    creators: ["Taylor Sheridan", "Christian Wallace"],
+    summary:
+      "A crisis manager for a West Texas oil company navigates roughnecks, billionaires, family conflict, and the consequences of a modern oil boom.",
+    releaseYear: 2024,
+    releaseDate: "2024-11-17",
+    genres: ["Drama", "Western"],
+    network: "Paramount+",
+    runtimeMinutes: 56,
+    imdbId: "tt14186672",
+    href: "https://www.tvmaze.com/shows/53777/landman",
+    sourceId: "53777",
+    artwork: [
+      "https://static.tvmaze.com/uploads/images/original_untouched/598/1495770.jpg",
+      1400,
+      2100,
+    ],
+  },
 ]);
