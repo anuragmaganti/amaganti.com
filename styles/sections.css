@@ -209,9 +209,14 @@
 }
 
 .skills-stage__rail {
+  --skills-mask-gutter: 2rem;
+
   position: relative;
   min-width: 0;
   height: 100svh;
+  /* Keep the mask edge outside the enlarged letters; the list below offsets
+     this extra paint area to preserve its original position and width. */
+  margin-inline: calc(-1 * var(--skills-mask-gutter));
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0,
@@ -237,8 +242,8 @@
 .skills-stage__list {
   position: absolute;
   top: 0;
-  left: 0;
-  width: 100%;
+  left: var(--skills-mask-gutter);
+  width: calc(100% - 2 * var(--skills-mask-gutter));
   margin: 0;
   padding: 0;
   display: flex;

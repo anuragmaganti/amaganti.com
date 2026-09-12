@@ -747,12 +747,12 @@ test.describe("portfolio behavior contract", () => {
     { page },
     testInfo,
   ) => {
-    test.skip(testInfo.project.name !== "desktop");
     await openPortfolio(page, { theme: "light" });
 
     const geometry = await page.evaluate(() => {
       const rail = document.querySelector<HTMLElement>(".skills-stage__rail")!;
       const railRect = rail.getBoundingClientRect();
+      const listRect = document.querySelector(".skills-stage__list")!.getBoundingClientRect();
       const style = getComputedStyle(rail);
       const maskWidth = Number.parseFloat(style.maskSize);
       const labels = Array.from(
@@ -763,6 +763,7 @@ test.describe("portfolio behavior contract", () => {
         range.selectNodeContents(element);
         return {
           label: element.textContent?.trim(),
+          left: range.getBoundingClientRect().left,
           right: range.getBoundingClientRect().right,
         };
       });
@@ -770,16 +771,20 @@ test.describe("portfolio behavior contract", () => {
       return {
         labels,
         maskRepeat: style.maskRepeat,
+        maskLeft: railRect.left,
         maskRight: railRect.left + maskWidth,
-        railRight: railRect.right,
+        listRight: listRect.right,
       };
     });
 
     expect(geometry.maskRepeat).toBe("no-repeat");
-    expect(geometry.labels.some(({ right }) => right > geometry.railRight)).toBe(
-      true,
-    );
+    if (testInfo.project.name === "desktop") {
+      expect(geometry.labels.some(({ right }) => right > geometry.listRight)).toBe(
+        true,
+      );
+    }
     for (const label of geometry.labels) {
+      expect(label.left, label.label).toBeGreaterThan(geometry.maskLeft + 1);
       expect(label.right, label.label).toBeLessThanOrEqual(
         geometry.maskRight + 1,
       );
