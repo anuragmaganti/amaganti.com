@@ -315,4 +315,25 @@ export const tvShows = defineTvShows([
       2100,
     ],
   },
+  {
+    id: "the-gentlemen",
+    title: "The Gentlemen",
+    creators: ["Guy Ritchie"],
+    summary:
+      "An aristocrat inherits his family's estate and discovers a cannabis operation on the grounds, drawing him into Britain's criminal underworld.",
+    releaseYear: 2024,
+    releaseDate: "2024-03-07",
+    genres: ["Comedy", "Action", "Crime"],
+    network: "Netflix",
+    country: "United Kingdom",
+    runtimeMinutes: 53,
+    imdbId: "tt13210838",
+    href: "https://www.tvmaze.com/shows/64992/the-gentlemen",
+    sourceId: "64992",
+    artwork: [
+      "https://static.tvmaze.com/uploads/images/original_untouched/638/1597311.jpg",
+      1080,
+      1350,
+    ],
+  },
 ]);
