@@ -4,6 +4,7 @@ import {
   type SectionId,
 } from "@/config/sections";
 import { scenePresets } from "@/config/scene-presets";
+import { contentSectionsById } from "@/config/content-sections";
 import type {
   SampledScene,
   ScenePhase,
@@ -113,6 +114,41 @@ export function getTimelineProgressPoint(
     timeline.sectionRanges[sectionId],
     clamp(localProgress, 0, 1),
   );
+}
+
+export function createCompactScenePhases(phases: ScenePhase[]): ScenePhase[] {
+  const aboutIndex = phases.findIndex((phase) => phase.key === "about-title");
+  const aboutEntry = phases[aboutIndex - 1];
+  const aboutTitle = phases[aboutIndex];
+  const projectsEntry = phases[aboutIndex + 1];
+  const projectsTitle = phases[aboutIndex + 2];
+
+  if (
+    aboutEntry?.key !== "about-transform" ||
+    projectsEntry?.key !== "projects-transform" ||
+    projectsTitle?.key !== "projects-hero"
+  ) {
+    return phases;
+  }
+
+  const morphStart = getRangePoint(
+    [aboutEntry.range[0], aboutTitle.range[1]],
+    contentSectionsById["about-me"].exit[1],
+  );
+  // Use the opening Projects beat for the morph as well. Waiting for the
+  // copy to clear must not compress the rearrangement into About's last beat.
+  const morphEnd = projectsTitle.range[0];
+
+  return [
+    ...phases.slice(0, aboutIndex),
+    {
+      ...aboutTitle,
+      key: "about-reading",
+      range: [aboutTitle.range[0], morphStart],
+    },
+    { ...aboutTitle, range: [morphStart, morphEnd] },
+    ...phases.slice(aboutIndex + 2),
+  ];
 }
 
 export function sampleSceneProgress(

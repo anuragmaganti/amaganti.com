@@ -392,7 +392,8 @@ export function applyViewportCloudLayout(
   }
 
   if (compactViewport) {
-    const isAbout = (key: string) => key === "about-transform" || key === "about-title";
+    const isAbout = (key: string) =>
+      key === "about-transform" || key === "about-reading" || key === "about-title";
     const aboutWeight = lerp(
       isAbout(phaseState.current.key) ? 1 : 0,
       isAbout(phaseState.next.key) ? 1 : 0,

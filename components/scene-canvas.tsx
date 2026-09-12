@@ -45,6 +45,7 @@ import {
   resolveMorphTargetId,
 } from "@/lib/point-cloud-targets";
 import {
+  createCompactScenePhases,
   createSampledScene,
   getProjectCardPhaseWeight,
   sampleSceneProgress,
@@ -238,8 +239,8 @@ function PointCloudSystem({
   const elapsedTimeRef = useRef(0);
   const phaseIndexRef = useRef(0);
   const sceneSample = useMemo(() => createSampledScene(phases), [phases]);
-  const aboutReadingPhase = useMemo(
-    () => phases.find((phase) => phase.key === "about-title"),
+  const compactPhases = useMemo(
+    () => createCompactScenePhases(phases),
     [phases],
   );
   const particle = useMemo(() => createParticleState(), []);
@@ -333,28 +334,12 @@ function PointCloudSystem({
 
   useFrame(({ camera, size }, delta) => {
     const progressValue = progress.get();
-    let particleProgress = progressValue;
     const compactViewport =
       size.width <= 900 || (size.width <= 1000 && size.height <= 500);
-
-    if (
-      compactViewport &&
-      aboutReadingPhase &&
-      progressValue >= aboutReadingPhase.range[0] &&
-      progressValue < aboutReadingPhase.range[1]
-    ) {
-      // Keep the particle heading above the reading window until the copy
-      // has faded, then complete the same morph into the Projects heading.
-      const [start, end] = aboutReadingPhase.range;
-      const duration = end - start;
-      const transitionStart = start + duration * 0.75;
-      particleProgress = start +
-        Math.max(0, (progressValue - transitionStart) / (duration * 0.25)) * duration;
-    }
     const perspectiveCamera = camera as THREE.PerspectiveCamera;
     const phaseState = sampleSceneProgress(
-      particleProgress,
-      phases,
+      progressValue,
+      compactViewport ? compactPhases : phases,
       phaseIndexRef,
       sceneSample,
     );

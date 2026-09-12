@@ -14,6 +14,7 @@ import {
   createCloudLayoutResources,
 } from "../lib/viewport-cloud-layout";
 import {
+  createCompactScenePhases,
   createSampledScene,
   createSceneTimeline,
   createSceneTimelineFromSections,
@@ -22,6 +23,45 @@ import {
 } from "../lib/scene-timeline";
 
 test.describe("scene engine contract", () => {
+  test("gives the compact About morph room after reading and joins Projects continuously", () => {
+    const timeline = createSceneTimeline();
+    const originalRanges = timeline.phases.map((phase) => [...phase.range]);
+    const phases = createCompactScenePhases(timeline.phases);
+    const originalAbout = timeline.phases.find((phase) => phase.key === "about-title")!;
+    const reading = phases.find((phase) => phase.key === "about-reading")!;
+    const morph = phases.find((phase) => phase.key === "about-title")!;
+    const projects = phases.find((phase) => phase.key === "projects-hero")!;
+    const previousCompressedDuration = (originalAbout.range[1] - originalAbout.range[0]) * 0.25;
+
+    expect(reading.range[1]).toBe(getTimelineProgressPoint(timeline, "about-stage", 0.82));
+    expect(morph.range[0]).toBe(reading.range[1]);
+    expect(morph.range[1]).toBe(projects.range[0]);
+    expect(morph.range[1] - morph.range[0]).toBeGreaterThan(previousCompressedDuration * 2);
+    expect(timeline.phases.map((phase) => phase.range)).toEqual(originalRanges);
+
+    for (let index = 1; index < phases.length; index += 1) {
+      expect(phases[index].range[0]).toBe(phases[index - 1].range[1]);
+    }
+
+    const index = { current: 0 };
+    const scene = createSampledScene(phases);
+    const duration = morph.range[1] - morph.range[0];
+    for (const fraction of [0.2, 0.5, 0.8, 0.5, 0.2]) {
+      sampleSceneProgress(morph.range[0] + duration * fraction, phases, index, scene);
+      expect(scene.current.key).toBe("about-title");
+      expect(scene.next.key).toBe("projects-hero");
+      expect(scene.mix).toBeCloseTo(fraction * fraction * (3 - 2 * fraction), 8);
+    }
+
+    for (const boundary of [reading.range[0], morph.range[0], morph.range[1]]) {
+      sampleSceneProgress(boundary - 0.0000001, phases, index, scene);
+      const before = [...scene.cloud.position, scene.cloud.scale, ...scene.camera.position];
+      sampleSceneProgress(boundary + 0.0000001, phases, index, scene);
+      const after = [...scene.cloud.position, scene.cloud.scale, ...scene.camera.position];
+      after.forEach((value, offset) => expect(value).toBeCloseTo(before[offset], 6));
+    }
+  });
+
   test("reuses layout projections without changing morphs, resize, or copy placement", () => {
     const phases = createSceneTimeline().phases;
     const scene = createSampledScene(phases);

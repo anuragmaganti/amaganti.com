@@ -914,6 +914,45 @@ test.describe("portfolio behavior contract", () => {
     expect(problems).toEqual([]);
   });
 
+  test("morphs About into Projects gradually after the compact reading window clears", async (
+    { page },
+    testInfo,
+  ) => {
+    test.skip(testInfo.project.name === "desktop");
+    await openPortfolio(page, { reducedMotion: "no-preference", particleBackend: "gpu" });
+    const transition = await page.evaluate(() => {
+      const about = document.querySelector<HTMLElement>('#about-stage')!;
+      const projects = document.querySelector<HTMLElement>('#projects-stage')!;
+      const aboutStart = Number(about.dataset.timelineStart);
+      const aboutEnd = Number(about.dataset.timelineEnd);
+      const projectsStart = Number(projects.dataset.timelineStart);
+      const projectsEnd = Number(projects.dataset.timelineEnd);
+      return {
+        start: aboutStart + (aboutEnd - aboutStart) * 0.82,
+        end: projectsStart + (projectsEnd - projectsStart) * 0.25,
+      };
+    });
+
+    for (const fraction of [0.15, 0.35, 0.5, 0.65, 0.85, 0.5, 0.15]) {
+      const progress = transition.start + (transition.end - transition.start) * fraction;
+      await page.evaluate((progress) => {
+        const shell = document.querySelector<HTMLElement>('.portfolio-shell')!;
+        document.documentElement.style.scrollBehavior = 'auto';
+        window.scrollTo(0, shell.offsetTop + (shell.scrollHeight - innerHeight) * progress);
+      }, progress);
+      const expectedMix = fraction * fraction * (3 - 2 * fraction);
+      await expect.poll(() => page.evaluate((expectedMix) => {
+        const scene = window.__portfolioSceneDiagnostics;
+        return scene?.currentPhaseKey === 'about-title' &&
+          scene.nextPhaseKey === 'projects-hero' && Math.abs(scene.mix - expectedMix) < 0.02;
+      }, expectedMix)).toBe(true);
+      const copyOpacity = await page.locator('.content-stage-overlay__copy p').evaluateAll(
+        (paragraphs) => Math.max(...paragraphs.map((paragraph) => Number(getComputedStyle(paragraph).opacity))),
+      );
+      expect(copyOpacity).toBeLessThan(0.01);
+    }
+  });
+
   test("reframes the scene after live resize and orientation changes", async (
     { page },
     testInfo,
