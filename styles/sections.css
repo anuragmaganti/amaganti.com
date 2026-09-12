@@ -149,9 +149,16 @@
   overflow: hidden;
 }
 
-.skills-technology-track__svg {
+.skills-technology-track__item {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  contain: layout paint style;
+  will-change: transform, opacity;
+}
+
+.skills-technology-track__svg {
   display: block;
   width: 100%;
   height: 100%;

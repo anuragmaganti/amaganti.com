@@ -1,54 +1,24 @@
 "use client";
 
 import type { MotionValue } from "motion";
-import {
-  motion,
-  useReducedMotion,
-  useSpring,
-  useTransform,
-} from "motion/react";
-import { useEffect, useId, useRef, useState, type RefObject } from "react";
+import { cancelFrame, frame, useReducedMotion, useTransform } from "motion/react";
+import { useEffect, useId, useMemo, useRef, useState, type RefObject } from "react";
 
 import type { SkillEntry } from "@/config/skills";
-
-const VISIBLE_SLOTS = 8;
-const EDGE_SLOTS = 1.5;
-const PRIMARY_SKILL_STEP_VH = 56;
-const TECHNOLOGY_STEP_VH = 14;
-const MINIMUM_SCROLL_TRAVEL_VH = 280;
-
-type TrackGeometry = {
-  arcLength: number;
-  horizontalLength: number;
-  pathLength: number;
-  radius: number;
-  rightX: number;
-  startX: number;
-  topY: number;
-  verticalLength: number;
-};
-
-type ViewportSize = {
-  height: number;
-  width: number;
-};
-
-export function getSkillsScrollHeightVh(
-  technologyCount: number,
-  primarySkillCount: number,
-) {
-  const primaryTravel =
-    Math.max(primarySkillCount - 1, 0) * PRIMARY_SKILL_STEP_VH;
-  const technologyTravel =
-    Math.max(technologyCount - 1, 0) * TECHNOLOGY_STEP_VH;
-  const scrollTravel = Math.max(
-    MINIMUM_SCROLL_TRAVEL_VH,
-    primaryTravel,
-    technologyTravel,
-  );
-
-  return 100 + scrollTravel;
-}
+import {
+  createLabelFrames,
+  createTrackGeometry,
+  getItemOpacity,
+  getItemProgress,
+  getTrackOffset,
+  getTrackPath,
+  getTrackRenderMode,
+  smoothstep,
+  type LabelFrames,
+  type TrackGeometry,
+  type TrackRenderMode,
+  type ViewportSize,
+} from "@/lib/skills-technology-layout";
 
 export function SkillsTechnologyTrack({
   items,
@@ -60,16 +30,13 @@ export function SkillsTechnologyTrack({
   const trackRef = useRef<HTMLDivElement>(null);
   const pathId = `skills-technology-path-${useId().replace(/:/g, "")}`;
   const size = useObservedSize(trackRef);
-  const geometry = createTrackGeometry(size);
+  const geometry = useMemo(() => createTrackGeometry(size), [size]);
   const reducedMotion = Boolean(useReducedMotion());
-  const smoothedProgress = useSpring(progress, {
-    damping: 28,
-    mass: 0.24,
-    stiffness: 115,
-  });
-  const renderedProgress = useTransform(smoothedProgress, (value) =>
+  const renderedProgress = useTransform(progress, (value) =>
     reducedMotion ? 0.5 : value,
   );
+
+  useTrackAnimation(trackRef, geometry, renderedProgress, items);
 
   return (
     <div className="skills-technology-layer" aria-hidden="true">
@@ -78,72 +45,169 @@ export function SkillsTechnologyTrack({
         className="skills-technology-track"
         data-skills-technology-track
       >
-        <svg
-          className="skills-technology-track__svg"
-          preserveAspectRatio="none"
-          viewBox={`0 0 ${Math.max(size.width, 1)} ${Math.max(size.height, 1)}`}
-        >
-          <defs>
-            <path id={pathId} d={getTrackPath(geometry)} />
-          </defs>
-          {items.map((item, index) => (
-            <TechnologyTrackItem
-              key={item.id}
-              geometry={geometry}
-              index={index}
-              itemCount={items.length}
-              label={item.label}
-              pathId={pathId}
-              progress={renderedProgress}
-            />
-          ))}
-        </svg>
+        {items.map((item) => (
+          <div key={item.id} className="skills-technology-track__item">
+            <svg
+              className="skills-technology-track__svg"
+              preserveAspectRatio="none"
+            >
+              <defs>
+                <path id={`${pathId}-${item.id}`} d={getTrackPath(geometry)} />
+              </defs>
+              <text
+                className="skills-technology-track__label"
+                dominantBaseline="central"
+                textAnchor="middle"
+              >
+                <textPath href={`#${pathId}-${item.id}`}>{item.label}</textPath>
+              </text>
+            </svg>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-function TechnologyTrackItem({
-  geometry,
-  index,
-  itemCount,
-  label,
-  pathId,
-  progress,
-}: {
-  geometry: TrackGeometry;
+type LabelRuntime = {
+  element: HTMLDivElement;
+  svg: SVGSVGElement;
+  textPath: SVGTextPathElement;
+  frames: LabelFrames;
   index: number;
-  itemCount: number;
-  label: string;
-  pathId: string;
-  progress: MotionValue<number>;
-}) {
-  const itemProgress = useTransform(progress, (value) =>
-    getItemProgress(value, index, itemCount),
-  );
-  const startOffset = useTransform(itemProgress, (value) =>
-    getTrackOffset(geometry, value),
-  );
-  const opacity = useTransform(progress, (value) => {
-    const itemValue = getItemProgress(value, index, itemCount);
-    const trackFade =
-      smoothstep(0, 0.045, value) * (1 - smoothstep(0.955, 1, value));
+  mode: TrackRenderMode | null;
+  opacity: number;
+  offset: number;
+  x: number;
+  y: number;
+};
 
-    return getItemOpacity(itemValue, geometry) * trackFade;
-  });
+function useTrackAnimation(
+  trackRef: RefObject<HTMLDivElement | null>,
+  geometry: TrackGeometry,
+  progress: MotionValue<number>,
+  items: readonly SkillEntry[],
+) {
+  useEffect(() => {
+    const track = trackRef.current;
 
-  return (
-    <motion.text
-      className="skills-technology-track__label"
-      dominantBaseline="central"
-      style={{ opacity }}
-      textAnchor="middle"
-    >
-      <motion.textPath href={`#${pathId}`} startOffset={startOffset}>
-        {label}
-      </motion.textPath>
-    </motion.text>
-  );
+    if (!track || geometry.pathLength <= 0) return;
+
+    let disposed = false;
+    let labels: LabelRuntime[] = [];
+
+    const render = () => {
+      const value = progress.get();
+      const trackFade =
+        smoothstep(0, 0.045, value) * (1 - smoothstep(0.955, 1, value));
+
+      for (const label of labels) {
+        const itemProgress = getItemProgress(value, label.index, items.length);
+        const opacity = getItemOpacity(itemProgress, geometry) * trackFade;
+
+        if (opacity !== label.opacity) {
+          label.element.style.opacity = `${opacity}`;
+          label.element.style.visibility = opacity > 0 ? "visible" : "hidden";
+          label.opacity = opacity;
+        }
+
+        // Hidden labels neither move nor invalidate SVG layout. On re-entry,
+        // render directly from the current progress, including reverse swipes.
+        if (opacity === 0) continue;
+
+        const offset = getTrackOffset(geometry, itemProgress);
+        const mode = getTrackRenderMode(geometry, offset, label.frames.halfWidth);
+        const viewport = label.frames.viewports[mode];
+        const pathOffset =
+          mode === "horizontal" || mode === "vertical" ? viewport.offset : offset;
+        const x = viewport.x + (mode === "horizontal" ? offset - pathOffset : 0);
+        const y = viewport.y + (mode === "vertical" ? offset - pathOffset : 0);
+
+        if (mode !== label.mode) {
+          label.element.style.width = `${viewport.width}px`;
+          label.element.style.height = `${viewport.height}px`;
+          label.svg.setAttribute(
+            "viewBox",
+            `${viewport.x} ${viewport.y} ${viewport.width} ${viewport.height}`,
+          );
+          label.mode = mode;
+        }
+
+        if (pathOffset !== label.offset) {
+          label.textPath.setAttribute("startOffset", `${pathOffset}`);
+          label.offset = pathOffset;
+        }
+
+        if (x !== label.x || y !== label.y) {
+          label.element.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+          label.x = x;
+          label.y = y;
+        }
+      }
+    };
+    const scheduleRender = () => frame.render(render);
+    const measure = () => {
+      // Read all font metrics together, only on resize/font load. Straight
+      // travel then moves cached, tightly bounded SVGs with HTML transforms;
+      // the original textPath still shapes every letter at bends and edges.
+      const elements = Array.from(track.children);
+      const measurementSvg = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "svg",
+      );
+      measurementSvg.setAttribute("width", "1");
+      measurementSvg.setAttribute("height", "1");
+      measurementSvg.style.cssText = "position:absolute;visibility:hidden;pointer-events:none";
+      const measurementLabels = elements.map((element, index) => {
+        const text = element.querySelector("text")!.cloneNode(false) as SVGTextElement;
+
+        // WebKit can report only the characters currently inside a textPath.
+        // Measure unpathed text so an entering label never gets a cropped cache.
+        text.textContent = items[index].label;
+        measurementSvg.append(text);
+        return text;
+      });
+      track.append(measurementSvg);
+
+      labels = elements.map((element, index) => {
+        const svg = element.querySelector("svg")!;
+        const text = measurementLabels[index];
+        const textPath = svg.querySelector("textPath")!;
+        const fontSize = Number.parseFloat(getComputedStyle(text).fontSize);
+
+        return {
+          element: element as HTMLDivElement,
+          svg,
+          textPath,
+          frames: createLabelFrames(geometry, text.getComputedTextLength(), fontSize),
+          index,
+          mode: null,
+          opacity: Number.NaN,
+          offset: Number.NaN,
+          x: Number.NaN,
+          y: Number.NaN,
+        };
+      });
+      measurementSvg.remove();
+      scheduleRender();
+    };
+    const scheduleMeasure = () => {
+      if (!disposed) frame.read(measure);
+    };
+    const unsubscribe = progress.on("change", scheduleRender);
+
+    scheduleMeasure();
+    void document.fonts.ready.then(scheduleMeasure);
+    document.fonts.addEventListener("loadingdone", scheduleMeasure);
+
+    return () => {
+      disposed = true;
+      unsubscribe();
+      cancelFrame(measure);
+      cancelFrame(render);
+      document.fonts.removeEventListener("loadingdone", scheduleMeasure);
+    };
+  }, [geometry, items, progress, trackRef]);
 }
 
 function useObservedSize<T extends HTMLElement>(targetRef: RefObject<T | null>) {
@@ -152,9 +216,7 @@ function useObservedSize<T extends HTMLElement>(targetRef: RefObject<T | null>) 
   useEffect(() => {
     const target = targetRef.current;
 
-    if (!target) {
-      return;
-    }
+    if (!target) return;
 
     const update = () => {
       const rect = target.getBoundingClientRect();
@@ -176,120 +238,4 @@ function useObservedSize<T extends HTMLElement>(targetRef: RefObject<T | null>) 
   }, [targetRef]);
 
   return size;
-}
-
-function createTrackGeometry({ height, width }: ViewportSize): TrackGeometry {
-  if (height <= 0 || width <= 0) {
-    return {
-      arcLength: 0,
-      horizontalLength: 0,
-      pathLength: 0,
-      radius: 0,
-      rightX: 0,
-      startX: 0,
-      topY: 0,
-      verticalLength: 0,
-    };
-  }
-
-  const isMobile = width <= 640;
-  const topY = clamp(
-    height * (isMobile ? 0.022 : 0.026),
-    isMobile ? 12 : 16,
-    isMobile ? 20 : 24,
-  );
-  const rightX =
-    width -
-    clamp(width * 0.034, isMobile ? 16 : 28, isMobile ? 24 : 56);
-  const startX = isMobile
-    ? width * 0.12
-    : clamp(width * 0.1, 72, 128);
-  const radius = clamp(
-    Math.min(width, height) * (isMobile ? 0.07 : 0.085),
-    isMobile ? 28 : 48,
-    isMobile ? 46 : 88,
-  );
-  const horizontalLength = Math.max(rightX - radius - startX, 1);
-  const arcLength = radius * (Math.PI / 2);
-  const verticalLength = Math.max(
-    height * (isMobile ? 0.92 : 0.9) - (topY + radius),
-    1,
-  );
-  const pathLength = horizontalLength + arcLength + verticalLength;
-
-  return {
-    arcLength,
-    horizontalLength,
-    pathLength,
-    radius,
-    rightX,
-    startX,
-    topY,
-    verticalLength,
-  };
-}
-
-function getTrackPath(geometry: TrackGeometry) {
-  if (geometry.pathLength <= 0) {
-    return "";
-  }
-
-  const cornerX = geometry.rightX - geometry.radius;
-  const cornerY = geometry.topY + geometry.radius;
-  const endY = cornerY + geometry.verticalLength;
-
-  return [
-    `M 0 ${geometry.topY}`,
-    `H ${cornerX}`,
-    `A ${geometry.radius} ${geometry.radius} 0 0 1 ${geometry.rightX} ${cornerY}`,
-    `V ${endY}`,
-  ].join(" ");
-}
-
-function getTrackOffset(geometry: TrackGeometry, progress: number) {
-  return geometry.startX + clamp01(progress) * geometry.pathLength;
-}
-
-function getItemProgress(
-  sectionProgress: number,
-  index: number,
-  itemCount: number,
-) {
-  const travelSlots =
-    Math.max(itemCount - 1, 0) + VISIBLE_SLOTS - EDGE_SLOTS * 2;
-
-  return (
-    (clamp01(sectionProgress) * travelSlots - index + EDGE_SLOTS) /
-    VISIBLE_SLOTS
-  );
-}
-
-function getItemOpacity(itemProgress: number, geometry: TrackGeometry) {
-  if (geometry.pathLength <= 0) {
-    return 0;
-  }
-
-  const verticalStart =
-    (geometry.horizontalLength + geometry.arcLength) / geometry.pathLength;
-  const verticalProgress = clamp01(
-    (itemProgress - verticalStart) / Math.max(1 - verticalStart, 0.0001),
-  );
-  const entranceOpacity = smoothstep(0, 0.035, itemProgress);
-  const bottomFade = 1 - smoothstep(0.5, 1, verticalProgress);
-
-  return entranceOpacity * bottomFade;
-}
-
-function smoothstep(min: number, max: number, value: number) {
-  const progress = clamp01((value - min) / Math.max(max - min, 0.0001));
-
-  return progress * progress * (3 - 2 * progress);
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function clamp01(value: number) {
-  return clamp(value, 0, 1);
 }

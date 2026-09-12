@@ -13,6 +13,22 @@ import type { SceneTimeline } from "@/lib/scene-types";
 export function usePortfolioScrollProgress(
   shellRef: RefObject<HTMLDivElement | null>,
 ) {
+  return useMeasuredScrollProgress(shellRef);
+}
+
+export function useSectionScrollProgress(
+  sectionRef: RefObject<HTMLElement | null>,
+  timeline: SceneTimeline,
+) {
+  // A section's top can move when earlier content resizes, even if its own
+  // dimensions stay the same. The measured timeline captures those changes.
+  return useMeasuredScrollProgress(sectionRef, timeline);
+}
+
+function useMeasuredScrollProgress(
+  shellRef: RefObject<HTMLElement | null>,
+  layoutVersion?: SceneTimeline,
+) {
   const progress = useMotionValue(0);
 
   useEffect(() => {
@@ -72,7 +88,7 @@ export function usePortfolioScrollProgress(
       window.removeEventListener("load", scheduleMeasurement);
       observer?.disconnect();
     };
-  }, [progress, shellRef]);
+  }, [layoutVersion, progress, shellRef]);
 
   return progress;
 }
