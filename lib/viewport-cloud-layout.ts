@@ -48,6 +48,7 @@ export type CloudLayoutResources = {
   referenceCamera: THREE.PerspectiveCamera;
   referenceCameraTarget: THREE.Vector3;
   referenceCloud: THREE.Object3D;
+  cache: ReturnType<typeof createLayoutCache>;
 };
 
 export function createCloudLayoutResources(): CloudLayoutResources {
@@ -62,6 +63,28 @@ export function createCloudLayoutResources(): CloudLayoutResources {
     referenceCamera: new THREE.PerspectiveCamera(),
     referenceCameraTarget: new THREE.Vector3(),
     referenceCloud: new THREE.Object3D(),
+    cache: createLayoutCache(),
+  };
+}
+
+function createLayoutCache() {
+  return {
+    current: null as SampledScene["current"] | null,
+    next: null as SampledScene["next"] | null,
+    mix: Number.NaN,
+    blend: Number.NaN,
+    viewportWidth: 0,
+    viewportHeight: 0,
+    introCopyFrame: null as IntroCopyFrame | null,
+    outroContactFrame: null as OutroContactFrame | null,
+    boundsFrom: new THREE.Box3(),
+    boundsTo: new THREE.Box3(),
+    cloudMatrix: new THREE.Matrix4(),
+    cameraMatrix: new THREE.Matrix4(),
+    projectionMatrix: new THREE.Matrix4(),
+    position: new THREE.Vector3(),
+    scale: new THREE.Vector3(),
+    layoutScale: 1,
   };
 }
 
@@ -122,6 +145,46 @@ export function applyViewportCloudLayout(
   if (frameWeight <= 0.001) {
     return 1;
   }
+
+  cloud.updateMatrixWorld();
+  const cache = resources.cache;
+  // Scene phases and measured copy/contact frames are immutable snapshots.
+  // Pointer tilt is applied after layout, so it need not repeat these bounds
+  // projections while the authored scene and viewport stay exactly the same.
+  if (
+    cache.current === phaseState.current &&
+    cache.next === phaseState.next &&
+    cache.mix === phaseState.mix &&
+    cache.blend === blend &&
+    cache.viewportWidth === viewportWidth &&
+    cache.viewportHeight === viewportHeight &&
+    cache.introCopyFrame === introCopyFrame &&
+    cache.outroContactFrame === outroContactFrame &&
+    cache.boundsFrom.equals(boundsFrom) &&
+    cache.boundsTo.equals(boundsTo) &&
+    cache.cloudMatrix.equals(cloud.matrixWorld) &&
+    cache.cameraMatrix.equals(camera.matrixWorld) &&
+    cache.projectionMatrix.equals(camera.projectionMatrix)
+  ) {
+    cloud.position.copy(cache.position);
+    cloud.scale.copy(cache.scale);
+    cloud.updateMatrixWorld();
+    return cache.layoutScale;
+  }
+
+  cache.current = phaseState.current;
+  cache.next = phaseState.next;
+  cache.mix = phaseState.mix;
+  cache.blend = blend;
+  cache.viewportWidth = viewportWidth;
+  cache.viewportHeight = viewportHeight;
+  cache.introCopyFrame = introCopyFrame;
+  cache.outroContactFrame = outroContactFrame;
+  cache.boundsFrom.copy(boundsFrom);
+  cache.boundsTo.copy(boundsTo);
+  cache.cloudMatrix.copy(cloud.matrixWorld);
+  cache.cameraMatrix.copy(camera.matrixWorld);
+  cache.projectionMatrix.copy(camera.projectionMatrix);
 
   resources.bounds.min.lerpVectors(boundsFrom.min, boundsTo.min, blend);
   resources.bounds.max.lerpVectors(boundsFrom.max, boundsTo.max, blend);
@@ -369,6 +432,9 @@ export function applyViewportCloudLayout(
     );
   }
 
+  cache.position.copy(cloud.position);
+  cache.scale.copy(cloud.scale);
+  cache.layoutScale = layoutScale;
   return layoutScale;
 }
 
@@ -392,12 +458,19 @@ function configureReferenceCamera(
 ) {
   camera.position.set(...state.position);
   target.set(...state.target);
-  camera.fov = state.fov;
-  camera.aspect = REFERENCE_VIEWPORT_ASPECT;
-  camera.near = 0.1;
-  camera.far = 100;
+  if (
+    camera.fov !== state.fov ||
+    camera.aspect !== REFERENCE_VIEWPORT_ASPECT ||
+    camera.near !== 0.1 ||
+    camera.far !== 100
+  ) {
+    camera.fov = state.fov;
+    camera.aspect = REFERENCE_VIEWPORT_ASPECT;
+    camera.near = 0.1;
+    camera.far = 100;
+    camera.updateProjectionMatrix();
+  }
   camera.lookAt(target);
-  camera.updateProjectionMatrix();
   camera.updateMatrixWorld();
 }
 

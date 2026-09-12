@@ -196,7 +196,6 @@ export function resolvePointerParticleInteractionFrame({
     perspectiveCamera,
     raycaster,
     interactionPlane,
-    cloud,
     viewportWidth,
     rippleStrength,
     resources,
@@ -216,7 +215,7 @@ export function resolvePointerParticleInteractionFrame({
       perspectiveCamera,
       raycaster,
       interactionPlane,
-      cloud,
+      resources.inverseCloudMatrix,
       resources.rayPoint,
       resources.worldPoint,
       frame.localPoint,
@@ -230,7 +229,6 @@ export function resolvePointerParticleInteractionFrame({
       perspectiveCamera,
       raycaster,
       interactionPlane,
-      cloud,
       viewportWidth,
       resources,
     });
@@ -632,7 +630,6 @@ function activatePendingRipples({
   perspectiveCamera,
   raycaster,
   interactionPlane,
-  cloud,
   viewportWidth,
   rippleStrength,
   resources,
@@ -640,7 +637,6 @@ function activatePendingRipples({
   perspectiveCamera: THREE.PerspectiveCamera;
   raycaster: THREE.Raycaster;
   interactionPlane: THREE.Plane;
-  cloud: THREE.Points;
   viewportWidth: number;
   rippleStrength: number;
   resources: PointerParticleInteractionResources;
@@ -664,7 +660,7 @@ function activatePendingRipples({
       perspectiveCamera,
       raycaster,
       interactionPlane,
-      cloud,
+      resources.inverseCloudMatrix,
       resources.rayPoint,
       resources.worldPoint,
       ripple.localPoint,
@@ -684,7 +680,6 @@ function activatePendingRipples({
       perspectiveCamera,
       raycaster,
       interactionPlane,
-      cloud,
       viewportWidth,
       resources,
     });
@@ -720,6 +715,7 @@ function updateLocalViewBasis(
   cloud: THREE.Points,
   resources: PointerParticleInteractionResources,
 ) {
+  cloud.updateWorldMatrix(true, false);
   resources.inverseCloudMatrix.copy(cloud.matrixWorld).invert();
   frame.localRight
     .setFromMatrixColumn(perspectiveCamera.matrixWorld, 0)
@@ -739,7 +735,6 @@ function resolveLocalInteractionRadius({
   perspectiveCamera,
   raycaster,
   interactionPlane,
-  cloud,
   viewportWidth,
   resources,
 }: {
@@ -749,7 +744,6 @@ function resolveLocalInteractionRadius({
   perspectiveCamera: THREE.PerspectiveCamera;
   raycaster: THREE.Raycaster;
   interactionPlane: THREE.Plane;
-  cloud: THREE.Points;
   viewportWidth: number;
   resources: PointerParticleInteractionResources;
 }) {
@@ -761,7 +755,7 @@ function resolveLocalInteractionRadius({
     perspectiveCamera,
     raycaster,
     interactionPlane,
-    cloud,
+    resources.inverseCloudMatrix,
     resources.rayPoint,
     resources.radiusWorldPoint,
     resources.radiusLocalPoint,
@@ -778,7 +772,7 @@ function projectNdcPointToLocal(
   perspectiveCamera: THREE.PerspectiveCamera,
   raycaster: THREE.Raycaster,
   interactionPlane: THREE.Plane,
-  cloud: THREE.Points,
+  inverseCloudMatrix: THREE.Matrix4,
   rayPoint: THREE.Vector2,
   worldPoint: THREE.Vector3,
   localPoint: THREE.Vector3,
@@ -790,8 +784,7 @@ function projectNdcPointToLocal(
     return false;
   }
 
-  localPoint.copy(worldPoint);
-  cloud.worldToLocal(localPoint);
+  localPoint.copy(worldPoint).applyMatrix4(inverseCloudMatrix);
   return true;
 }
 

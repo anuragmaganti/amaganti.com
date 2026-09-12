@@ -122,6 +122,7 @@ export function createGpuParticleRuntime({
   const geometry = createGpuParticleGeometry(basePositions, textureSet.size);
   const material = createGpuParticleMaterial(uniforms);
   const selectedObstacles: ParticleObstacleRuntime[] = [];
+  let simulationStarted = false;
 
   return {
     geometry,
@@ -133,10 +134,18 @@ export function createGpuParticleRuntime({
         frame,
         selectedObstacles,
       );
-      gpuCompute.compute();
-      uniforms.uParticleOffset.value = gpuCompute.getCurrentRenderTarget(
-        offsetVariable,
-      ).texture;
+      // Both physics textures start at zero and remain exactly zero until
+      // a force is applied. Morphs, noise, and ripples run in the draw shader.
+      // Once forces begin, keep every step, including the full settling tail.
+      simulationStarted ||=
+        frame.obstacleFrame.fields.length > 0 ||
+        (frame.pointerFrame.hoverActive && frame.pointerFrame.hoverStrength > 0.001);
+      if (simulationStarted) {
+        gpuCompute.compute();
+        uniforms.uParticleOffset.value = gpuCompute.getCurrentRenderTarget(
+          offsetVariable,
+        ).texture;
+      }
     },
     dispose() {
       geometry.dispose();

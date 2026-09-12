@@ -4,12 +4,69 @@ import * as THREE from "three";
 import {
   applyPointerParticleInteraction,
   createPointerParticleFlowState,
+  createPointerParticleInteractionResources,
+  queuePressureRipple,
+  resolvePointerParticleInteractionFrame,
   type PointerParticleInteractionFrame,
   type PressureRipple,
 } from "../lib/pointer-particle-interaction";
 import { createParticleState } from "../lib/particle-motion";
 
 test.describe("pointer particle interaction", () => {
+  test("keeps hover and ripple projections exact while parent transforms change", () => {
+    const camera = new THREE.PerspectiveCamera(32, 960 / 700, 0.1, 100);
+    camera.position.set(0.3, 0.2, 5);
+    camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld();
+    const parent = new THREE.Group();
+    const cloud = new THREE.Points();
+    parent.add(cloud);
+    cloud.position.set(0.1, -0.2, 0.05);
+    cloud.rotation.set(0.12, -0.18, 0.04);
+    const pointer = new THREE.Vector2(0.2, -0.15);
+    const resources = createPointerParticleInteractionResources();
+    const plane = new THREE.Plane();
+    const raycaster = new THREE.Raycaster();
+
+    try {
+      for (const rotation of [0, 0.15, -0.3]) {
+        parent.rotation.set(rotation, rotation * 0.5, 0.1);
+        parent.scale.set(1.2, 0.9, 1.1);
+        const center = cloud.getWorldPosition(new THREE.Vector3());
+        plane.setFromNormalAndCoplanarPoint(
+          camera.position.clone().sub(center).normalize(), center,
+        );
+        queuePressureRipple(resources, 340, 210, 960, 700);
+        const frame = resolvePointerParticleInteractionFrame({
+          pointerPresence: 1, pointerCurrent: pointer,
+          currentShape: "face", nextShape: "face", blend: 0,
+          perspectiveCamera: camera, raycaster, interactionPlane: plane, cloud,
+          viewportWidth: 960, viewportHeight: 700,
+          hoverStrengthScale: 1, rippleStrengthScale: 1, delta: 1 / 60,
+          resources,
+        });
+        const project = (x: number, y: number) => {
+          raycaster.setFromCamera(new THREE.Vector2(x, -y), camera);
+          const point = raycaster.ray.intersectPlane(plane, new THREE.Vector3())!;
+          return cloud.worldToLocal(point);
+        };
+        const expectedPoint = project(pointer.x, pointer.y);
+        const expectedRadius = expectedPoint.distanceTo(
+          project(pointer.x + (68 / 960) * 2, pointer.y),
+        );
+        expect(frame.hoverActive).toBe(true);
+        expect(frame.localPoint.toArray()).toEqual(expectedPoint.toArray());
+        expect(frame.hoverRadius).toBe(expectedRadius);
+        expect(frame.ripples.at(-1)!.localPoint.toArray()).toEqual(
+          project((340 / 960) * 2 - 1, (210 / 700) * 2 - 1).toArray(),
+        );
+      }
+    } finally {
+      cloud.geometry.dispose();
+      (cloud.material as THREE.Material).dispose();
+    }
+  });
+
   test("creates a stationary depth lens without opening a lateral crater", () => {
     const frame = createFrame();
     const particle = simulateHover(frame, 0.05, 0, 24);

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import * as THREE from "three";
 
 import { projects } from "../config/projects";
 import {
@@ -9,6 +10,10 @@ import {
 import { parsePointCloudBuffer } from "../lib/point-cloud-asset";
 import { resolveScenePixelRatio } from "../hooks/use-scene-environment";
 import {
+  applyViewportCloudLayout,
+  createCloudLayoutResources,
+} from "../lib/viewport-cloud-layout";
+import {
   createSampledScene,
   createSceneTimeline,
   createSceneTimelineFromSections,
@@ -17,6 +22,80 @@ import {
 } from "../lib/scene-timeline";
 
 test.describe("scene engine contract", () => {
+  test("reuses layout projections without changing morphs, resize, or copy placement", () => {
+    const phases = createSceneTimeline().phases;
+    const scene = createSampledScene(phases);
+    const phaseIndex = { current: 0 };
+    const resources = createCloudLayoutResources();
+    const cloud = new THREE.Points();
+    const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+    const from = new THREE.Box3(
+      new THREE.Vector3(-0.6, -0.9, -0.25),
+      new THREE.Vector3(0.6, 0.9, 0.25),
+    );
+    const to = from.clone().expandByScalar(0.1);
+    let projections = 0;
+    const project = resources.corner.project.bind(resources.corner);
+    resources.corner.project = (activeCamera) => {
+      projections += 1;
+      return project(activeCamera);
+    };
+
+    try {
+      for (const [width, height] of [[1440, 900], [768, 900], [390, 844], [956, 440]]) {
+        let intro = {
+          left: 24, right: width * 0.45, top: 50, bottom: 200,
+          centered: width <= 900,
+        };
+        let outro = { height: 108, bottomInset: 88 };
+        for (const progress of [0, 0.02, 0.2, 0.5, 0.95, 1, 0.5, 0]) {
+          sampleSceneProgress(progress, phases, phaseIndex, scene);
+          camera.aspect = width / height;
+          camera.fov = scene.camera.fov;
+          camera.position.set(...scene.camera.position);
+          camera.lookAt(new THREE.Vector3(...scene.camera.target));
+          camera.updateProjectionMatrix();
+          camera.updateMatrixWorld();
+
+          const layout = (layoutResources: ReturnType<typeof createCloudLayoutResources>) => {
+            cloud.position.set(...scene.cloud.position);
+            cloud.rotation.set(...scene.cloud.rotation);
+            cloud.scale.setScalar(scene.cloud.scale);
+            const scale = applyViewportCloudLayout(
+              cloud, camera, scene, scene.mix, from, to, width, height,
+              intro, layoutResources, outro,
+            );
+            cloud.updateMatrixWorld();
+            return { scale, matrix: cloud.matrixWorld.toArray() };
+          };
+
+          expect(layout(resources)).toEqual(layout(createCloudLayoutResources()));
+          const projectionCount = projections;
+          cloud.rotation.x += 0.05;
+          cloud.rotation.y -= 0.1;
+          cloud.updateMatrixWorld();
+          expect(layout(resources)).toEqual(layout(createCloudLayoutResources()));
+          expect(projections).toBe(projectionCount);
+
+          // New font measurements, contact rows, and morph bounds must all
+          // invalidate the result, even at the exact same scroll position.
+          intro = { ...intro, bottom: intro.bottom + 12 };
+          expect(layout(resources)).toEqual(layout(createCloudLayoutResources()));
+          outro = { ...outro, height: outro.height + 8 };
+          expect(layout(resources)).toEqual(layout(createCloudLayoutResources()));
+          to.max.y += 0.01;
+          expect(layout(resources)).toEqual(layout(createCloudLayoutResources()));
+          camera.position.x += 0.03;
+          camera.updateMatrixWorld();
+          expect(layout(resources)).toEqual(layout(createCloudLayoutResources()));
+        }
+      }
+    } finally {
+      cloud.geometry.dispose();
+      (cloud.material as THREE.Material).dispose();
+    }
+  });
+
   test("generates project sections between the public insertion points", () => {
     expect(portfolioSections.map((section) => section.id)).toEqual([
       ...sectionsBeforeProjects.map((section) => section.id),

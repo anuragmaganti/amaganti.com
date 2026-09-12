@@ -79,6 +79,7 @@ export type ParticleObstacleResources = {
   frame: ParticleObstacleFrame;
   ndcPoint: THREE.Vector2;
   worldPoint: THREE.Vector3;
+  inverseCloudMatrix: THREE.Matrix4;
   accumulator: ParticleFlowAccumulator;
 };
 
@@ -94,6 +95,7 @@ export function createParticleObstacleResources(): ParticleObstacleResources {
     frame: { fields: [], unsettled: false },
     ndcPoint: new THREE.Vector2(),
     worldPoint: new THREE.Vector3(),
+    inverseCloudMatrix: new THREE.Matrix4(),
     accumulator: {
       targetX: 0,
       targetY: 0,
@@ -132,7 +134,7 @@ export function resolveParticleObstacleFrame({
   cloud: THREE.Points;
   resources: ParticleObstacleResources;
 }) {
-  const { frame, ndcPoint, runtimes, worldPoint } = resources;
+  const { frame, ndcPoint, runtimes, worldPoint, inverseCloudMatrix } = resources;
   const now = performance.now();
   const strengthLerp = 1 - Math.exp(-delta * FIELD_STRENGTH_SMOOTHING);
   const velocityLerp = 1 - Math.exp(-delta * FIELD_VELOCITY_SMOOTHING);
@@ -159,6 +161,13 @@ export function resolveParticleObstacleFrame({
     runtime.targetStrength = targetStrength;
   }
 
+  // Every card projects five points through the same cloud transform.
+  // Refresh its inverse once, including any parent transforms.
+  if (runtimes.size) {
+    cloud.updateWorldMatrix(true, false);
+    inverseCloudMatrix.copy(cloud.matrixWorld).invert();
+  }
+
   for (const [id, runtime] of runtimes) {
     runtime.strength = lerp(
       runtime.strength,
@@ -175,7 +184,7 @@ export function resolveParticleObstacleFrame({
         interactionPlane,
         obstacleNdcPoint: ndcPoint,
         worldInteractionPoint: worldPoint,
-        cloud,
+        inverseCloudMatrix,
       });
 
     if (projected) {
@@ -476,7 +485,7 @@ function projectObstacleIntoCloud({
   interactionPlane,
   obstacleNdcPoint,
   worldInteractionPoint,
-  cloud,
+  inverseCloudMatrix,
 }: {
   runtime: ParticleObstacleRuntime;
   perspectiveCamera: THREE.PerspectiveCamera;
@@ -484,7 +493,7 @@ function projectObstacleIntoCloud({
   interactionPlane: THREE.Plane;
   obstacleNdcPoint: THREE.Vector2;
   worldInteractionPoint: THREE.Vector3;
-  cloud: THREE.Points;
+  inverseCloudMatrix: THREE.Matrix4;
 }) {
   const geometry = runtime.geometry;
 
@@ -506,7 +515,7 @@ function projectObstacleIntoCloud({
       obstacleNdcPoint,
       worldInteractionPoint,
       runtime.center,
-      cloud,
+      inverseCloudMatrix,
     ) &&
     projectScreenPointToLocal(
       screenFrame.leftMid.x,
@@ -517,7 +526,7 @@ function projectObstacleIntoCloud({
       obstacleNdcPoint,
       worldInteractionPoint,
       runtime.leftMid,
-      cloud,
+      inverseCloudMatrix,
     ) &&
     projectScreenPointToLocal(
       screenFrame.rightMid.x,
@@ -528,7 +537,7 @@ function projectObstacleIntoCloud({
       obstacleNdcPoint,
       worldInteractionPoint,
       runtime.rightMid,
-      cloud,
+      inverseCloudMatrix,
     ) &&
     projectScreenPointToLocal(
       screenFrame.topMid.x,
@@ -539,7 +548,7 @@ function projectObstacleIntoCloud({
       obstacleNdcPoint,
       worldInteractionPoint,
       runtime.topMid,
-      cloud,
+      inverseCloudMatrix,
     ) &&
     projectScreenPointToLocal(
       screenFrame.bottomMid.x,
@@ -550,7 +559,7 @@ function projectObstacleIntoCloud({
       obstacleNdcPoint,
       worldInteractionPoint,
       runtime.bottomMid,
-      cloud,
+      inverseCloudMatrix,
     );
 
   if (!projected) {
@@ -875,7 +884,7 @@ function projectScreenPointToLocal(
   ndcPoint: THREE.Vector2,
   worldPoint: THREE.Vector3,
   localPoint: THREE.Vector3,
-  cloud: THREE.Points,
+  inverseCloudMatrix: THREE.Matrix4,
 ) {
   const viewportWidth = Math.max(window.innerWidth, 1);
   const viewportHeight = Math.max(window.innerHeight, 1);
@@ -890,8 +899,7 @@ function projectScreenPointToLocal(
     return false;
   }
 
-  localPoint.copy(worldPoint);
-  cloud.worldToLocal(localPoint);
+  localPoint.copy(worldPoint).applyMatrix4(inverseCloudMatrix);
   return true;
 }
 
