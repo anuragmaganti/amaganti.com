@@ -44,10 +44,7 @@ test.describe("portfolio behavior contract", () => {
 
     expect(renderedOrder).toEqual(portfolioSections.map((section) => section.id));
     await expect(page.locator("main#main-content")).toBeVisible();
-    await expect(page.getByRole("link", { name: "Skip to content" })).toHaveAttribute(
-      "href",
-      "#main-content",
-    );
+    await expect(page.getByRole("link", { name: "Skip to content" })).toHaveCount(0);
   });
 
   test("renders three complete, responsive media shelves", async ({
@@ -952,12 +949,7 @@ test.describe("portfolio behavior contract", () => {
     await openPortfolio(page);
 
     await page.keyboard.press("Tab");
-    await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
-    await page.keyboard.press("Enter");
-    await expect(page).toHaveURL(/#main-content$/);
-
     const themeToggle = page.getByRole("button", { name: "Toggle color theme" });
-    await themeToggle.focus();
     await expect(themeToggle).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
@@ -973,6 +965,7 @@ test.describe("portfolio behavior contract", () => {
 
     await scrollToSection(page, "outro", 0.9);
     for (const link of await page.locator(".outro-contact-label").all()) {
+      await expect(link).toBeVisible();
       await link.focus();
       await expect(link).toBeFocused();
     }

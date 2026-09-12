@@ -52,6 +52,12 @@ function OutroContactOverlay({
   revealStops: number[];
 }) {
   const opacity = useTransform(progress, revealStops, [0, 1]);
+  const visibility = useTransform(opacity, (value) =>
+    value > 0.01 ? "visible" : "hidden",
+  );
+  const animationPlayState = useTransform(opacity, (value) =>
+    value > 0.01 ? "running" : "paused",
+  );
   const blur = useTransform(progress, revealStops, [10, 0]);
   const y = useTransform(progress, revealStops, [18, 0]);
   const filter = useMotionTemplate`blur(${blur}px)`;
@@ -60,7 +66,7 @@ function OutroContactOverlay({
     <div className="outro-contact-overlay-shell">
       <motion.div
         className="outro-contact-overlay"
-        style={{ opacity, y, filter }}
+        style={{ opacity, y, filter, visibility, animationPlayState }}
       >
         {outroLinks.map((item) => (
           <div

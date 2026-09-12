@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 import "@fontsource/instrument-sans/400.css";
 import "@fontsource/instrument-sans/600.css";
@@ -26,6 +26,12 @@ const themeBootstrapScript = `
     }
   })();
 `;
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
   title: siteConfig.title,

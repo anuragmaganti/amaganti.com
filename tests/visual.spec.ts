@@ -12,6 +12,7 @@ const responsiveCheckpointIds = new Set([
   "about-stage",
   stableCheckpoints[3].id,
   "media-shelves-stage",
+  "outro",
 ]);
 
 test.describe("stable visual checkpoints", () => {
@@ -41,7 +42,11 @@ test.describe("stable visual checkpoints", () => {
       for (const checkpoint of stableCheckpoints.filter(({ id }) =>
         responsiveCheckpointIds.has(id),
       )) {
-        await scrollToSection(page, checkpoint.id, checkpoint.progress);
+        await scrollToSection(
+          page,
+          checkpoint.id,
+          checkpoint.id === "outro" ? 1 : checkpoint.progress,
+        );
         await expect(page).toHaveScreenshot(`${checkpoint.id}-${theme}.png`, {
           animations: "disabled",
           caret: "hide",

@@ -11,6 +11,7 @@ import {
   particleVisualConfig,
 } from "@/config/visual";
 import { useIntroCopyFrame } from "@/hooks/use-intro-copy-frame";
+import { useOutroContactFrame } from "@/hooks/use-outro-contact-frame";
 import { usePointCloudSource } from "@/hooks/use-point-cloud-source";
 import {
   useIsDarkTheme,
@@ -110,6 +111,8 @@ export function SceneCanvas({ progress, timeline }: SceneCanvasProps) {
       dpr={scenePixelRatio}
       camera={{ position: [0, 0, 4.9], fov: 30 }}
       frameloop="demand"
+      // This canvas is fixed; scrolling cannot change its bounds.
+      resize={{ scroll: false, debounce: { resize: 0, scroll: 0 } }}
       gl={{
         alpha: true,
         antialias: false,
@@ -259,10 +262,15 @@ function PointCloudSystem({
   const gpuSettleTimeRef = useRef(0);
   const previousProgressRef = useRef(progress.get());
   const introCopyFrameRef = useIntroCopyFrame(invalidate);
+  const outroContactFrameRef = useOutroContactFrame(invalidate);
   const layoutResources = useMemo(() => createCloudLayoutResources(), []);
   const elapsedTimeRef = useRef(0);
   const phaseIndexRef = useRef(0);
   const sceneSample = useMemo(() => createSampledScene(phases), [phases]);
+  const aboutReadingPhase = useMemo(
+    () => phases.find((phase) => phase.key === "about-title"),
+    [phases],
+  );
   const particle = useMemo(() => createParticleState(), []);
   const diagnostics = useMemo(
     () =>
@@ -354,9 +362,27 @@ function PointCloudSystem({
 
   useFrame(({ camera, size }, delta) => {
     const progressValue = progress.get();
+    let particleProgress = progressValue;
+    const compactViewport =
+      size.width <= 900 || (size.width <= 1000 && size.height <= 500);
+
+    if (
+      compactViewport &&
+      aboutReadingPhase &&
+      progressValue >= aboutReadingPhase.range[0] &&
+      progressValue < aboutReadingPhase.range[1]
+    ) {
+      // Keep the particle heading above the reading window until the copy
+      // has faded, then complete the same morph into the Projects heading.
+      const [start, end] = aboutReadingPhase.range;
+      const duration = end - start;
+      const transitionStart = start + duration * 0.75;
+      particleProgress = start +
+        Math.max(0, (progressValue - transitionStart) / (duration * 0.25)) * duration;
+    }
     const perspectiveCamera = camera as THREE.PerspectiveCamera;
     const phaseState = sampleSceneProgress(
-      progressValue,
+      particleProgress,
       phases,
       phaseIndexRef,
       sceneSample,
@@ -431,7 +457,16 @@ function PointCloudSystem({
       size.height,
       introCopyFrameRef.current,
       layoutResources,
+      outroContactFrameRef.current,
     );
+    const contactFrame = outroContactFrameRef.current;
+    if (contactFrame && phaseState.current.key === "contact") {
+      const bottom = (1 - layoutResources.currentFrame.minY) * size.height * 0.5 + 16;
+      if (Math.abs(bottom - contactFrame.lastBottom) > 0.5) {
+        contactFrame.element.style.setProperty("--outro-head-bottom", `${bottom}px`);
+        contactFrame.lastBottom = bottom;
+      }
+    }
     cloud.rotation.x += pointerPitch;
     cloud.rotation.y += pointerYaw;
     cloud.updateMatrixWorld();

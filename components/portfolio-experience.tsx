@@ -78,10 +78,6 @@ export function PortfolioExperience() {
   return (
     <MotionConfig reducedMotion="user">
       <div className="portfolio-shell" ref={shellRef}>
-        <a className="skip-link" href="#main-content">
-          Skip to content
-        </a>
-
         <motion.div
           className="intro-backdrop"
           aria-hidden

@@ -32,6 +32,11 @@ export type IntroCopyFrame = {
   centered: boolean;
 };
 
+export type OutroContactFrame = {
+  height: number;
+  bottomInset: number;
+};
+
 export type CloudLayoutResources = {
   bounds: THREE.Box3;
   boundsCenter: THREE.Vector3;
@@ -104,6 +109,7 @@ export function applyViewportCloudLayout(
   viewportHeight: number,
   introCopyFrame: IntroCopyFrame | null,
   resources: CloudLayoutResources,
+  outroContactFrame: OutroContactFrame | null = null,
 ) {
   const frameWeight = lerp(
     getViewportFrameWeight(phaseState.current.cloud.viewportFrame),
@@ -180,6 +186,8 @@ export function applyViewportCloudLayout(
   );
   const mobileViewportWeight =
     viewportWidth <= MOBILE_VIEWPORT_MAX_WIDTH ? 1 : 0;
+  const compactViewport =
+    viewportWidth <= 900 || (viewportWidth <= 1000 && viewportHeight <= 500);
   let targetCenterX = lerp(
     resources.currentFrame.centerX,
     resources.referenceFrame.centerX,
@@ -207,7 +215,7 @@ export function applyViewportCloudLayout(
     const currentWidth = resources.currentFrame.width * viewportWidth * 0.5;
     const currentHeight = resources.currentFrame.height * viewportHeight * 0.5;
     const needsIntroFrame =
-      introCopyFrame.centered || safeWidth < currentWidth * 0.88;
+      compactViewport || introCopyFrame.centered || safeWidth < currentWidth * 0.88;
 
     if (needsIntroFrame) {
       const introFitScale = clamp(
@@ -251,7 +259,8 @@ export function applyViewportCloudLayout(
   }
 
   const mobileFaceWeight =
-    mobileViewportWeight * clamp(introPhaseWeight + outroPhaseWeight, 0, 1);
+    mobileViewportWeight *
+    clamp((introCopyFrame?.centered ? introPhaseWeight : 0) + outroPhaseWeight, 0, 1);
 
   if (mobileFaceWeight > 0.001) {
     const mobileFaceScale = lerp(1, MOBILE_FACE_SCALE, mobileFaceWeight);
@@ -272,6 +281,72 @@ export function applyViewportCloudLayout(
         outroPhaseWeight * MOBILE_OUTRO_FACE_OFFSET_Y);
   }
 
+  // Keep the enlarged portrait inside the actual free space below the intro.
+  if (introCopyFrame?.centered && introPhaseWeight > 0.001) {
+    const top = introCopyFrame.bottom + 18;
+    const bottom = viewportHeight - 84;
+    const availableHeight = Math.max(bottom - top, 1);
+    const currentHeight = resources.currentFrame.height * viewportHeight * 0.5;
+    const fit = lerp(
+      1,
+      Math.min(1, availableHeight / currentHeight),
+      introPhaseWeight,
+    );
+    cloud.scale.multiplyScalar(fit);
+    layoutScale *= fit;
+    targetCenterY = lerp(
+      targetCenterY,
+      1 - (top + bottom) / viewportHeight,
+      introPhaseWeight,
+    );
+  }
+
+  if (outroContactFrame && outroPhaseWeight > 0.001) {
+    const top = 24;
+    const bottom = Math.max(
+      top + 1,
+      viewportHeight - outroContactFrame.height - outroContactFrame.bottomInset - 40,
+    );
+    const currentHeight = resources.currentFrame.height * viewportHeight * 0.5;
+    const fit = lerp(
+      1,
+      Math.min(1, (bottom - top) / currentHeight),
+      outroPhaseWeight,
+    );
+    cloud.scale.multiplyScalar(fit);
+    layoutScale *= fit;
+    const halfHeight = currentHeight * fit * 0.5;
+    const center = clamp(
+      (1 - targetCenterY) * viewportHeight * 0.5,
+      top + halfHeight,
+      bottom - halfHeight,
+    );
+    targetCenterY = lerp(
+      targetCenterY,
+      1 - (center / viewportHeight) * 2,
+      outroPhaseWeight,
+    );
+  }
+
+  if (compactViewport) {
+    const isAbout = (key: string) => key === "about-transform" || key === "about-title";
+    const aboutWeight = lerp(
+      isAbout(phaseState.current.key) ? 1 : 0,
+      isAbout(phaseState.next.key) ? 1 : 0,
+      blend,
+    );
+    // Reserve the top of short screens for the particle heading while the
+    // reading window below it advances through all three paragraphs.
+    targetCenterY = lerp(targetCenterY, 0.76, aboutWeight);
+  }
+
+  if (introPhaseWeight > 0.001 || outroPhaseWeight > 0.001) {
+    cloud.updateMatrixWorld();
+    projectBoundsToScreenFrame(
+      resources.bounds, cloud, camera, resources.corner, resources.currentFrame,
+    );
+  }
+
   resources.bounds.getCenter(resources.boundsCenter);
   resources.boundsCenter.applyMatrix4(cloud.matrixWorld).project(camera);
   resources.currentFramePoint
@@ -287,6 +362,12 @@ export function applyViewportCloudLayout(
     .sub(resources.currentFramePoint);
   cloud.position.add(resources.targetFramePoint);
   cloud.updateMatrixWorld();
+
+  if (outroContactFrame && outroPhaseWeight > 0.001) {
+    projectBoundsToScreenFrame(
+      resources.bounds, cloud, camera, resources.corner, resources.currentFrame,
+    );
+  }
 
   return layoutScale;
 }

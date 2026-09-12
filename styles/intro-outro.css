@@ -161,6 +161,7 @@
   min-width: 0;
   pointer-events: auto;
   animation: outro-label-hover 1.55s ease-in-out infinite alternate;
+  animation-play-state: inherit;
   will-change: transform;
 }
 

@@ -1,7 +1,8 @@
 "use client";
 
 import type { MotionValue } from "motion";
-import { motion, useMotionTemplate, useTransform } from "motion/react";
+import { motion, useMotionTemplate, useMotionValue, useTransform } from "motion/react";
+import { useEffect, useRef } from "react";
 
 import {
   getSectionTimelineAttributes,
@@ -46,6 +47,52 @@ function ContentStageOverlay({
   sectionRange: [number, number];
   progress: MotionValue<number>;
 }) {
+  const shellRef = useRef<HTMLDivElement>(null);
+  const copyRef = useRef<HTMLDivElement>(null);
+  const overflow = useMotionValue(0);
+  const copyY = useTransform(() => {
+    const localProgress =
+      (progress.get() - sectionRange[0]) / (sectionRange[1] - sectionRange[0]);
+    // Finish scrolling before the paragraph exit animation starts at 0.58.
+    return -overflow.get() * Math.max(0, Math.min(1, localProgress / 0.5));
+  });
+
+  useEffect(() => {
+    const shell = shellRef.current;
+    const copy = copyRef.current;
+    const section = shell?.closest<HTMLElement>("[data-portfolio-section-id]");
+    if (!shell || !copy || !section) return;
+
+    let frameId = 0;
+    const measure = () => {
+      frameId = 0;
+      const styles = getComputedStyle(shell);
+      const available =
+        shell.clientHeight -
+        parseFloat(styles.paddingTop) -
+        parseFloat(styles.paddingBottom);
+      const travel = styles.display === "flex"
+        ? Math.max(0, copy.scrollHeight - available)
+        : 0;
+      overflow.set(travel);
+      section.style.setProperty("--content-overflow", `${travel}px`);
+    };
+    const schedule = () => {
+      if (!frameId) frameId = requestAnimationFrame(measure);
+    };
+    const observer = new ResizeObserver(schedule);
+    observer.observe(shell);
+    observer.observe(copy);
+    window.addEventListener("resize", schedule, { passive: true });
+    schedule();
+    return () => {
+      cancelAnimationFrame(frameId);
+      observer.disconnect();
+      window.removeEventListener("resize", schedule);
+      section.style.removeProperty("--content-overflow");
+    };
+  }, [overflow]);
+
   if (content.paragraphs.length === 0) {
     return null;
   }
@@ -55,17 +102,23 @@ function ContentStageOverlay({
       className={`content-stage-overlay content-stage-overlay--${content.layout}`}
       data-content-stage={content.id}
     >
-      <div className="content-stage-overlay__shell">
-        <div className="content-stage-overlay__copy">
-          {content.paragraphs.map((paragraph) => (
-            <ContentStageParagraph
-              key={paragraph.id}
-              paragraph={paragraph}
-              progress={progress}
-              sectionRange={sectionRange}
-              exit={content.exit}
-            />
-          ))}
+      <div className="content-stage-overlay__shell" ref={shellRef}>
+        <div className="content-stage-overlay__window">
+          <motion.div
+            className="content-stage-overlay__copy"
+            ref={copyRef}
+            style={{ y: copyY }}
+          >
+            {content.paragraphs.map((paragraph) => (
+              <ContentStageParagraph
+                key={paragraph.id}
+                paragraph={paragraph}
+                progress={progress}
+                sectionRange={sectionRange}
+                exit={content.exit}
+              />
+            ))}
+          </motion.div>
         </div>
       </div>
     </div>
