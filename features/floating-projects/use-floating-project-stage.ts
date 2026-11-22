@@ -33,10 +33,12 @@ export function useFloatingProjectStage({
   stageId,
   layoutPreset,
   arenaRef,
+  stacked,
 }: {
   stageId: string;
   layoutPreset: FloatingProjectLayoutPresetId;
   arenaRef: RefObject<HTMLDivElement | null>;
+  stacked: boolean;
 }) {
   const reducedMotion = Boolean(useReducedMotion());
 
@@ -52,6 +54,30 @@ export function useFloatingProjectStage({
       arena,
       elements,
     );
+    if (stacked) {
+      // Flow layout owns card positions. Only sample their bounds while near the viewport.
+      let task: SceneFrameTaskController | undefined;
+      const observer = new ResizeObserver(() => task?.request());
+      for (const element of Object.values(elements)) observer.observe(element);
+      const stop = observeViewportProximity(arena, (near) => {
+        task?.dispose();
+        task = undefined;
+        if (near) {
+          task = registerSceneFrameTask(renderer.renderStacked, {
+            priority: SCENE_FRAME_PRIORITY.projectPhysics, runOnScroll: true, runOnResize: true,
+          });
+          task.request();
+        } else {
+          renderer.deactivate();
+        }
+      });
+      return () => {
+        stop();
+        task?.dispose();
+        observer.disconnect();
+        renderer.destroy();
+      };
+    }
     arena.dataset.active = "false";
     const world = createFloatingProjectWorld(reducedMotion);
     let activeDrag: ActiveDrag | null = null;
@@ -284,10 +310,14 @@ export function useFloatingProjectStage({
       arena.removeEventListener("pointerup", handlePointerEnd);
       arena.removeEventListener("pointercancel", handlePointerEnd);
       arena.removeEventListener("keydown", handleKeyDown);
+      for (const element of Object.values(elements)) {
+        element.style.removeProperty("transform");
+        element.style.removeProperty("z-index");
+      }
       renderer.destroy();
       world.destroy();
     };
-  }, [arenaRef, layoutPreset, reducedMotion, stageId]);
+  }, [arenaRef, layoutPreset, reducedMotion, stacked, stageId]);
 }
 
 function readCardElements(arena: HTMLElement) {

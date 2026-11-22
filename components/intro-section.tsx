@@ -14,6 +14,7 @@ import {
 import { getSectionTimelineAttributes } from "@/components/portfolio-section-frame";
 import type { SectionDefinition } from "@/config/sections";
 import { introContent } from "@/config/site";
+import { TOUCH_PRIMARY_QUERY, useMediaQuery } from "@/hooks/use-media-query";
 import { getTimelineProgressPoint } from "@/lib/scene-timeline";
 import type { SceneTimeline } from "@/lib/scene-types";
 
@@ -201,6 +202,7 @@ export function IntroSection({
   section: SectionDefinition;
   timeline: SceneTimeline;
 }) {
+  const touchPrimary = useMediaQuery(TOUCH_PRIMARY_QUERY);
   const stageRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
   const measureTitleRef = useRef<HTMLHeadingElement>(null);
@@ -237,6 +239,8 @@ export function IntroSection({
   };
 
   useEffect(() => {
+    if (window.matchMedia(TOUCH_PRIMARY_QUERY).matches) return;
+
     let frameA = 0;
     let frameB = 0;
 
@@ -289,7 +293,7 @@ export function IntroSection({
       window.cancelAnimationFrame(frameA);
       window.cancelAnimationFrame(frameB);
     };
-  }, []);
+  }, [touchPrimary]);
 
   return (
     <section
@@ -299,24 +303,25 @@ export function IntroSection({
     >
       <div className="section-sticky section-sticky--intro">
         <div className="intro-stage" ref={stageRef}>
-          {!introLoadState.ready ? (
+          {touchPrimary || !introLoadState.ready ? (
             <div
               ref={measureRef}
               className="intro-copy-shell intro-copy-shell--measure"
-              aria-hidden="true"
             >
-              <IntroCopyContent
-                titleClassName="intro-title intro-copy-block"
-                subtitleClassName="intro-subtitle intro-copy-block"
-                noteClassName="intro-note intro-copy-block"
-                titleRef={measureTitleRef}
-                subtitleRef={measureSubtitleRef}
-                noteRef={measureNoteRef}
-              />
+              <motion.div style={touchPrimary ? introCopyStyle : undefined}>
+                <IntroCopyContent
+                  titleClassName="intro-title intro-copy-block"
+                  subtitleClassName="intro-subtitle intro-copy-block"
+                  noteClassName="intro-note intro-copy-block"
+                  titleRef={measureTitleRef}
+                  subtitleRef={measureSubtitleRef}
+                  noteRef={measureNoteRef}
+                />
+              </motion.div>
             </div>
           ) : null}
 
-          {introLoadState.ready ? (
+          {introLoadState.ready && !touchPrimary ? (
             <motion.div
               className="intro-copy-shell"
               initial={{

@@ -10,6 +10,7 @@ import {
   particleTextTargets,
   particleVisualConfig,
 } from "@/config/visual";
+import { TOUCH_PRIMARY_QUERY, useMediaQuery } from "@/hooks/use-media-query";
 import { useIntroCopyFrame } from "@/hooks/use-intro-copy-frame";
 import { useOutroContactFrame } from "@/hooks/use-outro-contact-frame";
 import { usePointCloudSource } from "@/hooks/use-point-cloud-source";
@@ -198,9 +199,16 @@ function PointCloudSystem({
     [backendPreference, basePositions, morphTargets, renderer, seeds],
   );
   const usingGpu = gpuRuntime !== null;
+  const touchPrimary = useMediaQuery(TOUCH_PRIMARY_QUERY);
+  // Sample the entire shape at a lower density when a touch device must
+  // simulate particles on the CPU. Keep glyph edges and the face silhouette.
+  const stride = !usingGpu && touchPrimary
+    ? Math.max(1, Math.ceil(pointCount / particleVisualConfig.density.maxTouchCpuPoints))
+    : 1;
+  const drawCount = Math.ceil(pointCount / stride);
   const cpuRuntime = useMemo(
-    () => usingGpu ? null : createCpuParticleResources(pointCount),
-    [pointCount, usingGpu],
+    () => usingGpu ? null : createCpuParticleResources(drawCount),
+    [drawCount, usingGpu],
   );
   const { geometry, material: cloudMaterial } = (gpuRuntime ?? cpuRuntime)!;
   const cloud = useMemo(() => {
@@ -279,23 +287,22 @@ function PointCloudSystem({
   }, [invalidate, isDarkTheme]);
 
   useEffect(() => {
-    if (cpuRuntime) {
-      cpuRuntime.positions.set(morphTargets.face);
-      cpuRuntime.geometry.attributes.position.needsUpdate = true;
-    }
+    // The next frame populates the entire position buffer before drawing.
     invalidate();
   }, [cpuRuntime, invalidate, morphTargets]);
 
   useEffect(() => {
     const backend = gpuRuntime ? "gpu" : "cpu";
     renderer.domElement.dataset.particleBackend = backend;
+    renderer.domElement.dataset.particleCount = String(drawCount);
 
     return () => {
       if (renderer.domElement.dataset.particleBackend === backend) {
         delete renderer.domElement.dataset.particleBackend;
+        delete renderer.domElement.dataset.particleCount;
       }
     };
-  }, [gpuRuntime, renderer]);
+  }, [drawCount, gpuRuntime, renderer]);
 
   useEffect(() => {
     const invalidationTask = registerSceneFrameTask(() => {
@@ -430,7 +437,7 @@ function PointCloudSystem({
     cloudMaterial.size =
       phaseState.cloud.pointSize *
       layoutScaleMultiplier *
-      particleVisualConfig.appearance.pointSizeScale;
+      particleVisualConfig.appearance.pointSizeScale * Math.sqrt(stride);
     const projectCardPhaseWeight = getProjectCardPhaseWeight(
       phaseState.current.key,
       phaseState.next.key,
@@ -559,12 +566,12 @@ function PointCloudSystem({
         pointerInteractionFrame.unsettled ||
         pointerParticleMotionActiveRef.current;
 
-      for (let index = 0; index < pointCount; index += 1) {
+      for (let index = 0; index < drawCount; index += 1) {
         const offset = index * 3;
         sampleParticlePosition(
           particle,
-          index,
-          offset,
+          index * stride,
+          offset * stride,
           shapeFrom,
           shapeTo,
           blend,

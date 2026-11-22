@@ -68,6 +68,7 @@ export const particleVisualConfig = {
   },
   density: {
     maxPoints: 8000,
+    maxTouchCpuPoints: 4000,
   },
   rendering: {
     // Full-screen DPR 3 canvases more than double the fill cost of DPR 2.

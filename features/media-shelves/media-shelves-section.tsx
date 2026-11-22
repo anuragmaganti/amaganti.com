@@ -9,6 +9,7 @@ import {
 import { mediaShelves } from "@/config/media-shelves";
 import type { CustomSectionRendererProps } from "@/config/custom-sections";
 import { useStagedMediaArtworkPreload } from "@/features/media-shelves/media-artwork-preloader";
+import { TOUCH_PRIMARY_QUERY, useMediaQuery } from "@/hooks/use-media-query";
 import { MediaShelf } from "@/features/media-shelves/media-shelf";
 
 export function MediaShelvesSection({
@@ -18,7 +19,8 @@ export function MediaShelvesSection({
   const stageRef = useRef<HTMLDivElement>(null);
   const headingId = `${section.id}-heading`;
 
-  useStagedMediaArtworkPreload(stageRef, mediaShelves);
+  const nativeScrolling = useMediaQuery(TOUCH_PRIMARY_QUERY);
+  useStagedMediaArtworkPreload(stageRef, mediaShelves, nativeScrolling);
 
   return (
     <section
@@ -33,7 +35,7 @@ export function MediaShelvesSection({
       </h2>
       <div ref={stageRef} className="media-shelves-stage">
         {mediaShelves.map((shelf) => (
-          <MediaShelf key={shelf.id} shelf={shelf} />
+          <MediaShelf key={shelf.id} shelf={shelf} nativeScrolling={nativeScrolling} />
         ))}
       </div>
     </section>

@@ -166,6 +166,9 @@ async function runBenchmark(browserInstance, profile) {
         observer?.disconnect();
       }
 
+      // Each sample owns the scroll position, including on pages with smooth scrolling or snap.
+      document.documentElement.style.scrollBehavior = "auto";
+      document.documentElement.style.scrollSnapType = "none";
       window.scrollTo(0, startY);
       await new Promise((resolve) => setTimeout(resolve, 300));
       const startedAt = performance.now();
@@ -190,6 +193,9 @@ async function runBenchmark(browserInstance, profile) {
       });
 
       await new Promise((resolve) => setTimeout(resolve, 150));
+      if (Math.abs(window.scrollY - endY) > 2) {
+        throw new Error("The benchmark did not reach the Skills section.");
+      }
       const bufferedLongTasks = observer?.takeRecords() ?? [];
       for (const entry of bufferedLongTasks) longTasks.push(entry.duration);
       observer?.disconnect();

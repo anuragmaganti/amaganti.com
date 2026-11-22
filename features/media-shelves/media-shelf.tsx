@@ -8,6 +8,7 @@ import type {
 } from "@/config/media/types";
 import { getMediaArtworkSources } from "@/features/media-shelves/media-artwork";
 import { decodeMediaArtwork } from "@/features/media-shelves/media-artwork-preloader";
+import { NativeShelfRail } from "@/features/media-shelves/native-shelf-rail";
 import { useMediaShelfCarousel } from "@/features/media-shelves/use-media-shelf-carousel";
 
 const UNFADED_EDGE_INSET_PX = 8;
@@ -51,11 +52,13 @@ function MediaArtworkImage({
 function ShelfItems({
   items,
   reflection = false,
+  nativeScrolling = false,
   onArtworkPointerEnter,
   onArtworkPointerLeave,
 }: {
   items: readonly MediaShelfItem[];
   reflection?: boolean;
+  nativeScrolling?: boolean;
   onArtworkPointerEnter?: (
     event: ReactPointerEvent<HTMLElement>,
     title: string,
@@ -63,7 +66,7 @@ function ShelfItems({
   onArtworkPointerLeave?: () => void;
 }) {
   return items.map((item, carouselIndex) => {
-    const itemIndex = (carouselIndex + items.length - 1) % items.length;
+    const itemIndex = nativeScrolling ? carouselIndex : (carouselIndex + items.length - 1) % items.length;
 
     if (reflection) {
       return (
@@ -85,12 +88,17 @@ function ShelfItems({
       >
         <figure
           className="media-shelf__artwork"
-          onPointerEnter={(event) =>
-            onArtworkPointerEnter?.(event, item.title)
-          }
+          onPointerEnter={onArtworkPointerEnter && ((event) =>
+            onArtworkPointerEnter(event, item.title)
+          )}
           onPointerLeave={onArtworkPointerLeave}
         >
           <MediaArtworkImage item={item} />
+          {nativeScrolling && (
+            <span className="media-shelf__reflection-item" aria-hidden>
+              <MediaArtworkImage item={item} reflection />
+            </span>
+          )}
           <figcaption className="sr-only">
             {itemIndex + 1}. {item.title}
             {item.creator ? ` by ${item.creator}` : ""}
@@ -128,7 +136,7 @@ function getCarouselItems(items: readonly MediaShelfItem[]) {
   return finalItem ? [finalItem, ...items.slice(0, -1)] : [];
 }
 
-export function MediaShelf({ shelf }: { shelf: MediaShelfDefinition }) {
+function DesktopShelfRail({ shelf }: { shelf: MediaShelfDefinition }) {
   const carouselItems = getCarouselItems(shelf.items);
   const [hoveredTitle, setHoveredTitle] = useState<HoveredTitle | null>(null);
   const {
@@ -174,6 +182,46 @@ export function MediaShelf({ shelf }: { shelf: MediaShelfDefinition }) {
   };
 
   return (
+    <>
+      <span
+        className="media-shelf__hover-title"
+        data-visible={hoveredTitle !== null}
+        style={{ left: hoveredTitle?.x ?? "50%" }}
+        aria-hidden
+      >
+        {hoveredTitle?.title}
+      </span>
+      <div
+        ref={viewportRef}
+        className="media-shelf__viewport"
+        data-dragging={isDragging}
+        role="region"
+        tabIndex={0}
+        aria-labelledby={headingId}
+        aria-describedby={instructionsId}
+        onKeyDown={onKeyDown}
+      >
+        <ol className="media-shelf__track">
+          <ShelfItems
+            items={carouselItems}
+            onArtworkPointerEnter={handleArtworkPointerEnter}
+            onArtworkPointerLeave={() => setHoveredTitle(null)}
+          />
+        </ol>
+      </div>
+      <div className="media-shelf__reflection-plane" aria-hidden>
+        <ol ref={reflectionTrackRef} className="media-shelf__reflection-track">
+          <ShelfItems items={carouselItems} reflection />
+        </ol>
+      </div>
+    </>
+  );
+}
+
+export function MediaShelf({ shelf, nativeScrolling }: { shelf: MediaShelfDefinition; nativeScrolling: boolean }) {
+  const headingId = `media-shelf-${shelf.id}-heading`;
+  const instructionsId = `media-shelf-${shelf.id}-instructions`;
+  return (
     <article
       className={`media-shelf media-shelf--${shelf.id}`}
       aria-labelledby={headingId}
@@ -190,37 +238,13 @@ export function MediaShelf({ shelf }: { shelf: MediaShelfDefinition }) {
           <span className="media-shelf__surface" />
           <span className="media-shelf__front" />
         </div>
-        <span
-          className="media-shelf__hover-title"
-          data-visible={hoveredTitle !== null}
-          style={{ left: hoveredTitle?.x ?? "50%" }}
-          aria-hidden
-        >
-          {hoveredTitle?.title}
-        </span>
-        <div
-          ref={viewportRef}
-          className="media-shelf__viewport"
-          data-dragging={isDragging}
-          role="region"
-          tabIndex={0}
-          aria-labelledby={headingId}
-          aria-describedby={instructionsId}
-          onKeyDown={onKeyDown}
-        >
-          <ol className="media-shelf__track">
-            <ShelfItems
-              items={carouselItems}
-              onArtworkPointerEnter={handleArtworkPointerEnter}
-              onArtworkPointerLeave={() => setHoveredTitle(null)}
-            />
-          </ol>
-        </div>
-        <div className="media-shelf__reflection-plane" aria-hidden>
-          <ol ref={reflectionTrackRef} className="media-shelf__reflection-track">
-            <ShelfItems items={carouselItems} reflection />
-          </ol>
-        </div>
+        {nativeScrolling ? (
+          <NativeShelfRail headingId={headingId} instructionsId={instructionsId}>
+            <ShelfItems items={shelf.items} nativeScrolling />
+          </NativeShelfRail>
+        ) : (
+          <DesktopShelfRail shelf={shelf} />
+        )}
       </div>
 
       <p className="sr-only" id={instructionsId}>

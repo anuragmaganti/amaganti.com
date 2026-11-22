@@ -2,6 +2,16 @@
   html {
     scroll-snap-type: none;
   }
+
+  .intro-copy-shell--measure {
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .scene-frame,
+  .site-chrome {
+    opacity: 1 !important;
+  }
 }
 
 @media (max-width: 900px), (max-width: 1000px) and (max-height: 500px) {
@@ -349,4 +359,76 @@
     font-size: clamp(1rem, 2.3vw, 1.4rem);
     white-space: nowrap;
   }
+}
+
+/* Give short screens as much document height as their project copy needs. */
+@media (max-width: 640px) and (max-height: 740px), (max-width: 1000px) and (max-height: 500px) {
+  .section-sticky--project,
+  .project-float-stage,
+  .project-float-arena {
+    position: relative;
+    inset: auto;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .project-float-arena {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem max(1rem, env(safe-area-inset-right))
+      calc(2rem + env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  }
+
+  .panel.project-float-card {
+    position: relative;
+    max-width: 100%;
+    transform: none;
+    cursor: auto;
+    touch-action: auto;
+  }
+
+  .panel.project-float-card--copy {
+    background-color: var(--bg);
+    width: min(100%, 36rem);
+  }
+
+  .project-card__media { max-width: 100%; }
+
+  .project-headline {
+    padding-right: 0;
+  }
+
+  .project-float-card__handle {
+    display: none;
+  }
+
+  .project-proof dd {
+    font-size: 0.875rem;
+  }
+
+  .project-proof dt,
+  .project-technologies {
+    font-size: 0.65rem;
+  }
+
+  .project-card__actions .project-action {
+    min-height: 2.75rem;
+  }
+}
+
+@media (min-width: 600px) and (max-width: 1000px) and (max-height: 500px) {
+  .project-float-arena {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+    grid-template-areas: "media copy" "actions copy";
+    align-content: center;
+    min-height: 100svh;
+  }
+
+  .project-float-card--media { grid-area: media; align-self: end; }
+  .project-float-card--copy { grid-area: copy; }
+  .project-float-card--actions { grid-area: actions; align-self: start; }
 }

@@ -101,6 +101,7 @@ function scheduleIdleWork(callback: () => void) {
 export function useStagedMediaArtworkPreload(
   stageRef: RefObject<HTMLElement | null>,
   shelves: readonly MediaShelfDefinition[],
+  nativeScrolling: boolean,
 ) {
   const { allItems, initialItems } = useMemo(
     () => ({
@@ -121,6 +122,8 @@ export function useStagedMediaArtworkPreload(
   });
 
   useEffect(() => {
+    if (nativeScrolling) return;
+
     let cancelIdleWork = () => {};
     const beginIdlePreload = () => {
       cancelIdleWork = scheduleIdleWork(preloadInitialArtwork);
@@ -153,5 +156,5 @@ export function useStagedMediaArtworkPreload(
       cancelIdleWork();
       observer.disconnect();
     };
-  }, [initialItems, stageRef]);
+  }, [initialItems, nativeScrolling, stageRef]);
 }

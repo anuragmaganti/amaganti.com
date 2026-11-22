@@ -22,6 +22,7 @@ import {
   ProjectActionLink,
   useFloatingProjectStage,
 } from "@/features/floating-projects";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import type { SceneTimeline } from "@/lib/scene-types";
 
 export function ProjectCardSection({
@@ -35,6 +36,9 @@ export function ProjectCardSection({
   progress: MotionValue<number>;
   timeline: SceneTimeline;
 }) {
+  const stacked = useMediaQuery(
+    "(max-width: 640px) and (max-height: 740px), (max-width: 1000px) and (max-height: 500px)",
+  );
   const arenaRef = useRef<HTMLDivElement>(null);
   const [sectionStart, sectionEnd] = timeline.sectionRanges[section.id];
   const sectionProgress = useTransform(
@@ -66,6 +70,7 @@ export function ProjectCardSection({
     stageId: project.slug,
     layoutPreset: project.floatingLayout,
     arenaRef,
+    stacked,
   });
 
   return (
@@ -83,12 +88,12 @@ export function ProjectCardSection({
               role="media"
               projectTitle={project.title}
               className="project-float-card--media"
-              style={{ borderColor, boxShadow: cardShadow }}
+              style={stacked ? undefined : { borderColor, boxShadow: cardShadow }}
             >
               <div className="project-card__media" style={imageSizingStyle}>
                 <motion.div
                   className="project-card__media-inner"
-                  style={{ scale: mediaScale }}
+                  style={stacked ? undefined : { scale: mediaScale }}
                 >
                   <ProjectMedia project={project} />
                 </motion.div>
@@ -99,7 +104,7 @@ export function ProjectCardSection({
               role="copy"
               projectTitle={project.title}
               className="project-float-card--copy"
-              style={{ opacity: copyOpacity, borderColor, boxShadow: cardShadow }}
+              style={stacked ? undefined : { opacity: copyOpacity, borderColor, boxShadow: cardShadow }}
             >
               <div className="project-card__scroll">
                 <div className="project-headline">
@@ -131,7 +136,7 @@ export function ProjectCardSection({
               role="actions"
               projectTitle={project.title}
               className="project-float-card--actions"
-              style={{ opacity: copyOpacity, borderColor, boxShadow: cardShadow }}
+              style={stacked ? undefined : { opacity: copyOpacity, borderColor, boxShadow: cardShadow }}
             >
               <div className="project-card__actions">
                 {project.href && project.linkLabel ? (

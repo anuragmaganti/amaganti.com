@@ -117,6 +117,24 @@ export function createFloatingProjectFrameRenderer(
       measurements.valid = false;
       measureArena(window.scrollY);
     },
+    renderStacked(frame: SceneFrameState) {
+      batchParticleObstacleUpdates(() => {
+        for (const role of floatingProjectCardRoles) {
+          const rect = elements[role].getBoundingClientRect();
+          const state = states[role];
+          const x = rect.left + rect.width / 2;
+          const y = rect.top + rect.height / 2;
+          writeParticleObstacleGeometry(
+            state.entry.geometry, x, y, rect.width, rect.height, 0, state.cornerRadius,
+          );
+          updateObstacleMotion(state, frame, x, y, 0);
+          publishParticleObstacle(
+            state.entry,
+            getViewportApproachStrength(state.entry, window.innerWidth, window.innerHeight),
+          );
+        }
+      });
+    },
     render(
       records: Map<FloatingProjectCardRole, FloatingProjectCardBody>,
       frame: SceneFrameState,

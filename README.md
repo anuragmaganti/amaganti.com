@@ -249,6 +249,8 @@ Use `particleVisualConfig` in `config/visual.ts` for owner-facing changes:
 
 - `density.maxPoints`: maximum shared point count. The shipped composition is
   characterized at `8000`.
+- `density.maxTouchCpuPoints` limits the work per frame when a touch device
+  uses the CPU particle simulation. The default draws up to 4000 points.
 - `appearance.pointSizeScale`: global point-size multiplier.
 - `appearance.noiseScale`: global procedural-noise multiplier.
 - `appearance.darkProjectOpacityMultiplier`: project-field opacity adjustment

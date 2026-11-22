@@ -21,7 +21,7 @@ async function openBookShelf(
 
   const shelf = page.locator('[data-media-shelf="books"]');
   const viewport = shelf.locator(".media-shelf__viewport");
-  const track = viewport.locator(".media-shelf__track");
+  const track = viewport.locator('.media-shelf__track:not([aria-hidden="true"])');
   const box = await viewport.boundingBox();
 
   expect(box).not.toBeNull();
@@ -55,6 +55,7 @@ test.describe("portfolio behavior contract", () => {
 
     const section = page.locator("#media-shelves-stage");
     const shelves = section.locator("[data-media-shelf]");
+    const native = await section.locator(".media-shelf__viewport--native").count() > 0;
 
     await expect(shelves).toHaveCount(mediaShelves.length);
     await expectNoHorizontalOverflow(page);
@@ -82,13 +83,15 @@ test.describe("portfolio behavior contract", () => {
     for (const shelf of mediaShelves) {
       const shelfElement = section.locator(`[data-media-shelf="${shelf.id}"]`);
       const viewport = shelfElement.locator(".media-shelf__viewport");
-      const items = shelfElement.locator(".media-shelf__item");
+      const catalog = viewport.getByRole("list");
+      await expect(catalog).toHaveCount(1);
+      const items = catalog.locator(".media-shelf__item");
       const covers = items.locator(".media-shelf__cover");
 
       await expect(shelfElement.getByRole("heading", { name: shelf.label })).toBeVisible();
       await expect(items).toHaveCount(shelf.items.length);
       await expect(
-        shelfElement.locator(".media-shelf__reflection-item"),
+        (native ? catalog : shelfElement).locator(".media-shelf__reflection-item"),
       ).toHaveCount(shelf.items.length);
       await expect(covers).toHaveCount(shelf.items.length);
       await expect(covers.first()).toHaveAttribute(
@@ -96,20 +99,21 @@ test.describe("portfolio behavior contract", () => {
         /^\/media-shelves\//,
       );
       await expect(viewport).toHaveAttribute("tabindex", "0");
-      await expect(shelfElement.locator(".media-shelf__hover-title")).toHaveCount(1);
+      await expect(shelfElement.locator(".media-shelf__hover-title")).toHaveCount(native ? 0 : 1);
 
       const geometry = await shelfElement.evaluate((element) => {
         const shelfViewport = element.querySelector<HTMLElement>(
           ".media-shelf__viewport",
         )!;
+        const catalog = shelfViewport.querySelector<HTMLElement>('.media-shelf__track:not([aria-hidden="true"])')!;
         const coverElements = Array.from(
-          element.querySelectorAll<HTMLElement>(".media-shelf__cover"),
+          catalog.querySelectorAll<HTMLElement>(".media-shelf__cover"),
         );
         const trackItems = Array.from(
-          element.querySelectorAll<HTMLElement>(".media-shelf__item"),
+          catalog.querySelectorAll<HTMLElement>(".media-shelf__item"),
         );
         const reflectionItems = Array.from(
-          element.querySelectorAll<HTMLElement>(
+          (catalog.querySelector(".media-shelf__reflection-item") ? catalog : element).querySelectorAll<HTMLElement>(
             ".media-shelf__reflection-item",
           ),
         );
@@ -133,8 +137,8 @@ test.describe("portfolio behavior contract", () => {
         const shelfRect = element.getBoundingClientRect();
         const viewportRect = shelfViewport.getBoundingClientRect();
         const reflectionPlaneRect = element
-          .querySelector<HTMLElement>(".media-shelf__reflection-plane")!
-          .getBoundingClientRect();
+          .querySelector<HTMLElement>(".media-shelf__reflection-plane")
+          ?.getBoundingClientRect();
         const surfaceRect = element
           .querySelector<HTMLElement>(".media-shelf__surface")!
           .getBoundingClientRect();
@@ -144,7 +148,7 @@ test.describe("portfolio behavior contract", () => {
         const bottoms = coverElements.map(
           (cover) => cover.getBoundingClientRect().bottom,
         );
-        const visibleCovers = coverElements.filter((cover) => {
+        const visibleCovers = Array.from(shelfViewport.querySelectorAll(".media-shelf__cover")).filter((cover) => {
           const coverRect = cover.getBoundingClientRect();
           const viewportRect = shelfViewport.getBoundingClientRect();
 
@@ -164,11 +168,16 @@ test.describe("portfolio behavior contract", () => {
           surfaceToFrontRatio: surfaceRect.height / frontRect.height,
           viewportBleedsLeft: viewportRect.left < shelfRect.left,
           viewportBleedsRight: viewportRect.right > shelfRect.right,
-          reflectionInsideShelf:
+          reflectionInsideShelf: reflectionPlaneRect ?
             reflectionPlaneRect.left >= shelfRect.left - 1 &&
             reflectionPlaneRect.right <= shelfRect.right + 1 &&
             reflectionPlaneRect.top >= Math.min(...bottoms) - 1 &&
-            reflectionPlaneRect.bottom <= surfaceRect.bottom + 1,
+            reflectionPlaneRect.bottom <= surfaceRect.bottom + 1 : reflectionItems.every((item, index) => {
+              const reflection = item.getBoundingClientRect();
+              const cover = coverElements[index].getBoundingClientRect();
+              return Math.abs(reflection.left - cover.left) < 1 &&
+                Math.abs(reflection.top - cover.bottom) < 1 && reflection.bottom <= surfaceRect.bottom + 1;
+            }),
           reflectionTrackGapSpread: measureGapSpread(reflectionItems),
           hasSoftEdgeMask:
             getComputedStyle(shelfViewport).maskImage !== "none" ||
@@ -195,6 +204,7 @@ test.describe("portfolio behavior contract", () => {
       expect(geometry.visibleCovers).toBeLessThan(shelf.items.length);
     }
 
+    if (native) return; // Native shelves load their visible images and neighbors on demand.
     const catalogItemCount = mediaShelves.reduce(
       (total, shelf) => total + shelf.items.length,
       0,
@@ -507,11 +517,13 @@ test.describe("portfolio behavior contract", () => {
     expect(stablePosition).toBeCloseTo(settledPosition, 0);
   });
 
-  test("drives the Embla rail directly from a horizontal touch gesture", async ({
+  test("scrolls the native shelf with touch and leaves vertical gestures to the page", async ({
     page,
   }, testInfo) => {
     test.skip(testInfo.project.name !== "mobile");
-    const { box, track } = await openBookShelf(page, "no-preference");
+    const { box, track, viewport } = await openBookShelf(page, "no-preference");
+    await expect(viewport).toHaveCSS("overflow-x", "auto");
+    const startScroll = await viewport.evaluate((el) => el.scrollLeft);
 
     const session = await page.context().newCDPSession(page);
     const startX = box.x + box.width * 0.68;
@@ -539,9 +551,106 @@ test.describe("portfolio behavior contract", () => {
       await session.detach();
     }
 
-    const afterTouch = (await track.boundingBox())!.x;
+    await expect.poll(() => viewport.evaluate((el) => el.scrollLeft)).toBeGreaterThan(startScroll + 20);
+    expect((await track.boundingBox())!.x).toBeLessThan(beforeTouch - 20);
+    await expect(track).toHaveCSS("transform", "none");
 
-    expect(afterTouch).toBeLessThan(beforeTouch - 20);
+    const yBefore = await page.evaluate(() => scrollY);
+    const vertical = await page.context().newCDPSession(page);
+    try {
+      await vertical.send("Input.dispatchTouchEvent", {type: "touchStart", touchPoints: [{x: startX, y}]});
+      for (let i = 1; i <= 6; i++) {
+        await vertical.send("Input.dispatchTouchEvent", {type: "touchMove", touchPoints: [{x: startX, y: y - i * 10}]});
+      }
+      await vertical.send("Input.dispatchTouchEvent", {type: "touchEnd", touchPoints: []});
+    } finally {
+      await vertical.detach();
+    }
+    await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(yBefore + 20);
+  });
+
+  for (const workerSupported of [true, false]) {
+    test(`paints project icons with the ${workerSupported ? "canvas worker" : "local fallback"}`, async ({ page }, testInfo) => {
+      test.skip(testInfo.project.name !== "mobile");
+      if (!workerSupported) {
+        await page.addInitScript(() => {
+          Object.defineProperty(HTMLCanvasElement.prototype, "transferControlToOffscreen", { value: undefined });
+        });
+      }
+      await openPortfolio(page, { reducedMotion: "no-preference" });
+      await scrollToSection(page, projects[0].slug);
+      const canvas = page.locator(`#${projects[0].slug} .project-action__orb canvas`).first();
+      await expect(canvas).toBeVisible();
+      // A transferred placeholder disallows getting a context but can be sampled as an image.
+      const transferred = await canvas.evaluate((el: HTMLCanvasElement) => {
+        try { el.getContext("2d"); return false; }
+        catch (error) { return error instanceof DOMException && error.name === "InvalidStateError"; }
+      });
+      expect(transferred).toBe(workerSupported);
+      const readFrame = () => canvas.evaluate((el: HTMLCanvasElement) => {
+        const sample = document.createElement("canvas");
+        sample.width = sample.height = 32;
+        const context = sample.getContext("2d")!;
+        context.drawImage(el, 0, 0, 32, 32);
+        return context.getImageData(0, 0, 32, 32).data.reduce(
+          (sum, value, index) => sum + value * index, 0,
+        );
+      });
+      await expect.poll(readFrame).toBeGreaterThan(0);
+      const first = await readFrame();
+      await expect.poll(readFrame).not.toBe(first);
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await page.waitForTimeout(150);
+      const still = await readFrame();
+      await page.waitForTimeout(150);
+      expect(await readFrame()).toBe(still);
+    });
+  }
+
+  test("wraps the native shelf across both catalog boundaries with the keyboard", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile");
+    const { track, viewport } = await openBookShelf(page);
+    await viewport.focus();
+    const atItem = (index: number) => viewport.evaluate((el, index) => {
+      const catalog = el.querySelector<HTMLOListElement>('ol:not([aria-hidden])')!;
+      const width = catalog.getBoundingClientRect().width;
+      const target = (catalog.children[index] as HTMLElement).offsetLeft;
+      return Math.abs(el.scrollLeft - width - target) < 2;
+    }, index);
+
+    const last = await track.locator("li").count() - 1;
+    await page.keyboard.press("Home");
+    await expect.poll(() => atItem(0)).toBe(true);
+    await page.keyboard.press("ArrowLeft");
+    await expect.poll(() => atItem(last)).toBe(true);
+    await page.keyboard.press("ArrowRight");
+    await expect.poll(() => atItem(0)).toBe(true);
+    await page.keyboard.press("End");
+    await expect.poll(() => atItem(last)).toBe(true);
+  });
+
+  test("keeps short-screen project copy and actions in the page flow", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile");
+    await openPortfolio(page);
+    for (const viewport of [{ width: 320, height: 568 }, { width: 667, height: 375 }]) {
+      await page.setViewportSize(viewport);
+      await expectNoHorizontalOverflow(page);
+      for (const project of projects) {
+        const arena = page.locator(`#${project.slug} .project-float-arena`);
+        await expect(arena.getByRole("button", { name: /^Move / })).toHaveCount(0);
+        const fits = await arena.evaluate((arena) => {
+          const bounds = arena.getBoundingClientRect();
+          const cards = Array.from(arena.querySelectorAll(".project-float-card"), (el) => el.getBoundingClientRect());
+          return cards.every((box, index) =>
+            box.left >= -1 && box.right <= innerWidth + 1 &&
+            box.top >= bounds.top - 1 && box.bottom <= bounds.bottom + 1 &&
+            cards.slice(index + 1).every((other) =>
+              box.right <= other.left + 1 || box.left >= other.right - 1 ||
+              box.bottom <= other.top + 1 || box.top >= other.bottom - 1));
+        });
+        expect(fits, project.slug).toBe(true);
+      }
+    }
   });
 
   test("uses the configured default and persists explicit themes", async ({ page }) => {
