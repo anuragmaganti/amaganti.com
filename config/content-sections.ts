@@ -50,13 +50,17 @@ export const contentSections = [
         segments: [
           {
             type: "text",
-            text: "That same fascination drew me to software engineering. I’ve spent the past two years ",
+            text: "That same fascination drew me to software engineering. I spent two years building ",
           },
           {
             type: "link",
-            text: "building a startup in the digital asset space by creating software for evolving markets.",
+            text: "NuoPact",
             href: "https://www.nuopact.com/",
             external: true,
+          },
+          {
+            type: "text",
+            text: ", a software startup in digital asset markets.",
           },
         ],
         reveal: { enter: [-0.17, -0.07], from: "right", exitTo: "left" },
@@ -66,7 +70,7 @@ export const contentSections = [
         segments: [
           {
             type: "text",
-            text: "My journey has been an extension of that same curiosity, a chance to explore how code and people interact and to build tools within systems that are constantly evolving.",
+            text: "Today I build full-stack applications at EOG Resources, where I’m learning the oil and gas business firsthand. I’m especially interested in how our energy systems will deliver the power AI needs as demand for compute grows.",
           },
         ],
         reveal: { enter: [-0.12, -0.02], from: "left", exitTo: "right" },
